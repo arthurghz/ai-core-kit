@@ -1,0 +1,303 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stallae.dev/ai-core-kit/project.manifest.schema.json",
+  "title": "ai-core-kit child project manifest",
+  "description": "FROZEN authoritative contract for a forked CHILD project's project.manifest.yaml. Generated from project.manifest.schema.yaml. schema_version 2 (O3: backend-api no longer requires contracts; contracts optional with default [] for all archetypes).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "managed"],
+  "properties": {
+    "schema_version": {
+      "description": "Major-version axis for the manifest FORMAT. const 2 in this revision.",
+      "const": 2
+    },
+    "generator": {
+      "description": "Provenance only. NONE of these fields are behavioral and NONE participate in manifest_hash.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tool": { "const": "ai-core-kit" },
+        "tool_version": { "type": "string" },
+        "rendered_at": { "type": "string" }
+      }
+    },
+    "managed": {
+      "description": "MACHINE-OWNED. /ack-init rewrites this whole subtree every run. Idempotency is structural; keys emitted in schema declaration order.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_hash", "project", "archetype", "features", "contract_gate"],
+      "properties": {
+        "manifest_hash": {
+          "description": "sha256 of the canonicalized managed: subtree (compact Canonical JSON, schema key order, excl. generator.* + hash field). Written LAST.",
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "project": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "language"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$"
+            },
+            "description": { "type": "string" },
+            "language": {
+              "type": "string",
+              "enum": ["python", "typescript", "go", "rust", "java"]
+            },
+            "runtime": { "type": "string" },
+            "package_manager": { "type": "string" },
+            "framework": {
+              "description": "Free string in the JSON-Schema. The archetype-scoped enum (backend-api: fastapi|express|nestjs|gin|axum; fullstack: next|remix|sveltekit|nuxt) is enforced INTERVIEW-SIDE via the applies_to-gated select questions, deliberately NOT here (O11).",
+              "type": "string"
+            },
+            "architecture": {
+              "type": "string",
+              "enum": ["layered", "hexagonal", "modular-monolith", "clean", "mvc"]
+            }
+          }
+        },
+        "archetype": {
+          "description": "THE BRANCH AXIS. backend-api|fullstack render deep; monorepo|library-sdk|infra-iac are schema-known minimal-core.",
+          "type": "string",
+          "enum": ["backend-api", "fullstack", "monorepo", "library-sdk", "infra-iac"]
+        },
+        "features": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hooks", "mcp", "agent_teams", "sdd_gate"],
+          "properties": {
+            "hooks": { "type": "boolean" },
+            "mcp": { "type": "boolean" },
+            "agent_teams": { "type": "boolean" },
+            "sdd_gate": { "type": "boolean" }
+          }
+        },
+        "api_first": { "type": "boolean" },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "db": {
+              "type": "string",
+              "enum": ["postgres", "mysql", "sqlite", "mongodb", "none"]
+            },
+            "orm": {
+              "type": "string",
+              "enum": ["sqlalchemy", "prisma", "drizzle", "gorm", "none"]
+            },
+            "migrations": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "tool": {
+                  "type": "string",
+                  "enum": ["alembic", "prisma-migrate", "flyway", "goose", "none"]
+                },
+                "dir": { "type": "string" }
+              }
+            }
+          }
+        },
+        "contract_gate": {
+          "description": "CONSUMED by P5 hook. exempt WINS over scope/protected_paths; unmatched files ALLOW.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "protected_paths"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["block", "warn", "off"]
+            },
+            "glob_dialect": { "const": "fnmatch" },
+            "protected_paths": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/glob" }
+            },
+            "scope": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/glob" }
+            },
+            "exempt": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/glob" }
+            },
+            "require_approval_by": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "contracts": {
+          "description": "The gate's approved? oracle. Optional for ALL archetypes; defaults to [] (O3). /ack-init seeds one stub for backend-api as a quality default.",
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/contract" }
+        },
+        "design_system": {
+          "description": "REQUIRED iff archetype == fullstack; FORBIDDEN for backend-api (both enforced via managed.allOf).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["install"],
+          "properties": {
+            "install": { "type": "boolean" },
+            "source": { "type": "string" },
+            "tokens": {
+              "description": "object<string, scalar>. KEYS MUST be snake_case ^[a-z][a-z0-9_]*$ (O4: render regex [a-z0-9_] cannot match '-').",
+              "type": "object",
+              "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+              "additionalProperties": { "$ref": "#/$defs/design_token" }
+            }
+          }
+        },
+        "telemetry": {
+          "description": "CONSUMED by the P6 OFFLINE aggregator only. No live cost here.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "attribution": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["branch_prefix", "sidecar_map"]
+                },
+                "branch_prefix": { "type": "string" },
+                "default_bucket": { "type": "string" }
+              }
+            },
+            "pricing_ref": { "type": "string" },
+            "budgets": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/telemetry_budget" }
+            }
+          }
+        },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "ci_cd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string",
+              "enum": ["github-actions", "gitlab-ci", "none"]
+            }
+          }
+        },
+        "rendered_files": {
+          "description": "OWNERSHIP LEDGER. Written by P4, read by /ack-init re-run.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+              "path": { "type": "string" },
+              "managed_block": {
+                "description": "Comment-marker string for text files (ack:managed), the literal json:<comma-keys> descriptor for JSON files (O5), or null for whole-file ownership.",
+                "type": ["string", "null"]
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "archetype": { "const": "fullstack" } },
+            "required": ["archetype"]
+          },
+          "then": {
+            "required": ["design_system"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "archetype": { "const": "backend-api" } },
+            "required": ["archetype"]
+          },
+          "then": {
+            "properties": {
+              "design_system": false
+            }
+          }
+        }
+      ]
+    },
+    "user": {
+      "description": "HUMAN-OWNED. Seeded once, never overwritten. additionalProperties permitted (user scratch space).",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "glob": {
+      "description": "An fnmatch-dialect glob pattern (** supported).",
+      "type": "string",
+      "minLength": 1
+    },
+    "contract": {
+      "description": "A contract entry: the gate's approved? oracle unit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "scope", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^C-[0-9]{3}-[a-z0-9-]+$"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/glob" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "proposed", "approved", "rejected"]
+        },
+        "path": { "type": "string" }
+      }
+    },
+    "telemetry_budget": {
+      "description": "An advisory spend ceiling. id required unless scope==project.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "usd_cap"],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "enum": ["project", "feature", "contract", "agent"]
+        },
+        "id": { "type": "string" },
+        "usd_cap": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "if": {
+        "properties": { "scope": { "not": { "const": "project" } } }
+      },
+      "then": {
+        "required": ["id"]
+      }
+    },
+    "design_token": {
+      "description": "A scalar design-system token value (string, number, or boolean).",
+      "type": ["string", "number", "boolean"]
+    }
+  }
+}

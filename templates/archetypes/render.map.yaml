@@ -1,0 +1,65 @@
+# =============================================================================
+# render.map.yaml  --  ARCHETYPE -> FILES conditional-inclusion map (P4 renderer)
+# =============================================================================
+# Authoritative, kit-shipped, READ-ONLY sidecar consumed by the P4 renderer
+# (see docs/RENDER-ENGINE.md §4.2). This is the GLOB-GUARD half of the
+# conditional-inclusion mechanism. The other half — path-segment guards of the
+# form `_when.<bool.path>/` — lives in the template tree itself and is evaluated
+# FIRST (see PRECEDENCE below). Both halves AND together.
+#
+# This single top-level map covers ALL archetypes. Each rule names the archetype
+# tree it applies to (or `*` for all) so one file documents the whole branch
+# matrix. Per-archetype roots may also ship their own scoped map, but v1 keeps
+# the mapping centralized here for auditability of the branch matrix test.
+#
+# -----------------------------------------------------------------------------
+# PRECEDENCE (authoritative — mirrors RENDER-ENGINE.md §4.2, decision O6)
+# -----------------------------------------------------------------------------
+#   1. Path-segment `_when.<bool.path>/` guards are evaluated FIRST. If any
+#      segment in a file's output path is falsy, the file is OMITTED before this
+#      map is even consulted (short-circuit). Truthy segments are stripped from
+#      the output path.
+#   2. This map's rules then apply by glob, matched against the POST-STRIP output
+#      path. A file guarded by BOTH a path-segment AND a map `when` is included
+#      only if BOTH are truthy (logical AND; neither overrides the other).
+#   3. `requires_archetype` is an ASSERTION, not a selector. If a rule's glob
+#      matches AND its `when` is truthy AND managed.archetype != requires_archetype,
+#      the render ABORTS LOUDLY (authoring bug). It NEVER silently omits.
+#   4. Any `when` whose dotted path is ABSENT under `managed:` evaluates FALSE
+#      => the file is omitted. (e.g. design_system.* under backend-api.)
+# -----------------------------------------------------------------------------
+# `when` dotted paths are resolved against `managed:` with the same lookup as
+# the §2 substitution engine. They MUST be boolean-valued.
+# =============================================================================
+
+version: 1
+
+rules:
+  # ---------------------------------------------------------------------------
+  # Cross-cutting feature files (not naturally a single conditional directory).
+  # ---------------------------------------------------------------------------
+
+  # MCP wiring: only when the child opts into a project .mcp.json.
+  - glob: "**/.mcp.json.tpl"
+    archetype: "*"
+    when: features.mcp
+
+  # Contract gate hook: the master switch. sdd_gate=false => omit the gate hook
+  # entirely (contract_gate.mode is then moot). Whole-file ownership (no .tpl).
+  - glob: "**/.claude/hooks/contract-gate"
+    archetype: "*"
+    when: features.sdd_gate
+
+  # ---------------------------------------------------------------------------
+  # Fullstack-only design system subtree.
+  # The path-segment guard `_when.design_system.install/` (in the fullstack tree)
+  # is the PRIMARY inclusion control and is evaluated first. This rule is the
+  # belt-and-suspenders ASSERTION (rule 3 above): if a design-system file is ever
+  # reached, the archetype MUST be fullstack or the render aborts. Under
+  # backend-api, design_system.* is absent => when=false => omitted before this
+  # assertion can fire (rule 4); the assertion only catches authoring mistakes.
+  # ---------------------------------------------------------------------------
+  - glob: "**/design-system/**"
+    archetype: fullstack
+    when: design_system.install
+    requires_archetype: fullstack

@@ -1,6 +1,6 @@
 # =============================================================================
 # project.manifest.schema.yaml  --  ai-core-kit CHILD manifest CONTRACT (FROZEN)
-# schema_version: 1
+# schema_version: 2
 # =============================================================================
 # This file is the FROZEN, AUTHORITATIVE contract for a forked CHILD project's
 # `project.manifest.yaml`. It is the SINGLE SOURCE OF TRUTH shared by four teams:
@@ -55,8 +55,10 @@
 # required: [schema_version, managed]
 # additionalProperties: false
 
-schema_version: 1
-# int, required, const 1 in v1. Major-version axis for the manifest FORMAT.
+schema_version: 2
+# int, required, const 2. Major-version axis for the manifest FORMAT.
+# (v1 -> v2: backend-api no longer REQUIRES contracts[]; contracts is optional
+#  with default [] for ALL archetypes -- see PER-ARCHETYPE RULES + O3.)
 # Consumers refuse a mismatched MAJOR: gate -> mode off + stderr; aggregator -> error.
 
 generator:
@@ -76,9 +78,24 @@ managed:
 
   manifest_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
   # string, required, pattern ^sha256:[0-9a-f]{64}$. Written LAST.
-  # = sha256 of the canonicalized `managed:` subtree with this field omitted.
   # On re-run: if recomputed == stored AND rendered_files unchanged on disk =>
   # "nothing to do", exit 0. Absent/garbled => treat as changed, re-render.
+  #
+  # CANONICALIZATION (authoritative, referenced by RENDER-ENGINE §5.4 and
+  # /ack-init STEP 4). The hash covers the canonicalized `managed:` subtree:
+  #   1. Take the `managed:` subtree ONLY. `generator.*` lives at TOP LEVEL (not
+  #      under managed) so it is already excluded; also exclude this
+  #      `managed.manifest_hash` field itself.
+  #   2. Serialize as JSON (not YAML, to remove YAML ambiguity): UTF-8, compact
+  #      form with NO insignificant whitespace -- separators (",", ":"); no
+  #      indentation.
+  #   3. Object key order = SCHEMA DECLARATION ORDER (the order keys appear under
+  #      `managed:` in THIS file), NOT lexical sort. Nested objects follow their
+  #      own schema-declared order. Array element order = as written by the
+  #      interview (semantically meaningful; preserved).
+  #   4. Scalars: booleans as JSON true/false; numbers in minimal JSON form;
+  #      strings JSON-escaped.
+  #   5. manifest_hash = "sha256:" + hex(sha256(canonical_json_bytes)).
 
   # ---------------------------------------------------------------------------
   # project  -- identity + stack. READ by P4 as ${VAR} render inputs.
@@ -94,6 +111,13 @@ managed:
     framework: fastapi                  # string, optional. ENUM IS ARCHETYPE-SCOPED:
                                         #   backend-api: fastapi|express|nestjs|gin|axum
                                         #   fullstack:   next|remix|sveltekit|nuxt
+                                        # NOT schema-enforced: framework is a free
+                                        #   string in the JSON-Schema. The archetype-
+                                        #   scoped enum is enforced INTERVIEW-SIDE via
+                                        #   the two applies_to-gated select questions
+                                        #   (framework_backend|framework_fullstack).
+                                        #   Schema deliberately omits per-archetype
+                                        #   if/then for framework.
     architecture: layered               # enum, optional. Drives P4 folder scaffold:
                                         #   layered|hexagonal|modular-monolith|clean|mvc
 
@@ -197,6 +221,11 @@ managed:
   # ---------------------------------------------------------------------------
   # contracts  -- the gate's "approved?" oracle. CONSUMED by P5. May be empty.
   # P4 also reads ids/paths to scaffold stub contract files.
+  # OPTIONAL for ALL archetypes; default []. NOT required for backend-api (v2; O3):
+  #   requiring a non-empty contracts[] from an interview that never asks for it is
+  #   a round-trip break, and the gate's approved-oracle gates any non-approved
+  #   scope anyway. /ack-init seeds one stub entry for backend-api as a quality
+  #   default (not a schema requirement).
   # Each item required: [id, scope, status]
   # ---------------------------------------------------------------------------
   contracts:
@@ -227,7 +256,9 @@ managed:
   #   design_system:
   #     install: true                   # bool, required
   #     source: templates/archetypes/fullstack/design-system   # string
-  #     tokens: {}                      # object, optional
+  #     tokens: {}                      # object<string, scalar>, optional.
+  #                                     #   KEYS MUST be snake_case ^[a-z][a-z0-9_]*$
+  #                                     #   (render regex [a-z0-9_] cannot match '-').
   # ---------------------------------------------------------------------------
 
   # ---------------------------------------------------------------------------
@@ -299,7 +330,9 @@ managed:
   #       then required: [design_system]            # must ship its own design system
   #   if archetype == backend-api:
   #       then properties.design_system: false      # design_system FORBIDDEN
-  #            required: [contracts]                 # API surface must be contract-bearing
+  #       (v2/O3: contracts is NO LONGER required for backend-api; it is optional
+  #        with default [] for ALL archetypes. /ack-init seeds one stub contract
+  #        entry for backend-api as a quality default, not a schema requirement.)
   #   (always) contract_gate.protected_paths: minItems 1   # gate can never be vacuous
   # ---------------------------------------------------------------------------
 
@@ -324,9 +357,9 @@ user:
 #   - protected_paths/scope/exempt cover app/** + api/** + src/** (not just src/**)
 #   - framework drawn from the fullstack enum (next)
 #
-#   schema_version: 1
+#   schema_version: 2
 #   managed:
-#     manifest_hash: "sha256:<64-hex>"
+#     manifest_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 #     project:
 #       name: acme-storefront
 #       description: Customer storefront with embedded order API
@@ -381,8 +414,8 @@ user:
 #       install: true
 #       source: templates/archetypes/fullstack/design-system
 #       tokens:
-#         color-brand: "#0b5fff"
-#         radius-base: "8px"
+#         color_brand: "#0b5fff"
+#         radius_base: "8px"
 #     telemetry:
 #       enabled: true
 #       attribution:

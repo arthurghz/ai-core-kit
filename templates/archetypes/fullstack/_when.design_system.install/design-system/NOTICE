@@ -1,0 +1,11 @@
+ai-core-kit fullstack design-system
+Example skills in this subtree are licensed under the Apache License, Version 2.0.
+
+This subtree ships ONLY Apache-2.0 example content WITH this NOTICE (manifest
+findings 21/45). It MUST NOT contain docx/pdf/pptx/xlsx-derived (proprietary
+source-available) material.
+
+Static (no .tpl): copied byte-for-byte; not substitution-scanned.
+
+TODO(P4): full attribution list of the bundled Apache-2.0 example skills is
+completed in P4 when the DEEP design-system content lands.

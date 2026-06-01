@@ -10,7 +10,7 @@
 # question's `writes_to` path. There is no LLM in the loop: same answers in =>
 # byte-identical manifest out (manifest idempotency, schema I2).
 #
-# CONTRACT WITH THE FROZEN SCHEMA (project.manifest.schema.yaml, schema_version 1)
+# CONTRACT WITH THE FROZEN SCHEMA (project.manifest.schema.yaml, schema_version 2)
 #   * Every `writes_to` below is a dotted path UNDER `managed:` and MUST resolve to
 #     a property declared in the frozen schema (global invariant I1). /ack-init
 #     cross-checks this at startup and HARD-REFUSES on any orphan key. The paths
@@ -58,7 +58,7 @@
 #     questions never fire for them (deterministic, not an LLM hope -- schema I4).
 # =============================================================================
 
-schema_target: 1   # the manifest schema_version this bank is authored against.
+schema_target: 2   # the manifest schema_version this bank is authored against.
 
 questions:
 

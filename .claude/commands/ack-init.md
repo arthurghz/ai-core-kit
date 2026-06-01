@@ -85,7 +85,7 @@ Then end the turn. This guard is non-negotiable and has no override flag.
 The manifest schema is FROZEN at `templates/manifest/project.manifest.schema.json`
 (JSON-Schema draft 2020-12, `additionalProperties:false` everywhere). It is the
 single source of truth: the interview WRITES it, the renderer/gate/telemetry READ
-it. You do not invent keys. Treat `schema_version: 1` as a hard constant.
+it. You do not invent keys. Treat `schema_version: 2` as a hard constant.
 
 **Author-time integrity check (invariant I1):** every entry in
 `templates/interview/questions.yaml` carries a `writes_to` JSON-pointer that MUST
@@ -151,14 +151,21 @@ Writing rules:
 - `user:` is seeded ONCE on first run (`notes: ""`, `overrides: {}`) and carried
   through verbatim on re-runs — NEVER overwritten (invariant I2).
 - `generator.*` is provenance only and is EXCLUDED from the hash. Set
-  `generator.tool: ai-core-kit`, `tool_version` to this kit's version, and
+  `generator.tool: ai-core-kit`, `tool_version` read from the kit's package.json
+  `"version"` (the ack install root's package.json — extract with the already-allowed
+  `jq -r .version <ack-root>/package.json`); if unreadable, write `"0.0.0-dev"`.
+  This is provenance only — it is EXCLUDED from `manifest_hash`, so its value never
+  affects the no-op fast path or byte-stability (even across kit version bumps). Set
   `rendered_at` to an ISO-8601 UTC stamp (informational, outside the hash).
 
 Apply the PER-ARCHETYPE schema rules while assembling (enforced by the schema's
 `allOf` if/then; you must produce conformant data):
 - `archetype == fullstack` ⟹ `design_system` REQUIRED (with `install`, `source`).
-- `archetype == backend-api` ⟹ `design_system` FORBIDDEN (omit it) AND
-  `contracts` REQUIRED (the API surface must be contract-bearing).
+- `archetype == backend-api` ⟹ `design_system` FORBIDDEN (omit it); `contracts`
+  seeded with one stub entry (quality default, NOT schema-required). Seed exactly:
+  `{id: "C-001-<project-slug>", scope: ["src/**"], status: draft}`. `contracts` is
+  an optional property (`default: []`) for all archetypes; it is no longer
+  schema-required for backend-api (schema_version 2).
 - ALWAYS: `contract_gate.protected_paths` has `minItems: 1` — the gate can never
   be vacuous (invariant I4 / finding 44). Write archetype-appropriate defaults:
   - backend-api: protected `src/** migrations/** openapi/**`, scope `src/**`.
@@ -167,6 +174,19 @@ Apply the PER-ARCHETYPE schema rules while assembling (enforced by the schema's
   migration globs by default.
 - `persistence.enabled: false` ⟹ omit DB sub-fields' render later; keep block valid.
 - `discovery.enabled` defaults **false** (forkability, invariant I7).
+
+**Seed non-interview structures (machine-owned defaults; not driven by any
+question):** the interview has no `writes_to` for these, so `/ack-init` writes them
+itself when assembling `managed:`:
+- `contracts[]`: backend-api seeds exactly one stub entry (see the per-archetype
+  rule above); fullstack and minimal-core seed `[]` (empty list allowed).
+- `telemetry.budgets[]`: seed `[]` (empty) unless the answers-file supplies entries;
+  budgets are advisory and optional.
+- `design_system.tokens`: fullstack only, seed `{}` (empty object) unless the
+  answers-file supplies tokens. Omitted entirely for non-fullstack (block
+  forbidden/absent).
+These seeds are part of the wholesale `managed:` regeneration and therefore
+participate in `manifest_hash`.
 
 **Validate before doing anything irreversible (invariant I6 — author-time
 fail-closed):** validate the assembled instance against
@@ -180,6 +200,17 @@ with `generator.*` excluded. Pattern `^sha256:[0-9a-f]{64}$`.
 **Idempotency short-circuit:** on a re-run, if recomputed hash == stored hash AND
 every `rendered_files[].path` is unchanged on disk, print `nothing to do` and
 exit 0 without rewriting. Absent/garbled hash ⟹ treat as changed and proceed.
+
+**Expression evaluation (deterministic, matches questions.yaml grammar):** When
+evaluating an `ask_if`/`skip_if` whose operand references a prior question id: if
+that id was not asked (gated out by `applies_to`, or skipped by its own predicate),
+its value is the UNKNOWN SENTINEL. Against the sentinel: `==` ⟹ false, `in` ⟹
+false, `!=` ⟹ true, `not_in` ⟹ true (fail-safe: skip rather than ask). Concretely
+the persistence cascade (`migrations_tool`/`migrations_dir` `ask_if
+migrations_enabled==true`) is skipped whenever `migrations_enabled` is itself
+skipped (because `persistence_enabled` was false), since `unknown == true` is false.
+A skipped question writes NOTHING to its `writes_to` target (the key is omitted from
+`managed:`, not written as null).
 
 ---
 

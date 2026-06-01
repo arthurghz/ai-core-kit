@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# =============================================================================
+# contract-gate  --  PreToolUse contract gate hook (CHILD, whole-file ack-owned)
+# =============================================================================
+# OWNERSHIP: managed_block: null (whole-file, overwritten wholesale on re-run).
+# Included only when features.sdd_gate=true (see render.map.yaml).
+# Static (no .tpl): copied byte-for-byte; literal ${CLAUDE_PROJECT_DIR} in any
+# settings entry survives because THIS file is not substitution-scanned.
+#
+# CONTRACT (frozen, from manifest schema HOOK CONTRACT):
+#   matcher:  Edit|Write|MultiEdit|NotebookEdit  (set in .claude/settings.json)
+#   runtime:  python3 (pinned)   glob_dialect: fnmatch with **
+#   reads tool_input.file_path from stdin JSON; scopes IN-SCRIPT.
+#   PRECEDENCE: exempt WINS over scope/protected_paths. Unmatched => ALLOW.
+#   APPROVED-ORACLE: a path under scope/protected_paths is allowed only if some
+#     contracts[] entry whose scope covers it has status: approved.
+#   MODES: block -> exit 2 + permissionDecision deny; warn -> exit 0 + stderr;
+#          off  -> exit 0, no output, early-return before parsing manifest body.
+#   FAIL-OPEN: missing/unparseable manifest => behave as off + stderr notice.
+#
+# TODO(P4): DEEP gate implementation (fnmatch scoping, approved-oracle walk over
+# contracts[], the three distinct mode mechanisms, fail-open manifest read) is
+# deferred to P4. This skeleton is a coherent fail-open stub that exits 0 so the
+# render + branch-matrix test has a real, executable, correctly-located hook.
+# =============================================================================
+import json
+import sys
+
+
+def main() -> int:
+    # Fail-open: never wedge a session. The DEEP gate logic lands in P4.
+    try:
+        json.load(sys.stdin)
+    except Exception:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

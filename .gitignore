@@ -1,0 +1,24 @@
+# --- Claude Code machine-local state (never commit) ---
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/**/*.lock
+.claude/hooks/logs/
+.claude/agent-memory/
+
+# --- telemetry (meta-layer): gitignored capture; aggregated reports are derived ---
+telemetry/usage.jsonl
+telemetry/*.local.*
+
+# --- scratch / scaffolding work dirs ---
+/tmp/ack-refs/
+
+# --- language ecosystems (children inherit a tailored copy via /ack-init) ---
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+target/
+.DS_Store

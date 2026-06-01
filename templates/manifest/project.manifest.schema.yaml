@@ -1,0 +1,412 @@
+# =============================================================================
+# project.manifest.schema.yaml  --  ai-core-kit CHILD manifest CONTRACT (FROZEN)
+# schema_version: 1
+# =============================================================================
+# This file is the FROZEN, AUTHORITATIVE contract for a forked CHILD project's
+# `project.manifest.yaml`. It is the SINGLE SOURCE OF TRUTH shared by four teams:
+#
+#   PRODUCER:
+#     /ack-init INTERVIEW (the ONLY writer)
+#       - writes `managed:` wholesale from templates/interview/questions.yaml
+#       - seeds `user:` once on first run, then NEVER touches it again
+#       - validates the written instance against templates/manifest/
+#         project.manifest.schema.json (JSON-Schema draft 2020-12, generated from
+#         THIS document) BEFORE any render; invalid manifest => abort, write nothing
+#
+#   CONSUMERS (read-only; none of them ever writes the manifest):
+#     P4 templates renderer  -> substitutes ${VAR} into scaffolding
+#     P5 contract gate hook   -> enforces contract_gate.* + contracts[]
+#     P6 telemetry aggregator -> buckets OFFLINE cost via telemetry.*
+#
+# DOCUMENT SHAPE
+#   This YAML is BOTH the human-readable contract AND a worked, valid backend-api
+#   instance (every live key below is real data for `acme-orders-api`). A second,
+#   fullstack instance is embedded inline as a comment block near the end so both
+#   v1-deep archetypes are demonstrated against the same schema.
+#
+# GLOBAL INVARIANTS (frozen)
+#   I1. Every templates/interview/questions.yaml entry's `writes_to` JSON-pointer
+#       MUST resolve to a property declared in this schema. /ack-init cross-checks
+#       this at startup and HARD-REFUSES on any orphan key (author-time fail-closed).
+#       This is the guarantee that interview and manifest can never silently diverge.
+#   I2. The manifest is split into `managed:` (machine-owned, regenerated every run)
+#       and `user:` (human-owned, never overwritten). No 3-way merge engine exists;
+#       idempotency is STRUCTURAL, not procedural.
+#   I3. `archetype` is the BRANCH AXIS. v1 ships backend-api + fullstack DEEPLY.
+#       monorepo | library-sdk | infra-iac are schema-known but render a minimal core.
+#   I4. contract_gate.{scope,exempt,protected_paths} are PER-ARCHETYPE BY
+#       CONSTRUCTION. /ack-init writes archetype-appropriate defaults; the schema's
+#       if/then blocks REQUIRE protected_paths to be present and non-empty so that
+#       e.g. infra-iac (no src/**) can never ship a vacuous gate (finding 44).
+#   I5. additionalProperties:false everywhere in the JSON-Schema => a typo'd key is
+#       a HARD validation error, not a silent drop.
+#   I6. Runtime fail-open, author-time fail-closed: a corrupt/missing manifest at
+#       CONSUMPTION time degrades the gate to mode `off` + stderr notice (never
+#       wedges a session); but at WRITE time an invalid manifest aborts /ack-init.
+#   I7. Forkability: `discovery.enabled` defaults OFF; the meta discovery engine is
+#       never copied into a child. Rendered child paths use ${CLAUDE_PROJECT_DIR},
+#       never `templates/` or absolute ack paths.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# TOP-LEVEL ENVELOPE
+# -----------------------------------------------------------------------------
+# required: [schema_version, managed]
+# additionalProperties: false
+
+schema_version: 1
+# int, required, const 1 in v1. Major-version axis for the manifest FORMAT.
+# Consumers refuse a mismatched MAJOR: gate -> mode off + stderr; aggregator -> error.
+
+generator:
+  # object, optional. Provenance only. NONE of these fields are behavioral and
+  # NONE participate in manifest_hash (so re-runs stay byte-stable).
+  tool: ai-core-kit                     # const "ai-core-kit"
+  tool_version: "0.4.0"                 # the ack version that last wrote this file
+  rendered_at: "2026-06-01T00:00:00Z"   # ISO-8601 UTC, informational; OUTSIDE the hash
+
+# =============================================================================
+# managed:  -- MACHINE-OWNED. /ack-init rewrites this whole subtree every run.
+# =============================================================================
+# Idempotency contract: re-running with identical answers reproduces this subtree
+# BYTE-FOR-BYTE (keys emitted in schema order; no timestamps inside managed).
+# required: [manifest_hash, project, archetype, features, contract_gate]
+managed:
+
+  manifest_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  # string, required, pattern ^sha256:[0-9a-f]{64}$. Written LAST.
+  # = sha256 of the canonicalized `managed:` subtree with this field omitted.
+  # On re-run: if recomputed == stored AND rendered_files unchanged on disk =>
+  # "nothing to do", exit 0. Absent/garbled => treat as changed, re-render.
+
+  # ---------------------------------------------------------------------------
+  # project  -- identity + stack. READ by P4 as ${VAR} render inputs.
+  # required: [name, language]
+  # ---------------------------------------------------------------------------
+  project:
+    name: acme-orders-api               # string, required. pattern ^[a-z][a-z0-9-]*$
+    description: Order intake and fulfillment API   # string, optional
+    language: python                    # enum, required:
+                                        #   python | typescript | go | rust | java
+    runtime: python3.12                 # string, optional. Exact runtime/version pin.
+    package_manager: uv                 # string, optional. e.g. uv|pip|pnpm|npm|cargo|go
+    framework: fastapi                  # string, optional. ENUM IS ARCHETYPE-SCOPED:
+                                        #   backend-api: fastapi|express|nestjs|gin|axum
+                                        #   fullstack:   next|remix|sveltekit|nuxt
+    architecture: layered               # enum, optional. Drives P4 folder scaffold:
+                                        #   layered|hexagonal|modular-monolith|clean|mvc
+
+  # ---------------------------------------------------------------------------
+  # archetype  -- THE BRANCH AXIS. required. Asked FIRST in the interview.
+  # Selects the question subset, the template set, AND which conditional schema
+  # block below becomes required (see PER-ARCHETYPE RULES at end of managed).
+  # ---------------------------------------------------------------------------
+  archetype: backend-api
+  # enum, required:
+  #   backend-api | fullstack            (v1: rendered DEEP)
+  #   monorepo | library-sdk | infra-iac (v1: schema-known, minimal-core render)
+
+  # ---------------------------------------------------------------------------
+  # features  -- stage-B opt-in toggles. Default OFF. Booleans only.
+  # READ by P4 to decide which settings.json / .mcp.json blocks to render.
+  # required: [hooks, mcp, agent_teams, sdd_gate]
+  # ---------------------------------------------------------------------------
+  features:
+    hooks: true                         # bool. install opt-in PreToolUse/PostToolUse hooks
+    mcp: false                          # bool. wire a project .mcp.json
+    agent_teams: false                  # bool. set CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+    sdd_gate: true                      # bool. MASTER SWITCH for the contract gate.
+                                        #   false => P4 omits the gate hook entirely
+                                        #   (contract_gate.mode is then moot).
+
+  # ---------------------------------------------------------------------------
+  # api_first  -- READ by P4. backend-api defaults true; fullstack ties to whether
+  # a separate api/ tier exists. true => P4 scaffolds an API spec stub and the
+  # gate's protected_paths include the API surface.
+  # ---------------------------------------------------------------------------
+  api_first: true                       # bool, optional (default per archetype)
+
+  # ---------------------------------------------------------------------------
+  # persistence  -- ONLY asked for archetypes whose questions.yaml entries are
+  # tagged applies_to: [backend-api, fullstack]. infra-iac NEVER asks DB questions
+  # (deterministic-interview guarantee, finding 4; NOT an LLM hope).
+  # enabled:false => P4 omits the entire persistence scaffold.
+  # ---------------------------------------------------------------------------
+  persistence:
+    enabled: true                       # bool. false => block omitted from render
+    db: postgres                        # enum: postgres|mysql|sqlite|mongodb|none
+    orm: sqlalchemy                     # enum: sqlalchemy|prisma|drizzle|gorm|none
+    migrations:
+      enabled: true                     # bool
+      tool: alembic                     # enum: alembic|prisma-migrate|flyway|goose|none
+      dir: migrations/                  # path. Rendered into scaffold; usually exempt.
+
+  # ---------------------------------------------------------------------------
+  # contract_gate  -- CONSUMED by P5 hook (.claude/hooks/contract-gate), read-only.
+  # required: [mode, protected_paths]
+  #
+  # HOOK CONTRACT (frozen, finding 15/16/17/18/36/37):
+  #   matcher (in settings.json):  Edit|Write|MultiEdit|NotebookEdit
+  #   runtime: python3 (pinned). glob_dialect: fnmatch with ** .
+  #   The hook reads tool_input.file_path from stdin JSON and scopes IN-SCRIPT
+  #   (PreToolUse matcher cannot scope by path).
+  #
+  #   PRECEDENCE: exempt WINS over scope/protected_paths. Unmatched files => ALLOW.
+  #   APPROVED-ORACLE: an edit whose path matches `scope` (or `protected_paths`)
+  #     is allowed only if some contracts[] entry whose `scope` covers it has
+  #     status: approved; otherwise it is gated.
+  #
+  #   THREE MODES = THREE DISTINCT MECHANISMS (finding 17 -- warn must NOT block):
+  #     block -> exit 2 AND hookSpecificOutput.permissionDecision: "deny"
+  #     warn  -> exit 0, message on stderr / additionalContext  (DOES NOT block)
+  #     off   -> exit 0, NO output; early-return BEFORE parsing the manifest body
+  #
+  #   FAIL-OPEN: manifest missing/unparseable at hook time => behave as `off` +
+  #     stderr notice; never exit 2, never wedge the session.
+  # ---------------------------------------------------------------------------
+  contract_gate:
+    mode: block                         # enum, required: block|warn|off
+    glob_dialect: fnmatch               # const "fnmatch". Documented; python3-pinned.
+
+    # PER-ARCHETYPE. Resolved from the chosen archetype's defaults at /ack-init
+    # time, then frozen here. The hook reads THIS list, never a hardcoded default.
+    # An edit to a protected path requires an approved contract covering it.
+    protected_paths:                    # list<glob>, required, minItems 1
+      - "src/**"
+      - "migrations/**"
+      - "openapi/**"
+
+    # PER-ARCHETYPE. Subset of (or overlap with) protected_paths that ALSO require
+    # an approved contract. In v1 backend-api the interview writes scope == the
+    # contract-bearing source tree; fullstack writes app/** + api/** + src/**.
+    scope:                              # list<glob>, optional (defaults to protected_paths)
+      - "src/**"
+
+    # PER-ARCHETYPE. exempt WINS over scope AND protected_paths.
+    exempt:                             # list<glob>, optional
+      - "**/*.test.*"
+      - "migrations/**"
+      - "**/__snapshots__/**"
+
+    require_approval_by:                # list<string>, optional. Advisory review
+      - "@acme/api-owners"              #   metadata: identities/roles whose sign-off
+                                        #   marks a contract `approved`. Not enforced
+                                        #   by the hook; consumed by review tooling.
+
+  # ---------------------------------------------------------------------------
+  # contracts  -- the gate's "approved?" oracle. CONSUMED by P5. May be empty.
+  # P4 also reads ids/paths to scaffold stub contract files.
+  # Each item required: [id, scope, status]
+  # ---------------------------------------------------------------------------
+  contracts:
+    - id: C-001-order-intake            # string, required, unique.
+                                        #   pattern ^C-[0-9]{3}-[a-z0-9-]+$
+      scope:                            # list<glob>, required, minItems 1
+        - "src/orders/**"
+        - "openapi/orders.yaml"
+      status: approved                  # enum: draft|proposed|approved|rejected
+      path: docs/contracts/C-001-order-intake.contract.md   # string, optional
+
+    - id: C-002-fulfillment
+      scope:
+        - "src/fulfillment/**"
+      status: draft                     # draft => edits under src/fulfillment/**
+                                        #   are GATED in mode=block (no approved
+                                        #   contract covers them yet).
+      path: docs/contracts/C-002-fulfillment.contract.md
+
+  # ---------------------------------------------------------------------------
+  # design_system  -- REQUIRED iff archetype == fullstack (schema-enforced).
+  # FORBIDDEN for backend-api (schema-enforced) -- hence ABSENT in this backend
+  # instance. When present & install:true, P4 copies
+  #   templates/archetypes/fullstack/design-system/
+  # which contains ONLY Apache-2.0 example skills WITH NOTICE (finding 21/45);
+  # NEVER docx/pdf/pptx/xlsx-derived (proprietary source-available) content.
+  # Shape (fullstack only):
+  #   design_system:
+  #     install: true                   # bool, required
+  #     source: templates/archetypes/fullstack/design-system   # string
+  #     tokens: {}                      # object, optional
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # telemetry  -- CONSUMED by the P6 OFFLINE aggregator only.
+  # NO live cost here (issue 11008): cost is computed offline from
+  #   ~/.claude/projects/**/*.jsonl usage  x  pricing.json.
+  # The manifest supplies only attribution hooks + advisory budgets.
+  # required: [enabled]
+  # ---------------------------------------------------------------------------
+  telemetry:
+    enabled: true                       # bool. false => aggregator skips this project.
+
+    attribution:                        # how the aggregator buckets spend.
+      mode: branch_prefix               # enum: branch_prefix | sidecar_map
+                                        #   branch_prefix: feature parsed from branch
+                                        #   sidecar_map:   timestamp->contract_id map
+      branch_prefix: "feat/"            # string. Required when mode==branch_prefix.
+                                        #   branch feat/<contract_id>-* => bucket=contract_id
+      default_bucket: unattributed      # string. Turns matching nothing land here
+                                        #   EXPLICITLY (never silently dropped).
+
+    pricing_ref: telemetry/pricing.json # string. Versioned model->price map. Keys per
+                                        #   model: input, output, cache_write_5m,
+                                        #   cache_write_1h, cache_read, server tools;
+                                        #   carries its own as_of date. Aggregator
+                                        #   FAILS LOUD on unknown model id / missing file.
+
+    budgets:                            # list, optional. Advisory ceilings; aggregator
+                                        #   FLAGS overage, never enforces live.
+      - scope: contract                 # enum: project|feature|contract|agent
+        id: C-001-order-intake          # string, required unless scope==project
+        usd_cap: 25.00                  # number, exclusiveMinimum 0
+      - scope: project
+        usd_cap: 200.00
+
+  # ---------------------------------------------------------------------------
+  # discovery  -- CHILD opt-in to the propose/dispose loop. Default OFF.
+  # The META discovery engine is NEVER copied into a child (forkability, I7).
+  # ---------------------------------------------------------------------------
+  discovery:
+    enabled: false                      # bool
+
+  # ---------------------------------------------------------------------------
+  # ci_cd  -- READ by P4 to select which CI workflow template to render.
+  # ---------------------------------------------------------------------------
+  ci_cd:
+    target: github-actions              # enum: github-actions|gitlab-ci|none
+
+  # ---------------------------------------------------------------------------
+  # rendered_files  -- OWNERSHIP LEDGER. WRITTEN by P4, READ by /ack-init re-run.
+  # Makes re-run authoritative about what ack owns; anything NOT listed is user
+  # territory (prevents second-run blind-overwrite, findings 2/41).
+  # managed_block: the delimited region the renderer owns INSIDE a foreign file
+  #   (e.g. settings.json, CLAUDE.md); null => whole file is ack-owned.
+  # Each item required: [path]
+  # ---------------------------------------------------------------------------
+  rendered_files:
+    - path: .claude/settings.json
+      managed_block: "ack:managed"
+    - path: CLAUDE.md
+      managed_block: "ack:managed"
+    - path: .claude/hooks/contract-gate
+      managed_block: null
+
+  # ---------------------------------------------------------------------------
+  # PER-ARCHETYPE RULES  (enforced in the JSON-Schema via managed.allOf if/then)
+  # ---------------------------------------------------------------------------
+  #   if archetype == fullstack:
+  #       then required: [design_system]            # must ship its own design system
+  #   if archetype == backend-api:
+  #       then properties.design_system: false      # design_system FORBIDDEN
+  #            required: [contracts]                 # API surface must be contract-bearing
+  #   (always) contract_gate.protected_paths: minItems 1   # gate can never be vacuous
+  # ---------------------------------------------------------------------------
+
+
+# =============================================================================
+# user:  -- HUMAN-OWNED. /ack-init seeds defaults ONCE (first run) then NEVER
+# overwrites. No consumer reads this subtree behaviorally. additionalProperties
+# permitted here (it is the user's scratch space).
+# =============================================================================
+user:
+  notes: ""                             # free-form, user-owned
+  overrides: {}                         # optional: user overrides of managed-derived
+                                        #   render vars; P4 may consult, never required.
+
+
+# =============================================================================
+# WORKED FULLSTACK INSTANCE (inline reference -- valid against this schema)
+# =============================================================================
+# Demonstrates the OTHER v1-deep archetype. Note the per-archetype differences:
+#   - archetype: fullstack
+#   - design_system block PRESENT and REQUIRED (forbidden in backend-api)
+#   - protected_paths/scope/exempt cover app/** + api/** + src/** (not just src/**)
+#   - framework drawn from the fullstack enum (next)
+#
+#   schema_version: 1
+#   managed:
+#     manifest_hash: "sha256:<64-hex>"
+#     project:
+#       name: acme-storefront
+#       description: Customer storefront with embedded order API
+#       language: typescript
+#       runtime: node20
+#       package_manager: pnpm
+#       framework: next
+#       architecture: modular-monolith
+#     archetype: fullstack
+#     features:
+#       hooks: true
+#       mcp: true
+#       agent_teams: false
+#       sdd_gate: true
+#     api_first: true
+#     persistence:
+#       enabled: true
+#       db: postgres
+#       orm: prisma
+#       migrations:
+#         enabled: true
+#         tool: prisma-migrate
+#         dir: prisma/migrations/
+#     contract_gate:
+#       mode: warn                       # warn => allow-with-warning, never blocks
+#       glob_dialect: fnmatch
+#       protected_paths:
+#         - "app/**"
+#         - "api/**"
+#         - "src/**"
+#         - "prisma/schema.prisma"
+#       scope:
+#         - "app/**"
+#         - "api/**"
+#       exempt:
+#         - "**/*.test.*"
+#         - "**/*.stories.tsx"
+#         - "prisma/migrations/**"
+#         - "**/__snapshots__/**"
+#       require_approval_by:
+#         - "@acme/web-owners"
+#     contracts:
+#       - id: C-010-checkout-ui
+#         scope: ["app/checkout/**"]
+#         status: approved
+#         path: docs/contracts/C-010-checkout-ui.contract.md
+#       - id: C-011-orders-api
+#         scope: ["api/orders/**"]
+#         status: proposed               # not approved => gated in block mode
+#         path: docs/contracts/C-011-orders-api.contract.md
+#     design_system:                     # REQUIRED for fullstack
+#       install: true
+#       source: templates/archetypes/fullstack/design-system
+#       tokens:
+#         color-brand: "#0b5fff"
+#         radius-base: "8px"
+#     telemetry:
+#       enabled: true
+#       attribution:
+#         mode: branch_prefix
+#         branch_prefix: "feat/"
+#         default_bucket: unattributed
+#       pricing_ref: telemetry/pricing.json
+#       budgets:
+#         - scope: project
+#           usd_cap: 300.00
+#     discovery:
+#       enabled: false
+#     ci_cd:
+#       target: github-actions
+#     rendered_files:
+#       - path: .claude/settings.json
+#         managed_block: "ack:managed"
+#       - path: .mcp.json
+#         managed_block: "ack:managed"
+#       - path: CLAUDE.md
+#         managed_block: "ack:managed"
+#       - path: .claude/hooks/contract-gate
+#         managed_block: null
+#   user:
+#     notes: ""
+#     overrides: {}
+# =============================================================================

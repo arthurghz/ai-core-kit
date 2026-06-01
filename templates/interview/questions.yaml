@@ -1,0 +1,520 @@
+# =============================================================================
+# templates/interview/questions.yaml
+# -----------------------------------------------------------------------------
+# The DETERMINISTIC question bank that the `/ack-init` interview drives.
+#
+# This file is the SOLE source of interview questions. /ack-init walks `questions`
+# IN ORDER, skipping any question whose `applies_to` excludes the chosen archetype
+# or whose `skip_if`/`ask_if` evaluates against EARLIER answers. The collected
+# answers are written wholesale into the manifest's `managed:` subtree at each
+# question's `writes_to` path. There is no LLM in the loop: same answers in =>
+# byte-identical manifest out (manifest idempotency, schema I2).
+#
+# CONTRACT WITH THE FROZEN SCHEMA (project.manifest.schema.yaml, schema_version 1)
+#   * Every `writes_to` below is a dotted path UNDER `managed:` and MUST resolve to
+#     a property declared in the frozen schema (global invariant I1). /ack-init
+#     cross-checks this at startup and HARD-REFUSES on any orphan key. The paths
+#     here were enumerated directly from the schema; nothing else is writable by
+#     the interview. (manifest_hash and rendered_files are written by ack/P4, NOT
+#     by the interview, so they are deliberately absent.)
+#   * `archetype` is the FIRST, mandatory question and the BRANCH AXIS (I3). Its
+#     answer narrows every subsequent question via `applies_to`.
+#
+# FIELD REFERENCE (per question)
+#   id          unique, stable, kebab-case. Referenced by ask_if/skip_if.
+#   prompt      human-facing question text.
+#   type        select | multiselect | text | bool
+#   options     for select/multiselect: list of {value, label?}. Each entry's
+#               value is what is written. For type:select the chosen value is
+#               written scalar; for multiselect a list is written.
+#   default     value pre-filled / used on non-interactive runs. For select it
+#               MUST be one of options.value; for multiselect a subset; for bool
+#               true|false; for text a string (or "" / omitted).
+#   applies_to  list of archetypes this question is asked for, or the literal
+#               "all". Archetype gating is evaluated BEFORE ask_if/skip_if.
+#   ask_if      OPTIONAL. Question is asked ONLY when the expression is true.
+#   skip_if     OPTIONAL. Question is SKIPPED when the expression is true.
+#               (ask_if and skip_if are mutually exclusive on a single question.)
+#   writes_to   dotted manifest path under managed: (the value's destination).
+#
+# EXPRESSION GRAMMAR (ask_if / skip_if) -- intentionally tiny + deterministic
+#   Operands : a prior question's id (its written value) OR a literal
+#              (bareword | 'single-quoted string' | true | false | number).
+#   Operators: ==  !=  in  not_in   (no parentheses, no boolean and/or chains)
+#   Forms    : "<id> == <literal>"
+#              "<id> != <literal>"
+#              "<id> in [a, b, c]"
+#              "<id> not_in [a, b, c]"
+#   Only EARLIER questions (by document order, after gating) may be referenced.
+#   A referenced id that was itself skipped evaluates to the unknown sentinel and
+#   makes `== / in` false and `!= / not_in` true (fail-safe: skip rather than ask).
+#
+# ARCHETYPE COVERAGE
+#   backend-api  : covered DEEPLY (persistence, api spec, contract gate, telemetry)
+#   fullstack    : covered DEEPLY (adds design_system; persistence; dual app/api gate)
+#   monorepo | library-sdk | infra-iac : schema-known, minimal-core. They answer
+#     only the universal core questions (archetype, project identity, features,
+#     contract_gate.mode + protected_paths, telemetry.enabled, ci_cd). DB/design
+#     questions never fire for them (deterministic, not an LLM hope -- schema I4).
+# =============================================================================
+
+schema_target: 1   # the manifest schema_version this bank is authored against.
+
+questions:
+
+  # ===========================================================================
+  # 0. ARCHETYPE  -- FIRST + MANDATORY. The branch axis (schema I3).
+  # ===========================================================================
+  - id: archetype
+    prompt: "What kind of project is this? (selects the question set + template set)"
+    type: select
+    options:
+      - { value: backend-api,  label: "Backend API service (deep)" }
+      - { value: fullstack,    label: "Fullstack web app + API (deep)" }
+      - { value: monorepo,     label: "Monorepo workspace (minimal core)" }
+      - { value: library-sdk,  label: "Library / SDK package (minimal core)" }
+      - { value: infra-iac,    label: "Infrastructure / IaC (minimal core)" }
+    default: backend-api
+    applies_to: all
+    writes_to: archetype
+
+  # ===========================================================================
+  # 1. PROJECT IDENTITY + STACK  -- universal, asked for every archetype.
+  #    framework + architecture are archetype-scoped (deep archetypes only).
+  # ===========================================================================
+  - id: project_name
+    prompt: "Project name (lowercase, kebab-case; used as ${PROJECT_NAME})"
+    type: text
+    default: ""
+    applies_to: all
+    writes_to: project.name
+
+  - id: project_description
+    prompt: "One-line project description"
+    type: text
+    default: ""
+    applies_to: all
+    writes_to: project.description
+
+  - id: language
+    prompt: "Primary implementation language"
+    type: select
+    options:
+      - { value: python,     label: "Python" }
+      - { value: typescript, label: "TypeScript" }
+      - { value: go,         label: "Go" }
+      - { value: rust,       label: "Rust" }
+      - { value: java,       label: "Java" }
+    default: python
+    applies_to: all
+    writes_to: project.language
+
+  - id: runtime
+    prompt: "Exact runtime / version pin (e.g. python3.12, node20). Blank to skip."
+    type: text
+    default: ""
+    applies_to: all
+    writes_to: project.runtime
+
+  # Package manager options are language-dependent; the full union is offered and
+  # the consumer simply records the chosen value (schema accepts a free string).
+  - id: package_manager
+    prompt: "Package manager"
+    type: select
+    options:
+      - { value: uv,    label: "uv (Python)" }
+      - { value: pip,   label: "pip (Python)" }
+      - { value: pnpm,  label: "pnpm (Node)" }
+      - { value: npm,   label: "npm (Node)" }
+      - { value: cargo, label: "cargo (Rust)" }
+      - { value: go,    label: "go modules (Go)" }
+    default: uv
+    applies_to: all
+    writes_to: project.package_manager
+
+  # --- framework: ENUM IS ARCHETYPE-SCOPED. Two mutually-exclusive questions, one
+  #     per deep archetype, gated by applies_to. Never asked for minimal-core. ---
+  - id: framework_backend
+    prompt: "Backend framework"
+    type: select
+    options:
+      - { value: fastapi, label: "FastAPI (Python)" }
+      - { value: express, label: "Express (Node)" }
+      - { value: nestjs,  label: "NestJS (Node)" }
+      - { value: gin,     label: "Gin (Go)" }
+      - { value: axum,    label: "Axum (Rust)" }
+    default: fastapi
+    applies_to: [backend-api]
+    writes_to: project.framework
+
+  - id: framework_fullstack
+    prompt: "Fullstack framework"
+    type: select
+    options:
+      - { value: next,      label: "Next.js" }
+      - { value: remix,     label: "Remix" }
+      - { value: sveltekit, label: "SvelteKit" }
+      - { value: nuxt,      label: "Nuxt" }
+    default: next
+    applies_to: [fullstack]
+    writes_to: project.framework
+
+  - id: architecture
+    prompt: "Architecture / folder topology (drives the P4 scaffold)"
+    type: select
+    options:
+      - { value: layered,            label: "Layered" }
+      - { value: hexagonal,          label: "Hexagonal / ports-and-adapters" }
+      - { value: modular-monolith,   label: "Modular monolith" }
+      - { value: clean,              label: "Clean architecture" }
+      - { value: mvc,                label: "MVC" }
+    default: layered
+    applies_to: [backend-api, fullstack]
+    writes_to: project.architecture
+
+  # ===========================================================================
+  # 2. FEATURES  -- stage-B opt-in toggles. Universal (every archetype answers).
+  #    sdd_gate is the master switch for the contract gate; gate questions below
+  #    are skipped when sdd_gate is false.
+  # ===========================================================================
+  - id: feat_hooks
+    prompt: "Install opt-in PreToolUse/PostToolUse hooks?"
+    type: bool
+    default: true
+    applies_to: all
+    writes_to: features.hooks
+
+  - id: feat_mcp
+    prompt: "Wire a project .mcp.json (MCP servers)?"
+    type: bool
+    default: false
+    applies_to: all
+    writes_to: features.mcp
+
+  - id: feat_agent_teams
+    prompt: "Enable experimental agent teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)?"
+    type: bool
+    default: false
+    applies_to: all
+    writes_to: features.agent_teams
+
+  - id: feat_sdd_gate
+    prompt: "Enable the spec-driven contract gate? (master switch)"
+    type: bool
+    default: true
+    applies_to: all
+    writes_to: features.sdd_gate
+
+  # ===========================================================================
+  # 3. API-FIRST  -- backend-api defaults true; fullstack ties to whether a
+  #    separate api/ tier exists. Not asked for minimal-core archetypes.
+  # ===========================================================================
+  - id: api_first
+    prompt: "API-first? (scaffold an API spec stub and contract-gate the API surface)"
+    type: bool
+    default: true
+    applies_to: [backend-api, fullstack]
+    writes_to: api_first
+
+  # ===========================================================================
+  # 4. PERSISTENCE  -- ONLY for backend-api + fullstack. Minimal-core archetypes
+  #    NEVER see a DB question. Inner DB/ORM/migration questions are skipped when
+  #    persistence is not enabled (cascade gating).
+  # ===========================================================================
+  - id: persistence_enabled
+    prompt: "Does this project own a database / persistence layer?"
+    type: bool
+    default: true
+    applies_to: [backend-api, fullstack]
+    writes_to: persistence.enabled
+
+  - id: persistence_db
+    prompt: "Database engine"
+    type: select
+    options:
+      - { value: postgres, label: "PostgreSQL" }
+      - { value: mysql,    label: "MySQL" }
+      - { value: sqlite,   label: "SQLite" }
+      - { value: mongodb,  label: "MongoDB" }
+      - { value: none,     label: "None" }
+    default: postgres
+    applies_to: [backend-api, fullstack]
+    ask_if: "persistence_enabled == true"
+    writes_to: persistence.db
+
+  - id: persistence_orm
+    prompt: "ORM / data-access layer"
+    type: select
+    options:
+      - { value: sqlalchemy, label: "SQLAlchemy (Python)" }
+      - { value: prisma,     label: "Prisma (Node)" }
+      - { value: drizzle,    label: "Drizzle (Node)" }
+      - { value: gorm,       label: "GORM (Go)" }
+      - { value: none,       label: "None / raw" }
+    default: sqlalchemy
+    applies_to: [backend-api, fullstack]
+    ask_if: "persistence_enabled == true"
+    writes_to: persistence.orm
+
+  - id: migrations_enabled
+    prompt: "Manage schema migrations?"
+    type: bool
+    default: true
+    applies_to: [backend-api, fullstack]
+    ask_if: "persistence_enabled == true"
+    writes_to: persistence.migrations.enabled
+
+  - id: migrations_tool
+    prompt: "Migration tool"
+    type: select
+    options:
+      - { value: alembic,        label: "Alembic (SQLAlchemy)" }
+      - { value: prisma-migrate, label: "Prisma Migrate" }
+      - { value: flyway,         label: "Flyway" }
+      - { value: goose,          label: "goose (Go)" }
+      - { value: none,           label: "None" }
+    default: alembic
+    applies_to: [backend-api, fullstack]
+    ask_if: "migrations_enabled == true"
+    writes_to: persistence.migrations.tool
+
+  - id: migrations_dir
+    prompt: "Migrations directory (relative path; rendered into the scaffold)"
+    type: text
+    default: "migrations/"
+    applies_to: [backend-api, fullstack]
+    ask_if: "migrations_enabled == true"
+    writes_to: persistence.migrations.dir
+
+  # ===========================================================================
+  # 5. CONTRACT GATE  -- universal mode + protected_paths (gate is NEVER vacuous,
+  #    schema I4: protected_paths minItems 1). All gate questions are skipped when
+  #    the master switch feat_sdd_gate is false. scope/exempt are deep-archetype
+  #    only (minimal-core ships mode + protected_paths and nothing finer).
+  # ===========================================================================
+  - id: gate_mode
+    prompt: "Contract gate mode (block = deny unapproved edits, warn = allow+warn, off)"
+    type: select
+    options:
+      - { value: block, label: "block (exit 2 + deny)" }
+      - { value: warn,  label: "warn (allow with stderr warning)" }
+      - { value: off,   label: "off (no enforcement)" }
+    default: block
+    applies_to: all
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.mode
+
+  # glob_dialect is a documented const in the schema ("fnmatch"); the interview
+  # still records it explicitly so the manifest is fully self-describing and the
+  # python3-pinned hook reads it rather than a hardcoded default.
+  - id: gate_glob_dialect
+    prompt: "Glob dialect for gate path matching (fixed: fnmatch with **)"
+    type: select
+    options:
+      - { value: fnmatch, label: "fnmatch (** supported)" }
+    default: fnmatch
+    applies_to: all
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.glob_dialect
+
+  # protected_paths: REQUIRED non-empty. Defaults differ per archetype, so each
+  # archetype gets a tailored default set (deterministic per-archetype, schema I4).
+  - id: gate_protected_paths_backend
+    prompt: "Protected paths for the gate (edits here need an approved contract)"
+    type: multiselect
+    options:
+      - { value: "src/**" }
+      - { value: "migrations/**" }
+      - { value: "openapi/**" }
+      - { value: "pkg/**" }
+      - { value: "internal/**" }
+    default: ["src/**", "migrations/**", "openapi/**"]
+    applies_to: [backend-api]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.protected_paths
+
+  - id: gate_protected_paths_fullstack
+    prompt: "Protected paths for the gate (edits here need an approved contract)"
+    type: multiselect
+    options:
+      - { value: "app/**" }
+      - { value: "api/**" }
+      - { value: "src/**" }
+      - { value: "prisma/schema.prisma" }
+      - { value: "openapi/**" }
+    default: ["app/**", "api/**", "src/**", "prisma/schema.prisma"]
+    applies_to: [fullstack]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.protected_paths
+
+  - id: gate_protected_paths_core
+    prompt: "Protected paths for the gate (edits here need an approved contract)"
+    type: multiselect
+    options:
+      - { value: "src/**" }
+      - { value: "packages/**" }
+      - { value: "modules/**" }
+      - { value: "lib/**" }
+      - { value: "deploy/**" }
+      - { value: "infra/**" }
+      - { value: "terraform/**" }
+    default: ["src/**"]
+    applies_to: [monorepo, library-sdk, infra-iac]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.protected_paths
+
+  # scope: contract-bearing subset (deep archetypes only). Defaults differ by axis.
+  - id: gate_scope_backend
+    prompt: "Gate scope: which protected paths ALSO require an approved contract"
+    type: multiselect
+    options:
+      - { value: "src/**" }
+      - { value: "openapi/**" }
+      - { value: "migrations/**" }
+    default: ["src/**"]
+    applies_to: [backend-api]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.scope
+
+  - id: gate_scope_fullstack
+    prompt: "Gate scope: which protected paths ALSO require an approved contract"
+    type: multiselect
+    options:
+      - { value: "app/**" }
+      - { value: "api/**" }
+      - { value: "src/**" }
+    default: ["app/**", "api/**"]
+    applies_to: [fullstack]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.scope
+
+  # exempt: WINS over scope/protected_paths. Deep archetypes only; per-axis defaults.
+  - id: gate_exempt_backend
+    prompt: "Exempt globs (never gated; wins over scope + protected_paths)"
+    type: multiselect
+    options:
+      - { value: "**/*.test.*" }
+      - { value: "migrations/**" }
+      - { value: "**/__snapshots__/**" }
+      - { value: "**/conftest.py" }
+    default: ["**/*.test.*", "migrations/**", "**/__snapshots__/**"]
+    applies_to: [backend-api]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.exempt
+
+  - id: gate_exempt_fullstack
+    prompt: "Exempt globs (never gated; wins over scope + protected_paths)"
+    type: multiselect
+    options:
+      - { value: "**/*.test.*" }
+      - { value: "**/*.stories.tsx" }
+      - { value: "prisma/migrations/**" }
+      - { value: "**/__snapshots__/**" }
+    default: ["**/*.test.*", "**/*.stories.tsx", "prisma/migrations/**", "**/__snapshots__/**"]
+    applies_to: [fullstack]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.exempt
+
+  - id: gate_require_approval_by
+    prompt: "Advisory reviewers/roles whose sign-off marks a contract approved (comma-separated identities). Blank = none."
+    type: multiselect
+    options:
+      - { value: "@owners" }
+      - { value: "@platform" }
+      - { value: "@security" }
+    default: []
+    applies_to: [backend-api, fullstack]
+    skip_if: "feat_sdd_gate == false"
+    writes_to: contract_gate.require_approval_by
+
+  # ===========================================================================
+  # 6. DESIGN SYSTEM  -- FULLSTACK ONLY (schema-enforced: required for fullstack,
+  #    FORBIDDEN for backend-api). applies_to:[fullstack] guarantees these keys
+  #    are never written for any other archetype, satisfying the schema's
+  #    properties.design_system:false branch for backend-api by construction.
+  # ===========================================================================
+  - id: design_system_install
+    prompt: "Install the bundled (Apache-2.0) design-system skills?"
+    type: bool
+    default: true
+    applies_to: [fullstack]
+    writes_to: design_system.install
+
+  - id: design_system_source
+    prompt: "Design-system template source directory"
+    type: text
+    default: "templates/archetypes/fullstack/design-system"
+    applies_to: [fullstack]
+    ask_if: "design_system_install == true"
+    writes_to: design_system.source
+
+  # ===========================================================================
+  # 7. TELEMETRY  -- enabled is universal. Attribution + budgets are asked only
+  #    when telemetry is on. Pricing ref recorded for the offline P6 aggregator.
+  # ===========================================================================
+  - id: telemetry_enabled
+    prompt: "Enable offline cost telemetry attribution for this project?"
+    type: bool
+    default: true
+    applies_to: all
+    writes_to: telemetry.enabled
+
+  - id: telemetry_attr_mode
+    prompt: "Cost attribution mode"
+    type: select
+    options:
+      - { value: branch_prefix, label: "branch_prefix (parse feature from git branch)" }
+      - { value: sidecar_map,   label: "sidecar_map (timestamp -> contract_id map)" }
+    default: branch_prefix
+    applies_to: all
+    ask_if: "telemetry_enabled == true"
+    writes_to: telemetry.attribution.mode
+
+  - id: telemetry_branch_prefix
+    prompt: "Branch prefix for attribution (e.g. feat/ => branch feat/<contract_id>-* buckets to contract_id)"
+    type: text
+    default: "feat/"
+    applies_to: all
+    ask_if: "telemetry_attr_mode == branch_prefix"
+    writes_to: telemetry.attribution.branch_prefix
+
+  - id: telemetry_default_bucket
+    prompt: "Default bucket for spend that matches no rule (explicit, never silently dropped)"
+    type: text
+    default: "unattributed"
+    applies_to: all
+    ask_if: "telemetry_enabled == true"
+    writes_to: telemetry.attribution.default_bucket
+
+  - id: telemetry_pricing_ref
+    prompt: "Path to the versioned model->price map (pricing.json)"
+    type: text
+    default: "telemetry/pricing.json"
+    applies_to: all
+    ask_if: "telemetry_enabled == true"
+    writes_to: telemetry.pricing_ref
+
+  # ===========================================================================
+  # 8. DISCOVERY  -- child opt-in to the propose/dispose loop. Default OFF
+  #    (forkability, schema I7: the meta discovery engine is never copied in).
+  # ===========================================================================
+  - id: discovery_enabled
+    prompt: "Opt this child into the discovery propose/dispose loop? (default off)"
+    type: bool
+    default: false
+    applies_to: all
+    writes_to: discovery.enabled
+
+  # ===========================================================================
+  # 9. CI/CD  -- selects which CI workflow template P4 renders. Universal.
+  # ===========================================================================
+  - id: ci_cd_target
+    prompt: "CI/CD target"
+    type: select
+    options:
+      - { value: github-actions, label: "GitHub Actions" }
+      - { value: gitlab-ci,      label: "GitLab CI" }
+      - { value: none,           label: "None" }
+    default: github-actions
+    applies_to: all
+    writes_to: ci_cd.target

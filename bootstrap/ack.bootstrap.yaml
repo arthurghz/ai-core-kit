@@ -1,0 +1,535 @@
+# =============================================================================
+# bootstrap/ack.bootstrap.yaml
+# -----------------------------------------------------------------------------
+# The DATA-DRIVEN build config for the ai-core-kit META repository.
+#
+# This file is the single, machine-readable source of truth for *how the kit
+# builds itself*. It is the config-driven evolution of docs/BOOTSTRAP.md:
+#   - `phases`  mirrors BOOTSTRAP.md §4 (the 8-phase plan), reordered to
+#               PLAN-REVIEW.md §5 (the revised sequencing recommendation).
+#   - `models` / `teams` mirror BOOTSTRAP.md §5 (the team roster).
+#   - `acceptance_tests` (per phase) mirror BOOTSTRAP.md §7 (definition of done),
+#               re-bound to the phases that actually produce/verify them.
+#
+# The `/ack-build` orchestrator command (.claude/commands/ack-build.md) READS
+# this file, validates it against bootstrap/schema/bootstrap.schema.json, and
+# drives the build phase-by-phase: for each phase it spins up a multi-agent team
+# (ground-truth -> author -> adversarial QA), reports per-phase status plus
+# cumulative OFFLINE cost (via telemetry/aggregate.py — NOT live cost; see
+# finding 8 / PLAN-REVIEW.md row 28), and STOPS at every `gate: true`.
+#
+# LAYER DISCIPLINE (never conflate): this config governs the **META** build only.
+# It does NOT define a child contract, manifest, or contract-gate — those are
+# CHILD-layer artifacts authored as templates under templates/ and rendered by
+# /ack-init. Edit this file to re-plan the META build; edit templates/ to change
+# what a forked child receives.
+#
+# CONVENTIONS
+#   * snake_case keys throughout.
+#   * `phases[].id` are the stable P1..P8 identifiers (PLAN-REVIEW.md §5 order).
+#   * `phases[].team[]` entries are role refs; each `agent` resolves to a file
+#     under .claude/agents/<agent>.md (the team roster, authored in P2).
+#   * `gate: true`  => /ack-build STOPS for human approval after the phase.
+#   * `done: true`  => the phase is already complete on disk; /ack-build SKIPS
+#                      authoring and runs only its acceptance_tests as a
+#                      regression check (resume-from-checkpoint).
+#   * `depends_on`  => hard ordering; a phase runs only after all deps are done.
+#   * Token budgets are ADVISORY targets for cost-awareness, never hard caps.
+# =============================================================================
+
+schema_version: 1
+
+meta:
+  kit_name: ai-core-kit
+  # Where /ack-build reads the kit version for run provenance. git-describe is the
+  # default (tag-derived); package_json reads the install root's package.json
+  # "version"; manual uses meta.version_override verbatim.
+  version_source: git-describe
+
+  # Reference repositories cloned for exact ground-truth extraction (BOOTSTRAP.md
+  # §1 + the verified license ledger). `vendorable` encodes the hard licensing
+  # rule: Apache-2.0 / MIT files MAY be vendored WITH attribution; source-available
+  # (the anthropics/skills doc skills) and proprietary content MUST NOT be copied,
+  # derived from, or read for derivation — reference only.
+  reference_repos:
+    - name: anthropics/skills
+      url: https://github.com/anthropics/skills
+      # Mixed: example skills are Apache-2.0 (vendorable WITH NOTICE); the doc
+      # skills docx/pdf/pptx/xlsx are source-available (NOT vendorable).
+      license: Apache-2.0
+      vendorable: true
+      notes: >-
+        Example skills (claude-api, theme-factory, algorithmic-art, ...) are
+        Apache-2.0 and may be vendored WITH a NOTICE + LICENSE.txt. The doc
+        skills (docx/pdf/pptx/xlsx) are PROPRIETARY source-available: never read,
+        copy, or derive from them. Adopt: SKILL.md frontmatter shape,
+        folder-per-skill, .claude-plugin/marketplace.json, subagent-QA pattern.
+    - name: alirezarezvani/claude-skills
+      url: https://github.com/alirezarezvani/claude-skills
+      license: MIT
+      vendorable: true
+      notes: >-
+        Adopt domain-folder taxonomy, plugin.json schema, validator/scorer/auditor
+        PATTERNS, 500-line cap. Retain MIT notice on any copied file.
+    - name: shanraisshan/claude-code-best-practice
+      url: https://github.com/shanraisshan/claude-code-best-practice
+      license: MIT
+      vendorable: true
+      notes: >-
+        Adopt hook taxonomy, Command->Agent->Skill three-tier, .claude/ layout,
+        settings.json hook schema. Re-author attributed individual tips.
+    - name: affaan-m/ecc
+      url: https://github.com/affaan-m/ecc
+      license: MIT
+      vendorable: true
+      notes: >-
+        Adopt rules hierarchy (common + language-specific), two-stage hook loader,
+        settings/identity JSON shape. Retain MIT notice on copied files.
+
+# -----------------------------------------------------------------------------
+# Model assignment by role (BOOTSTRAP.md §5 roster). A phase team entry may
+# override per-role via team[].model; absent an override, the role's default
+# below applies. `inherit` defers to the orchestrator session model.
+# Rationale: ground-truth extraction, the frozen contract, and adversarial QA are
+# load-bearing => Sonnet; mechanical authoring => Haiku; reserve Opus for the
+# orchestrator and any phase explicitly escalated.
+# -----------------------------------------------------------------------------
+models:
+  default: sonnet
+  research: sonnet      # reference extraction + license audit (must be exact)
+  template: sonnet      # archetype payload + interview branching (load-bearing)
+  contract: sonnet      # 3-mode gate hook semantics (footgun-prone, finding 2)
+  infra: haiku          # .claude/ tree, settings.json, mostly mechanical
+  discovery: haiku      # propose-only; low stakes
+  design_system: haiku  # child fullstack tokens/skills (Apache-2.0 + NOTICE)
+  qa: sonnet            # adversarial verification against acceptance tests
+
+# -----------------------------------------------------------------------------
+# Advisory token budgets. These are cost-awareness targets surfaced by /ack-build
+# alongside the OFFLINE aggregate; they are NEVER enforced as hard caps.
+# -----------------------------------------------------------------------------
+budgets:
+  per_phase_tokens: 180000
+  per_role:
+    research: 90000
+    template: 90000
+    contract: 70000
+    infra: 60000
+    discovery: 40000
+    design_system: 40000
+    qa: 70000
+
+# -----------------------------------------------------------------------------
+# Team roster (BOOTSTRAP.md §5). Each entry binds a logical role to its agent
+# file under .claude/agents/ (authored in P2) and records its layer. /ack-build
+# resolves phases[].team[].agent against this roster, then against the file.
+# -----------------------------------------------------------------------------
+teams:
+  - role: research
+    agent: research
+    layer: meta
+    responsibility: reference repos -> REFERENCES.md + extracted conventions
+  - role: discovery
+    agent: discovery
+    layer: meta
+    responsibility: /discover, sources.yaml, proposals (propose, never adopt)
+  - role: template
+    agent: template
+    layer: child-payload
+    responsibility: archetype template sets + interview branching
+  - role: contract
+    agent: contract
+    layer: child-payload
+    responsibility: contract template + 3-mode manifest-driven gate hook
+  - role: design_system
+    agent: design-system
+    layer: child-payload
+    responsibility: frontend-design / brand-guidelines-derived skills + tokens
+  - role: infra
+    agent: infra
+    layer: meta
+    responsibility: .claude/ tree, hooks, settings.json, .mcp.json, telemetry
+  - role: qa
+    agent: qa
+    layer: meta
+    responsibility: acceptance criteria, runs hooks, test-forks /ack-init
+
+# -----------------------------------------------------------------------------
+# Phases — ordered P1..P8 per PLAN-REVIEW.md §5 (revised sequencing). The
+# `gate` flags mark the BOOTSTRAP.md §4 ✋ stop points. `done` flags record
+# checkpoint state (P3 is complete on disk per the recent commits).
+# -----------------------------------------------------------------------------
+phases:
+  # ===========================================================================
+  - id: P1
+    title: Ground-truth + repo tree + license ledger
+    goal: >-
+      Clone the four reference repos for exact extraction, audit their licenses,
+      and initialize the META repo skeleton: root .gitignore, minimal pointer
+      CLAUDE.md, README.md, docs/REFERENCES.md (the license ledger), and
+      THIRD_PARTY_NOTICES.md. No child artifacts.
+    gate: true
+    done: true
+    depends_on: []
+    team:
+      - role: research
+        agent: research
+        count: 2
+        model: sonnet
+        token_budget: 90000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 40000
+    deliverables:
+      - .gitignore
+      - CLAUDE.md
+      - README.md
+      - docs/REFERENCES.md
+      - THIRD_PARTY_NOTICES.md
+    acceptance_tests:
+      - id: P1-A1
+        desc: >-
+          docs/REFERENCES.md classifies all four reference repos correctly
+          (anthropics/skills Apache-2.0 + source-available doc skills; the three
+          MIT repos) and marks docx/pdf/pptx/xlsx as NON-vendorable.
+      - id: P1-A2
+        desc: >-
+          Root .gitignore exists and covers .claude/settings.local.json, *.lock,
+          .claude/hooks/logs/, and language scratch dirs (forkability, row 13).
+      - id: P1-A3
+        desc: >-
+          CLAUDE.md is a minimal pointer file (no bloat) per BOOTSTRAP.md §2; it
+          does NOT define a contract gate (META does not gate itself, finding 12).
+
+  # ===========================================================================
+  - id: P2
+    title: .claude/ core + team agents + settings.json + frontmatter linter
+    goal: >-
+      Author the canonical .claude/{agents,commands,skills,hooks} layout; the
+      team-roster agents in .claude/agents/ (research, discovery, template,
+      contract, design-system, infra, qa); settings.json with the agent-teams
+      env flag and the v2.1.32+ prerequisite documented; and a SKILL.md/agent/
+      command frontmatter linter. Required skills/MCP are declared in PROJECT
+      settings (teammate binding caveat, row 32) — no teams.json is pre-authored.
+    gate: false
+    done: false
+    depends_on: [P1]
+    team:
+      - role: infra
+        agent: infra
+        count: 2
+        model: haiku
+        token_budget: 60000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 40000
+    deliverables:
+      - .claude/settings.json
+      - .claude/agents/research.md
+      - .claude/agents/discovery.md
+      - .claude/agents/template.md
+      - .claude/agents/contract.md
+      - .claude/agents/design-system.md
+      - .claude/agents/infra.md
+      - .claude/agents/qa.md
+      - scripts/lint-frontmatter.py
+    acceptance_tests:
+      - id: P2-A1
+        desc: >-
+          .claude/settings.json sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 under
+          env (teams are experimental + disabled by default, row 58).
+      - id: P2-A2
+        desc: >-
+          The v2.1.32+ harness prerequisite is documented (settings.json comment
+          or CLAUDE.md) so team-driven phases are not silently inert.
+      - id: P2-A3
+        desc: >-
+          Every .claude/agents/*.md carries valid name/description/model
+          frontmatter (model in haiku|sonnet|opus|inherit) and the linter passes
+          across all agents/commands/skills.
+      - id: P2-A4
+        desc: >-
+          No .claude/teams/teams.json is authored; required skills/MCP for
+          teammates are declared in project settings.json/.mcp.json (row 32).
+
+  # ===========================================================================
+  - id: P3
+    title: Frozen contract — manifest schema + questions.yaml + render engine + /ack-init
+    goal: >-
+      Freeze the CHILD contract: project.manifest.schema.{json,yaml} (draft
+      2020-12, additionalProperties:false), the deterministic interview
+      questions.yaml (writes_to -> schema), the render engine + render.map.yaml,
+      and the /ack-init command (renamed off /init; idempotent; META-repo guard).
+      This is the keystone the gate (P5) and telemetry (P6) both consume — frozen
+      before P4/P5/P6.
+    gate: true
+    done: true
+    depends_on: [P2]
+    team:
+      - role: template
+        agent: template
+        count: 2
+        model: sonnet
+        token_budget: 90000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 60000
+    deliverables:
+      - templates/manifest/project.manifest.schema.json
+      - templates/manifest/project.manifest.schema.yaml
+      - templates/interview/questions.yaml
+      - templates/archetypes/render.map.yaml
+      - .claude/commands/ack-init.md
+    acceptance_tests:
+      - id: P3-A1
+        desc: >-
+          The manifest schema is draft 2020-12 with additionalProperties:false
+          everywhere and schema_version const 2; it is the single source of truth
+          read by renderer/gate/telemetry.
+      - id: P3-A2
+        desc: >-
+          Every questions.yaml writes_to pointer resolves to a schema property
+          (invariant I1); /ack-init HARD-REFUSES on any orphan key.
+      - id: P3-A3
+        desc: >-
+          /ack-init carries a fail-closed META-repo guard (refuses when
+          templates/archetypes/ or docs/BOOTSTRAP.md is present) and is
+          re-entrant/idempotent via the managed-block merge + manifest_hash.
+      - id: P3-A4
+        desc: >-
+          Rendered child paths use ${CLAUDE_PROJECT_DIR} and child-relative paths
+          only — never templates/ or absolute ack paths (forkability, invariant I7).
+
+  # ===========================================================================
+  - id: P4
+    title: Archetype template sets (deep) + completeness rubric + license NOTICEs
+    goal: >-
+      Render backend-api and fullstack DEEP against a per-archetype completeness
+      rubric (the other three stay schema-known minimal-core). Wire branch-aware
+      interview logic end to end. Carry LICENSE.txt + a THIRD_PARTY_NOTICES entry
+      per vendored Apache-2.0 skill; assert NO doc-skill-derived files anywhere
+      under templates/archetypes/.
+    gate: true
+    done: false
+    depends_on: [P3]
+    team:
+      - role: template
+        agent: template
+        count: 2
+        model: sonnet
+        token_budget: 90000
+      - role: design_system
+        agent: design-system
+        count: 1
+        model: haiku
+        token_budget: 40000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 60000
+    deliverables:
+      - templates/archetypes/backend-api/
+      - templates/archetypes/fullstack/
+      - templates/contract/_template.contract.md
+      - templates/CLAUDE.child.md.tmpl
+    acceptance_tests:
+      - id: P4-A1
+        desc: >-
+          backend-api and fullstack each meet a required-files+skills rubric
+          (golden-file inventory); a lone CLAUDE.md stub must FAIL the rubric
+          (rows 25/26).
+      - id: P4-A2
+        desc: >-
+          Interview branches correctly: infra-iac is never asked DB questions;
+          fullstack triggers the design-system install path (BOOTSTRAP.md §7.2).
+      - id: P4-A3
+        desc: >-
+          Every vendored Apache-2.0 skill carries LICENSE.txt + a
+          THIRD_PARTY_NOTICES entry; QA asserts no docx/pdf/pptx/xlsx-derived
+          content under templates/archetypes/ (row 45).
+
+  # ===========================================================================
+  - id: P5
+    title: Contract template + 3-mode manifest-driven gate hook
+    goal: >-
+      Ship the contract template and the 3-mode (block/warn/off) contract-gate
+      hook, driven entirely by the manifest with NO hook code change between
+      modes. block MUST use exit code 2 + hookSpecificOutput.permissionDecision
+      "deny" (the load-bearing footgun, finding 2); warn is exit 0 + stderr; off
+      is exit 0 silent. FAIL-OPEN when the manifest is missing/unparseable.
+      Per-archetype protected_paths; script-side scoping; precedence exempt >
+      scope/protected_paths.
+    gate: true
+    done: false
+    depends_on: [P3, P4]
+    team:
+      - role: contract
+        agent: contract
+        count: 1
+        model: sonnet
+        token_budget: 70000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 50000
+    deliverables:
+      - templates/contract/_template.contract.md
+      - templates/hooks/contract-gate
+    acceptance_tests:
+      - id: P5-A1
+        desc: >-
+          Mode block REFUSES src/** edits without an approved contract using
+          exit 2 + permissionDecision "deny"; warn allows-with-warning; off is
+          silent — with NO hook code change between modes (BOOTSTRAP.md §7.3).
+      - id: P5-A2
+        desc: >-
+          The rendered child gate entry in settings.json uses
+          ${CLAUDE_PROJECT_DIR}/.claude/hooks/contract-gate — never a templates/
+          or absolute ack path (rows 34/56, invariant I7).
+      - id: P5-A3
+        desc: >-
+          contract_gate.protected_paths has minItems 1 (the gate is never
+          vacuous, finding 44); the hook FAILS OPEN if the manifest is
+          missing/unparseable at hook time.
+
+  # ===========================================================================
+  - id: P6
+    title: Offline telemetry aggregator + pricing.json + telemetry/README.md
+    goal: >-
+      Implement the OFFLINE transcript aggregator (telemetry/aggregate.py) that
+      reads ~/.claude/projects/**/*.jsonl x a versioned pricing.json and emits a
+      cost breakdown by feature and agent. Promote the P3 orchestrator cost stub
+      to real OFFLINE numbers. There is NO live cost API (finding 8 / row 28):
+      the aggregator never reads a live /usage endpoint and never asks a hook to
+      emit cost (PostToolUse must never exit non-zero).
+    gate: false
+    done: false
+    depends_on: [P2, P3, P5]
+    team:
+      - role: infra
+        agent: infra
+        count: 2
+        model: haiku
+        token_budget: 60000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 50000
+    deliverables:
+      - telemetry/aggregate.py
+      - telemetry/pricing.json
+      - telemetry/README.md
+      - .mcp.json
+    acceptance_tests:
+      - id: P6-A1
+        desc: >-
+          aggregate.py parses ~/.claude/projects/**/*.jsonl and sums
+          message.usage tokens (input/output/cache_creation/cache_read, incl.
+          ephemeral_5m/1h split) x the per-model rates in pricing.json.
+      - id: P6-A2
+        desc: >-
+          pricing.json carries per-model keys (input, output, cache_write_5m,
+          cache_write_1h, cache_read) plus an as_of date; a model absent from
+          pricing.json makes the aggregator FAIL LOUD (never silently $0).
+      - id: P6-A3
+        desc: >-
+          The aggregator is post-run/OFFLINE only: it does NOT read a live cost
+          API and does NOT rely on hooks emitting cost (finding 8); buckets by
+          feature + agent reconcile to the transcript total.
+
+  # ===========================================================================
+  - id: P7
+    title: Discovery — sources.yaml + proposals + scheduled-PR Action + /discover
+    goal: >-
+      Author the META discovery engine: discovery/{sources.yaml, proposals/,
+      adopted/}, a hardened split-job scheduled GitHub Action that opens
+      proposal PRs, a proposal schema, and /discover modes. Discovery PROPOSES
+      and NEVER adopts. discovery.enabled defaults OFF in children and the META
+      engine is NEVER copied into a child (forkability, invariant I7).
+    gate: false
+    done: false
+    depends_on: [P2, P3]
+    team:
+      - role: discovery
+        agent: discovery
+        count: 1
+        model: haiku
+        token_budget: 40000
+      - role: qa
+        agent: qa
+        count: 1
+        model: sonnet
+        token_budget: 40000
+    deliverables:
+      - discovery/sources.yaml
+      - discovery/proposals/.gitkeep
+      - discovery/adopted/.gitkeep
+      - .github/workflows/discover.yml
+      - .claude/commands/discover.md
+    acceptance_tests:
+      - id: P7-A1
+        desc: >-
+          /discover --scan emits at least one well-formed proposal and adopts
+          NOTHING (BOOTSTRAP.md §7.4); proposals validate against the schema.
+      - id: P7-A2
+        desc: >-
+          The scheduled Action is split-job (scan vs. open-PR), opens proposals
+          as PRs (never direct commits to main), and dedupes/kills stale ones.
+      - id: P7-A3
+        desc: >-
+          The META discovery engine is never rendered into a child; child
+          discovery.enabled defaults OFF (forkability, invariant I7).
+
+  # ===========================================================================
+  - id: P8
+    title: E2E + META-hygiene + idempotency + per-feature cost (final gate)
+    goal: >-
+      End-to-end verification: fork -> /ack-init per archetype -> gate blocks ->
+      /discover -> per-feature telemetry cost. Adds the META-hygiene invariant
+      (root + .claude/ contain only META artifacts; no concrete child manifest/
+      contract at META root, findings 35/54), two-run idempotency, and golden-
+      fixture branch tests. Acceptance test 5 runs against a CAPTURED transcript
+      (not live orchestration), per the decoupled-cost rule (row 28).
+    gate: true
+    done: false
+    depends_on: [P4, P5, P6, P7]
+    team:
+      - role: qa
+        agent: qa
+        count: 2
+        model: sonnet
+        token_budget: 70000
+    deliverables:
+      - tests/e2e/fork-init-per-archetype.md
+      - tests/e2e/meta-hygiene.md
+      - tests/fixtures/captured-transcript.jsonl
+    acceptance_tests:
+      - id: P8-A1
+        desc: >-
+          fork -> /ack-init per archetype produces a working project-specific
+          setup (templates, contract template, gate in the chosen mode, MCP
+          wired, tailored CLAUDE.md + project.manifest.yaml) with zero manual
+          file shuffling (BOOTSTRAP.md §7.1).
+      - id: P8-A2
+        desc: >-
+          Two consecutive /ack-init runs are idempotent (second run prints
+          "nothing to do"); a second pass of any phase here is byte-stable.
+      - id: P8-A3
+        desc: >-
+          META-hygiene holds: the META root and .claude/ contain only meta
+          artifacts; there is NO project.manifest.yaml or contract instance at
+          META root and the META repo wires NO contract gate (findings 12/35/54).
+      - id: P8-A4
+        desc: >-
+          Telemetry test runs against a captured transcript: the OFFLINE
+          aggregator returns a non-empty cost breakdown attributed by feature and
+          agent (BOOTSTRAP.md §7.5, decoupled from live orchestration, row 28).

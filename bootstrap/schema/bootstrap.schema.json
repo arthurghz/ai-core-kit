@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://stallae.dev/ai-core-kit/bootstrap.schema.json",
+  "title": "ai-core-kit bootstrap build config",
+  "description": "Validates bootstrap/ack.bootstrap.yaml — the DATA-DRIVEN config that drives the META self-build (the config-driven evolution of docs/BOOTSTRAP.md §4/§5/§7, reordered per PLAN-REVIEW.md §5). META-layer only: this schema must NOT describe any child contract, manifest, or contract-gate. additionalProperties:false everywhere.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "meta", "models", "teams", "phases"],
+  "properties": {
+    "schema_version": {
+      "description": "Major-version axis for the build-config FORMAT. const 1 in this revision.",
+      "const": 1
+    },
+
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kit_name", "version_source", "reference_repos"],
+      "properties": {
+        "kit_name": {
+          "description": "Constant: the kit's name.",
+          "const": "ai-core-kit"
+        },
+        "version_source": {
+          "description": "Where /ack-build reads the kit version for run provenance.",
+          "type": "string",
+          "enum": ["git-describe", "package_json", "manual"]
+        },
+        "version_override": {
+          "description": "Used verbatim only when version_source == manual.",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?$"
+        },
+        "reference_repos": {
+          "description": "Cloned reference repos for exact ground-truth extraction (BOOTSTRAP.md §1 + license ledger).",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "url", "license", "vendorable"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "format": "uri", "pattern": "^https?://" },
+              "license": {
+                "description": "License classification that constrains vendoring. source-available and proprietary are NEVER vendorable.",
+                "type": "string",
+                "enum": ["Apache-2.0", "MIT", "source-available", "proprietary"]
+              },
+              "vendorable": {
+                "description": "True only for Apache-2.0 / MIT (vendor WITH attribution). MUST be false for source-available/proprietary.",
+                "type": "boolean"
+              },
+              "notes": { "type": "string" }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "license": { "enum": ["source-available", "proprietary"] }
+                  }
+                },
+                "then": {
+                  "properties": { "vendorable": { "const": false } }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "version_source": { "const": "manual" } }, "required": ["version_source"] },
+          "then": { "required": ["version_override"] }
+        }
+      ]
+    },
+
+    "models": {
+      "description": "Default model per role (BOOTSTRAP.md §5). A phase team entry may override via team[].model.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["default"],
+      "properties": {
+        "default": { "$ref": "#/$defs/model" },
+        "research": { "$ref": "#/$defs/model" },
+        "template": { "$ref": "#/$defs/model" },
+        "contract": { "$ref": "#/$defs/model" },
+        "infra": { "$ref": "#/$defs/model" },
+        "discovery": { "$ref": "#/$defs/model" },
+        "design_system": { "$ref": "#/$defs/model" },
+        "qa": { "$ref": "#/$defs/model" }
+      }
+    },
+
+    "budgets": {
+      "description": "ADVISORY token targets surfaced for cost-awareness. Never enforced as hard caps.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["per_phase_tokens"],
+      "properties": {
+        "per_phase_tokens": { "type": "integer", "minimum": 1000 },
+        "per_role": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1000 },
+          "propertyNames": { "$ref": "#/$defs/role_name" }
+        }
+      }
+    },
+
+    "teams": {
+      "description": "Team roster (BOOTSTRAP.md §5). Binds each logical role to an agent file under .claude/agents/ and records its layer.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "agent", "layer", "responsibility"],
+        "properties": {
+          "role": { "$ref": "#/$defs/role_name" },
+          "agent": {
+            "description": "Resolves to .claude/agents/<agent>.md (the file's basename, kebab-case).",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "layer": {
+            "description": "Which layer the role serves. child-payload roles build templates/ content rendered by /ack-init; meta roles build the kit itself.",
+            "type": "string",
+            "enum": ["meta", "child-payload"]
+          },
+          "responsibility": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+
+    "phases": {
+      "description": "Ordered P1..P8 (PLAN-REVIEW.md §5 revised sequencing). Order is the array order; depends_on encodes hard prerequisites.",
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/phase" }
+    }
+  },
+
+  "$defs": {
+    "model": {
+      "type": "string",
+      "enum": ["haiku", "sonnet", "opus", "inherit"]
+    },
+    "role_name": {
+      "type": "string",
+      "enum": ["research", "template", "contract", "infra", "discovery", "design_system", "qa"]
+    },
+    "phase_id": {
+      "type": "string",
+      "enum": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"]
+    },
+    "team_member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "agent", "count"],
+      "properties": {
+        "role": { "$ref": "#/$defs/role_name" },
+        "agent": {
+          "description": "Resolves to .claude/agents/<agent>.md; SHOULD match a teams[] entry.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$"
+        },
+        "count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "model": {
+          "description": "Per-phase model override for this role; absent => models.<role> default applies.",
+          "$ref": "#/$defs/model"
+        },
+        "token_budget": {
+          "description": "Advisory per-role token target for this phase.",
+          "type": "integer",
+          "minimum": 1000
+        }
+      }
+    },
+    "acceptance_test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "desc"],
+      "properties": {
+        "id": {
+          "description": "Stable test id, conventionally <phase-id>-A<n> (e.g. P1-A1).",
+          "type": "string",
+          "pattern": "^P[1-8]-A[0-9]+$"
+        },
+        "desc": { "type": "string", "minLength": 1 }
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "goal",
+        "gate",
+        "done",
+        "depends_on",
+        "team",
+        "deliverables",
+        "acceptance_tests"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/phase_id" },
+        "title": { "type": "string", "minLength": 1 },
+        "goal": { "type": "string", "minLength": 1 },
+        "gate": {
+          "description": "true => /ack-build STOPS for human approval after the phase (a BOOTSTRAP.md §4 ✋ gate).",
+          "type": "boolean"
+        },
+        "done": {
+          "description": "true => the phase is complete on disk; /ack-build skips authoring and runs only its acceptance_tests as a regression check.",
+          "type": "boolean"
+        },
+        "depends_on": {
+          "description": "Hard prerequisites; a phase runs only after all listed phases are done. Self-reference is forbidden by convention.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/phase_id" },
+          "uniqueItems": true
+        },
+        "team": {
+          "description": "Multi-agent team for the phase (role refs into .claude/agents/).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/team_member" }
+        },
+        "deliverables": {
+          "description": "Repo-relative paths the phase produces. Directory deliverables end with a trailing slash.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "acceptance_tests": {
+          "description": "Testable definition-of-done assertions (BOOTSTRAP.md §7, re-bound to the producing phase).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/acceptance_test" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

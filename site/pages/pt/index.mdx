@@ -11,6 +11,8 @@ theme:
   pagination: false
 ---
 
+import TerminalCast from '../../components/TerminalCast'
+
 {/*
   Página de marketing LANDING independente — NÃO é uma página de docs.
   Layout raw: navbar/sidebar/toc/breadcrumb/footer estão todos desligados no
@@ -55,7 +57,10 @@ theme:
     <a className="ack-btn-secondary" href="/pt/concepts/two-layer-model">Ler a documentação</a>
   </div>
 
+  <TerminalCast />
+
   <div className="ack-code">
+    <span className="ack-code-prompt">$</span>
     <code>npx create-ack my-product --archetype fullstack</code>
   </div>
 </section>
@@ -125,6 +130,6 @@ theme:
   </div>
   <p className="ack-footer-meta">
     ai-core-kit — um padrão forkável para projetos Claude Code de nível de
-    produção. Licenciado sob Apache-2.0.
+    produção. Licenciado sob MIT.
   </p>
 </footer>

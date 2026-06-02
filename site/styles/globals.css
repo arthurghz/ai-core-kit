@@ -756,6 +756,68 @@ html.dark .ack-code {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
+/* ---- Terminal cast (asciinema-player on the hero) ---------------- *
+ * A framed "macOS terminal" card that hosts the replayable `npx create-ack`
+ * recording (components/TerminalCast.jsx). The asciinema-player CSS is loaded
+ * globally in pages/_app.jsx; these rules style only the surrounding chrome. */
+.ack-terminal {
+  width: 100%;
+  max-width: 780px;
+  margin: 1.75rem auto 0.5rem;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #0b0d14;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  text-align: left;
+}
+
+html.dark .ack-terminal {
+  background: #06070b;
+  border-color: rgba(129, 140, 248, 0.42);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+.ack-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.85rem;
+  background: linear-gradient(180deg, #161922, #11131b);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ack-terminal-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+
+.ack-terminal-dot--red { background: #ff5f57; }
+.ack-terminal-dot--amber { background: #febc2e; }
+.ack-terminal-dot--green { background: #28c840; }
+
+.ack-terminal-title {
+  margin-left: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #8b91a7;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+.ack-terminal-screen {
+  padding: 0.5rem 0.55rem 0.3rem;
+}
+
+/* Keep the player transparent so our frame's dark surface shows through. */
+.ack-terminal-screen .ap-player {
+  background: transparent !important;
+}
+
 /* ---- Section heading helper -------------------------------------- *
  * Optional centered section title used above the steps/features. */
 .ack-section-title {

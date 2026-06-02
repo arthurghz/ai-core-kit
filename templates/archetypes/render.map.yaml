@@ -65,3 +65,30 @@ rules:
     archetype: "*"
     when: design_system.install
     requires_archetype: [fullstack, saas]
+
+# =============================================================================
+# BRANCH-MATRIX NOTES (no glob rule needed; documented here for auditability)
+# =============================================================================
+# Two v3 subtrees are gated PURELY by path-segment `_when.<bool.path>/` guards in
+# the template tree (the boolean-only conditional-inclusion layer, decision O6),
+# so they need NO entry in this glob map:
+#
+#   saas app/lib/db scaffold
+#     - The opinionated SaaS integrations (Clerk auth, Stripe billing) are
+#       ALWAYS-PRESENT under templates/archetypes/saas/ (app/**, lib/**). They are
+#       not gated at all — they are the archetype. The .mcp.json (shadcn + Supabase
+#       entries) and the contract-gate hook are covered by the cross-cutting rules
+#       above (features.mcp / features.sdd_gate). shadcn within .mcp.json is further
+#       line-gated by `#ack:if design_system.install`; Supabase by
+#       `#ack:if persistence.enabled`.
+#     - The DB layer (lib/db, db/, drizzle.config.ts, lib/supabase.ts) lives under
+#       `_when.persistence.enabled/` and renders only when persistence.enabled.
+#
+#   IaC subtree  (templates/archetypes/{fullstack,saas}/_when.features.iac/)
+#     - Gated by `_when.features.iac/` (the whole infra/ tree), then provider-split
+#       by `_when.iac.is_aws/` vs `_when.iac.is_gcp/` (derived booleans; exactly one
+#       is true). Deliberately NOT mapped by a `**/infra/**` glob here: that glob
+#       would also match the fullstack persistence path `src/infra/db/**`, which is
+#       governed by `_when.persistence.enabled/`, not by features.iac. Keeping IaC
+#       on path-segment guards avoids that false match and keeps provider selection
+#       inside the deterministic boolean-only layer (no equality operator).

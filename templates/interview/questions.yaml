@@ -52,6 +52,13 @@
 # ARCHETYPE COVERAGE
 #   backend-api  : covered DEEPLY (persistence, api spec, contract gate, telemetry)
 #   fullstack    : covered DEEPLY (adds design_system; persistence; dual app/api gate)
+#   saas         : covered DEEPLY (the OPINIONATED stack: Vercel + Next.js App Router +
+#     React + shadcn/ui + Supabase Postgres + Clerk auth + Drizzle ORM + Stripe billing).
+#     Reuses the fullstack design_system + persistence + app/lib gate questions
+#     (applies_to widened to include saas) and adds three stack selects:
+#     auth.provider (default clerk), hosting.target (default vercel),
+#     billing.provider (default stripe). auth=clerk and orm=drizzle are the
+#     defaults; alternatives live in the enums.
 #   monorepo | library-sdk | infra-iac : schema-known, minimal-core. They answer
 #     only the universal core questions (archetype, project identity, features,
 #     contract_gate.mode + protected_paths, telemetry.enabled, ci_cd). DB/design
@@ -71,6 +78,7 @@ questions:
     options:
       - { value: backend-api,  label: "Backend API service (deep)" }
       - { value: fullstack,    label: "Fullstack web app + API (deep)" }
+      - { value: saas,         label: "SaaS web app (Vercel+Next+shadcn+Supabase) (deep)" }
       - { value: monorepo,     label: "Monorepo workspace (minimal core)" }
       - { value: library-sdk,  label: "Library / SDK package (minimal core)" }
       - { value: infra-iac,    label: "Infrastructure / IaC (minimal core)" }
@@ -147,16 +155,21 @@ questions:
     applies_to: [backend-api]
     writes_to: project.framework
 
+  # framework: ONE question covers fullstack AND saas (both write project.framework;
+  # the assembler reads framework_fullstack for either). For saas the stack is
+  # OPINIONATED on Next.js (React, App Router) — `next` is the pinned default and the
+  # only stack the saas archetype tree renders against; the other options exist for a
+  # generic fullstack fork. SaaS forks accept the default.
   - id: framework_fullstack
-    prompt: "Fullstack framework"
+    prompt: "Fullstack framework (saas pins Next.js / React App Router)"
     type: select
     options:
-      - { value: next,      label: "Next.js" }
+      - { value: next,      label: "Next.js (React App Router — saas default)" }
       - { value: remix,     label: "Remix" }
       - { value: sveltekit, label: "SvelteKit" }
       - { value: nuxt,      label: "Nuxt" }
     default: next
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     writes_to: project.framework
 
   - id: architecture
@@ -169,7 +182,7 @@ questions:
       - { value: clean,              label: "Clean architecture" }
       - { value: mvc,                label: "MVC" }
     default: layered
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     writes_to: project.architecture
 
   # ===========================================================================
@@ -217,42 +230,52 @@ questions:
     writes_to: api_first
 
   # ===========================================================================
-  # 4. PERSISTENCE  -- ONLY for backend-api + fullstack. Minimal-core archetypes
+  # 4. PERSISTENCE  -- backend-api + fullstack + saas. Minimal-core archetypes
   #    NEVER see a DB question. Inner DB/ORM/migration questions are skipped when
   #    persistence is not enabled (cascade gating).
+  #
+  #    SaaS NOTE: the OPINIONATED saas stack is Supabase (managed Postgres) +
+  #    Drizzle. `supabase` and `drizzle` are first-class OPTIONS here and the saas
+  #    archetype reuses these same questions (applies_to includes saas). The shared
+  #    scalar `default` stays postgres/sqlalchemy so the backend-api/fullstack
+  #    contracts are byte-stable; a saas fork SELECTS supabase + drizzle (the
+  #    recommended stack, surfaced first in the option lists). Per-archetype default
+  #    pinning would require the assembler to read a saas-specific question id (the
+  #    framework_backend/framework_fullstack multi-id pattern); see followups.
   # ===========================================================================
   - id: persistence_enabled
     prompt: "Does this project own a database / persistence layer?"
     type: bool
     default: true
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     writes_to: persistence.enabled
 
   - id: persistence_db
-    prompt: "Database engine"
+    prompt: "Database engine (saas: Supabase = managed Postgres)"
     type: select
     options:
+      - { value: supabase, label: "Supabase (managed PostgreSQL — saas default)" }
       - { value: postgres, label: "PostgreSQL" }
       - { value: mysql,    label: "MySQL" }
       - { value: sqlite,   label: "SQLite" }
       - { value: mongodb,  label: "MongoDB" }
       - { value: none,     label: "None" }
     default: postgres
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     ask_if: "persistence_enabled == true"
     writes_to: persistence.db
 
   - id: persistence_orm
-    prompt: "ORM / data-access layer"
+    prompt: "ORM / data-access layer (saas: Drizzle)"
     type: select
     options:
+      - { value: drizzle,    label: "Drizzle (Node — saas default)" }
       - { value: sqlalchemy, label: "SQLAlchemy (Python)" }
       - { value: prisma,     label: "Prisma (Node)" }
-      - { value: drizzle,    label: "Drizzle (Node)" }
       - { value: gorm,       label: "GORM (Go)" }
       - { value: none,       label: "None / raw" }
     default: sqlalchemy
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     ask_if: "persistence_enabled == true"
     writes_to: persistence.orm
 
@@ -260,7 +283,7 @@ questions:
     prompt: "Manage schema migrations?"
     type: bool
     default: true
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     ask_if: "persistence_enabled == true"
     writes_to: persistence.migrations.enabled
 
@@ -272,9 +295,9 @@ questions:
       - { value: prisma-migrate, label: "Prisma Migrate" }
       - { value: flyway,         label: "Flyway" }
       - { value: goose,          label: "goose (Go)" }
-      - { value: none,           label: "None" }
+      - { value: none,           label: "None / Drizzle-Kit (saas)" }
     default: alembic
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     ask_if: "migrations_enabled == true"
     writes_to: persistence.migrations.tool
 
@@ -282,9 +305,105 @@ questions:
     prompt: "Migrations directory (relative path; rendered into the scaffold)"
     type: text
     default: "migrations/"
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     ask_if: "migrations_enabled == true"
     writes_to: persistence.migrations.dir
+
+  # ===========================================================================
+  # 4b. SaaS STACK  -- SaaS ONLY. The OPINIONATED default is Clerk (auth) + Vercel
+  #     (hosting) + Stripe (billing); these are ALWAYS-PRESENT in the saas tree
+  #     (the schema REQUIRES auth/hosting/billing only via the saas interview, and
+  #     the assembler emits them for archetype==saas defaulting clerk/vercel/stripe).
+  #     Alternatives live in the enums for forks that swap at the edges. Each
+  #     writes_to is a v3 schema property (auth.provider | hosting.target |
+  #     billing.provider); none of these fire for any non-saas archetype.
+  # ===========================================================================
+  - id: auth_provider
+    prompt: "Authentication provider (saas default: Clerk)"
+    type: select
+    options:
+      - { value: clerk,         label: "Clerk (saas default)" }
+      - { value: supabase-auth, label: "Supabase Auth" }
+      - { value: nextauth,      label: "NextAuth / Auth.js" }
+      - { value: none,          label: "None / custom" }
+    default: clerk
+    applies_to: [saas]
+    writes_to: auth.provider
+
+  - id: hosting_target
+    prompt: "Hosting target (saas default: Vercel). Distinct from CI/CD target."
+    type: select
+    options:
+      - { value: vercel,  label: "Vercel (saas default)" }
+      - { value: netlify, label: "Netlify" }
+      - { value: fly,     label: "Fly.io" }
+      - { value: aws,     label: "AWS" }
+      - { value: gcp,     label: "GCP" }
+      - { value: none,    label: "None / self-host" }
+    default: vercel
+    applies_to: [saas]
+    writes_to: hosting.target
+
+  - id: billing_provider
+    prompt: "Billing / payments provider (saas default: Stripe)"
+    type: select
+    options:
+      - { value: stripe,      label: "Stripe (saas default)" }
+      - { value: lemonsqueezy, label: "Lemon Squeezy" }
+      - { value: none,        label: "None (no billing)" }
+    default: stripe
+    applies_to: [saas]
+    writes_to: billing.provider
+
+  # ===========================================================================
+  # 4c. INFRASTRUCTURE-AS-CODE  -- ORTHOGONAL feature toggle (NOT an archetype).
+  #     feat_iac is asked for fullstack / saas / monorepo / infra-iac; when true it
+  #     requires the managed iac block (schema allOf) and the provider+tool selects
+  #     fire (ask_if). The assembler DERIVES iac.is_aws / iac.is_gcp from iac.provider
+  #     so the boolean-only path-segment guards (_when.iac.is_aws/) pick the
+  #     per-provider subtree WITHOUT an equality operator in the render engine.
+  #
+  #     backend-api is DELIBERATELY excluded from the auto-firing question: the
+  #     frozen Phase C contract test asserts a default backend-api manifest carries
+  #     NO features.iac key (byte-stability), and a plain bool question with
+  #     default:false would always emit features.iac:false once fired. backend-api
+  #     forks still opt into IaC through the documented raw-answer / sidecar path
+  #     (the assembler's else-if branch reads answers.feat_iac / iac_provider /
+  #     iac_tool directly) — interview parity for backend-api needs the assembler to
+  #     emit features.iac only when TRUE (see followups), which is out of this
+  #     file's scope. The SaaS-centric archetypes (saas, fullstack) get full
+  #     interview support here.
+  # ===========================================================================
+  - id: feat_iac
+    prompt: "Provision infrastructure-as-code (Terraform/Pulumi/...) in this repo?"
+    type: bool
+    default: false
+    applies_to: [fullstack, saas, monorepo, infra-iac]
+    writes_to: features.iac
+
+  - id: iac_provider
+    prompt: "Cloud provider for the IaC stack"
+    type: select
+    options:
+      - { value: aws, label: "AWS" }
+      - { value: gcp, label: "GCP" }
+    default: aws
+    applies_to: [fullstack, saas, monorepo, infra-iac]
+    ask_if: "feat_iac == true"
+    writes_to: iac.provider
+
+  - id: iac_tool
+    prompt: "IaC tool"
+    type: select
+    options:
+      - { value: terraform,      label: "Terraform (default)" }
+      - { value: pulumi,         label: "Pulumi" }
+      - { value: cloudformation, label: "CloudFormation (AWS)" }
+      - { value: cdk,            label: "AWS CDK" }
+    default: terraform
+    applies_to: [fullstack, saas, monorepo, infra-iac]
+    ask_if: "feat_iac == true"
+    writes_to: iac.tool
 
   # ===========================================================================
   # 5. CONTRACT GATE  -- universal mode + protected_paths (gate is NEVER vacuous,
@@ -333,6 +452,10 @@ questions:
     skip_if: "feat_sdd_gate == false"
     writes_to: contract_gate.protected_paths
 
+  # Shared by fullstack AND saas (the assembler reads gate_protected_paths_fullstack
+  # for both). The default stays fullstack-safe (byte-stable); the saas-relevant
+  # globs (app/**, lib/**, db/**) are first-class OPTIONS a saas fork selects —
+  # app/** + src/** in the default already cover the saas App Router surface.
   - id: gate_protected_paths_fullstack
     prompt: "Protected paths for the gate (edits here need an approved contract)"
     type: multiselect
@@ -340,10 +463,12 @@ questions:
       - { value: "app/**" }
       - { value: "api/**" }
       - { value: "src/**" }
+      - { value: "lib/**" }
+      - { value: "db/**" }
       - { value: "prisma/schema.prisma" }
       - { value: "openapi/**" }
     default: ["app/**", "api/**", "src/**", "prisma/schema.prisma"]
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     skip_if: "feat_sdd_gate == false"
     writes_to: contract_gate.protected_paths
 
@@ -383,8 +508,10 @@ questions:
       - { value: "app/**" }
       - { value: "api/**" }
       - { value: "src/**" }
+      - { value: "lib/**" }
+      - { value: "db/**" }
     default: ["app/**", "api/**"]
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     skip_if: "feat_sdd_gate == false"
     writes_to: contract_gate.scope
 
@@ -409,9 +536,10 @@ questions:
       - { value: "**/*.test.*" }
       - { value: "**/*.stories.tsx" }
       - { value: "prisma/migrations/**" }
+      - { value: "supabase/migrations/**" }
       - { value: "**/__snapshots__/**" }
     default: ["**/*.test.*", "**/*.stories.tsx", "prisma/migrations/**", "**/__snapshots__/**"]
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     skip_if: "feat_sdd_gate == false"
     writes_to: contract_gate.exempt
 
@@ -423,21 +551,22 @@ questions:
       - { value: "@platform" }
       - { value: "@security" }
     default: []
-    applies_to: [backend-api, fullstack]
+    applies_to: [backend-api, fullstack, saas]
     skip_if: "feat_sdd_gate == false"
     writes_to: contract_gate.require_approval_by
 
   # ===========================================================================
-  # 6. DESIGN SYSTEM  -- FULLSTACK ONLY (schema-enforced: required for fullstack,
-  #    FORBIDDEN for backend-api). applies_to:[fullstack] guarantees these keys
-  #    are never written for any other archetype, satisfying the schema's
-  #    properties.design_system:false branch for backend-api by construction.
+  # 6. DESIGN SYSTEM  -- FULLSTACK + SaaS (schema-enforced: REQUIRED for both,
+  #    FORBIDDEN for backend-api). applies_to:[fullstack, saas] guarantees these
+  #    keys are never written for any other archetype, satisfying the schema's
+  #    properties.design_system:false branch for backend-api by construction. saas
+  #    reuses the fullstack design-system payload (shadcn/ui + OKLch theme) wholesale.
   # ===========================================================================
   - id: design_system_install
     prompt: "Install the bundled (Apache-2.0) design-system skills?"
     type: bool
     default: true
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     writes_to: design_system.install
 
   - id: design_system_source
@@ -450,7 +579,7 @@ questions:
     # assertion (§6, fail-closed) rejects the rendered child file.
     type: text
     default: "design-system"
-    applies_to: [fullstack]
+    applies_to: [fullstack, saas]
     ask_if: "design_system_install == true"
     writes_to: design_system.source
 

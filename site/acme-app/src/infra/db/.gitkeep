@@ -1,0 +1,4 @@
+# acme-app — persistence layer (db: postgres, orm: sqlalchemy)
+# Path-segment guard: _when.persistence.enabled/ => rendered only when
+# persistence.enabled is truthy (segment stripped => src/infra/db/).
+# TODO(P4): DEEP persistence scaffold deferred to P4.

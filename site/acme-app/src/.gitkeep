@@ -1,0 +1,2 @@
+# acme-app — shared source root (layered, fullstack)
+# Protected path src/**. TODO(P4): DEEP shared-module scaffold deferred to P4.

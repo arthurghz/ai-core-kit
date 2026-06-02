@@ -1,0 +1,133 @@
+---
+title: Commands Reference
+description: Every slash command ai-core-kit ships — the two kit commands (/ack-build, /ack-init) and the user-invocable CHILD commands rendered into a fork.
+---
+
+# Commands Reference
+
+ai-core-kit ships two kinds of slash command, split along the [META vs CHILD boundary](/concepts/two-layer-model):
+
+- **META commands** live in the kit's own `.claude/commands/` and operate on the kit itself or on a fork during setup. There are exactly two: `/ack-build` (build the kit) and `/ack-init` (initialize a fork).
+- **CHILD commands** live under `templates/commands/` and are rendered into a fork by `/ack-init`. These are the day-to-day delivery commands a child project's developers invoke: the RPI trio plus the product-planning pair.
+
+User-invocable skills (`skill-creator`, `skill-validator`, `mcp-builder`, `cost-telemetry`) are model- or human-invoked rather than slash commands; they are listed at the end for completeness and detailed in the [Skills Catalog](/features/skills-catalog).
+
+---
+
+## META commands
+
+### `/ack-build` — META build orchestrator
+
+Orchestrates the kit's own self-build from `bootstrap/ack.bootstrap.yaml`. Reads the data-driven build config, validates it against its JSON-Schema, then drives the build **phase-by-phase** with a multi-agent team per phase (ground-truth -> author -> adversarial QA), surfacing per-phase status and cumulative **offline** cost, and stopping at every gate for approval.
+
+> Runs **only** inside the ai-core-kit META repo. It refuses unless both META sentinels are present (`bootstrap/ack.bootstrap.yaml` and `docs/BOOTSTRAP.md`). It is the inverse of `/ack-init`.
+
+**Arguments** (all optional):
+
+| Flag | Effect |
+|---|---|
+| `--phase <Pn>` | Run exactly one phase (still honors its `depends_on`; aborts if a dependency is not `done`). |
+| `--from <Pn>` | Start the sweep at phase `Pn`; skip already-`done` earlier phases but still run their acceptance tests as a regression gate. |
+| `--dry-run` | Print the resolved plan (phase order, per-phase team, model/budget resolution, gates) and stop. Authors nothing. |
+| `--no-stop` | Do not pause at `gate: true` phases (CI sweeps). Default is to stop at every gate and ask for approval. |
+| `--rebuild` | Re-author a phase even if it is `done: true`; still runs acceptance tests after. |
+
+**Guarantees and invariants:**
+
+- **Cost is always offline.** There is no live token/cost API in hooks (issue #11008). Cumulative spend is computed by `telemetry/aggregate.py` over `~/.claude/projects/**/*.jsonl` times a versioned `pricing.json`. If the aggregator does not yet exist, it reports `cost: unavailable (P6 pending)` and proceeds — it never fabricates a number.
+- **Ground-truth is mandatory per phase.** Each authoring phase clones `meta.reference_repos` for exact extraction and verifies primitives against `code.claude.com/docs` before writing.
+- **Layer discipline.** `/ack-build` writes only META artifacts. If a worker would write a concrete `project.manifest.yaml`, a contract instance, or a contract-gate entry at the META root, that is a layer violation and is refused.
+- **`done:` is operator-managed.** Authoring a phase does not flip its `done` flag — that is a human decision after reviewing QA.
+
+See [Building the Kit: /ack-build](/build/ack-build) for the full walkthrough.
+
+---
+
+### `/ack-init` — CHILD project initializer
+
+Initializes a forked CHILD project. Asks the **archetype first**, runs an archetype-scoped deterministic interview, writes `project.manifest.yaml` (the single source of truth), renders the archetype template set, and wires opt-in hooks / MCP / telemetry / discovery. It is **re-entrant and idempotent** via managed-block merge.
+
+> This is `/ack-init`, **not** `/init` — the built-in `init` skill owns `/init`. Run it in a forked CHILD repo, never in the ai-core-kit META repo. It **refuses** (fail-closed, no override flag) if either META sentinel is present: a `templates/archetypes/` directory or a `docs/BOOTSTRAP.md` file.
+
+**Arguments** (all optional):
+
+| Flag | Effect |
+|---|---|
+| `--non-interactive` | QA / CI mode. No `AskUserQuestion` calls. Requires `--answers`. |
+| `--answers <path>` | Answers file (YAML) that fully specifies the interview. |
+| `--archetype <name>` | Pre-select the branch axis, skipping the first question. |
+| `--force` | Re-render conflict policy: overwrite ack-owned regions even if hand-edited inside the managed block (never touches unmanaged files/regions). |
+| `--skip` | Re-render conflict policy: keep existing on any conflict (CI-safe default). |
+
+**Step sequence:**
+
+1. **META-repo guard** — fail-closed if running inside ai-core-kit itself.
+2. **Detect mode & re-entrancy** — interactive vs QA; probe whether a manifest already exists (re-run -> merge territory).
+3. **Freeze the contract, ask archetype first** — cross-check that every interview question's `writes_to` resolves to a real schema property (invariant I1); archetype is the branch axis (invariant I3).
+4. **Run the interview, write the manifest** — the interview is the only writer; `managed:` is regenerated wholesale, `user:` is seeded once and preserved; validate against the schema before any irreversible write (fail-closed, invariant I6); compute `manifest_hash` last.
+5. **Render** via the render engine against `managed:`.
+6. **Wire integrations** per opt-in toggles using delimited managed-block merge (never blind-overwrite).
+7. **Emit a minimal child `CLAUDE.md`** pointer and update the `rendered_files[]` ledger.
+
+**Archetype menu:** `backend-api` and `fullstack` render **deep** (full question subset + template set); `monorepo`, `library-sdk`, `infra-iac` are schema-known and render a **minimal core** in v1 (a warning is printed when one is selected).
+
+> A user-invoked slash command cannot be invoked by name under `claude -p`. QA / non-interactive mode is reached by inlining the task and piping an answers file on stdin. The same META-repo guard, schema validation, and idempotent merge apply unchanged.
+
+The producer/consumer model behind the manifest is covered in [Manifest & Interview](/concepts/manifest-and-interview); the getting-started walkthrough is in [Quickstart](/getting-started/quickstart).
+
+---
+
+## CHILD commands (rendered into a fork)
+
+These ship under `templates/commands/` and are rendered into a child project by `/ack-init`. They are the project team's everyday delivery commands.
+
+### RPI: Research -> Plan -> Implement
+
+The kit's default delivery loop for non-trivial work. Each step has an approval gate (Research -> Plan -> Implement).
+
+| Command | Step | What it does | Argument hint |
+|---|---|---|---|
+| `/rpi/research` | 1 | Research a feature's viability and produce a **GO / NO-GO** recommendation before any planning. | `<feature-slug>` |
+| `/rpi/plan` | 2 | Turn an approved research report into product, UX, engineering, and phased-roadmap planning docs. | `<feature-slug>` |
+| `/rpi/implement` | 3 | Execute a feature's phased plan with per-phase code discovery, review, and a user validation gate. | `<feature-slug> [--phase N] [--validate-only] [--skip-validation]` |
+
+> The RPI commands were re-authored for ai-core-kit from `shanraisshan/claude-code-best-practice` (MIT). See the [License Ledger](/reference/licensing).
+
+### Product planning
+
+| Command | What it does | Argument hint |
+|---|---|---|
+| `/prd` | Generate a concise product requirements document for a feature, initiative, or problem statement. | `<feature-or-problem>` |
+| `/rice` | Prioritize features with RICE scoring (Reach, Impact, Confidence, Effort), optionally under an effort-capacity limit. | `<features.csv \| inline list> [--capacity N]` |
+
+`/prd` and `/rice` are original to ai-core-kit.
+
+---
+
+## User-invocable skills
+
+These are skills, not slash commands — the model invokes them when their `description` trigger matches, and a human can invoke them by name. The four that ship in the kit's own `.claude/skills/` (META build-tooling) are the most likely to be run directly:
+
+| Skill | Layer | Purpose |
+|---|---|---|
+| `skill-creator` | META | Author, edit, and benchmark a kit skill (drafts `SKILL.md`, runs evals, optimizes the description). |
+| `skill-validator` | META | Validate skills / agents / commands against the kit's frontmatter rules by running `scripts/lint-frontmatter.py`. |
+| `mcp-builder` | META | Build a high-quality MCP server (research, implementation, evaluation). |
+| `cost-telemetry` | META + CHILD | Run the offline cost aggregator and interpret its output. |
+
+CHILD payload skills (`coding-standards`, `production-audit`, language packs, and so on) are loaded by agents during delivery rather than invoked as commands. The full catalog with provenance and wiring triggers is in the [Skills Catalog](/features/skills-catalog).
+
+---
+
+## Command frontmatter
+
+Every command file is markdown with YAML frontmatter. Only `description` is required; the linter warns on unrecognized keys and errors on the SKILL-forbidden keys. See [Contributing](/contributing) for the full frontmatter conventions and the linter.
+
+```yaml
+---
+description: One-line, third-person summary of what the command does.   # REQUIRED
+argument-hint: "[--flag] [<arg>]"                                       # OPTIONAL
+allowed-tools: Read, Write, Bash(git status:*)                          # OPTIONAL
+disable-model-invocation: true                                          # OPTIONAL (human-only)
+---
+```

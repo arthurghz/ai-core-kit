@@ -1,0 +1,98 @@
+---
+title: Roadmap
+description: Status honesto por fase do ai-core-kit — o que está entregue, o que está parcial e o que permanece como roadmap (P4 render engine, P5 runtime do gate, P6 conexão, P7 descoberta, P8 E2E).
+---
+
+# Roadmap
+
+O ai-core-kit constrói a si mesmo em **oito fases**, conduzidas pelo `/ack-build` sobre a configuração orientada a dados `bootstrap/ack.bootstrap.yaml`. Esta página é o status honesto de cada fase, extraído das flags `done` e `gate` daquela configuração. Ela diz exatamente o que funciona hoje versus o que é um item de **contrato ou roadmap**.
+
+> **Nota de acurácia.** Um *contrato* congelado não é o mesmo que um *runtime* funcional. A P3 congelou a interface da qual a P4–P6 dependem, e esses contratos são estáveis e documentados — mas os engines que os consomem não estão todos completos. Onde esta página diz "contrato / parcial / roadmap", trate a feature como **não totalmente funcional hoje**.
+
+---
+
+## Status em resumo
+
+| Fase | Título | Gate | Status |
+|---|---|---|---|
+| **P1** | Verdade-fundamental + árvore do repo + ledger de licenças | sim | **Entregue** |
+| **P2** | Núcleo `.claude/` + agents de equipe + `settings.json` + linter de frontmatter | não | **Entregue** (skills/agents/comandos + linter) |
+| **P3** | Contrato congelado — schema do manifesto + `questions.yaml` + contrato do render engine + `/ack-init` | sim | **Entregue** (o contrato está congelado) |
+| **P6 (engine de telemetria)** | Agregador offline + `pricing.json` | não | **Entregue (engine)**, conexão filho parcial |
+| **(bootstrap-config)** | `ack.bootstrap.yaml` + schema + orquestrador `/ack-build` | — | **Entregue** |
+| **P4** | Conjuntos de templates de arquétipo (deep) + rubrica de completude + NOTICEs de licença | sim | **Parcial / roadmap** (o render engine é um contrato congelado; nem todos os conjuntos de templates estão completos) |
+| **P5** | Template de contrato + hook de gate de 3 modos orientado a manifesto | sim | **Parcial** (o template de hook existe, apenas prova de conceito) |
+| **P6 (conexão filho)** | Promover o stub de custo do orquestrador para números reais; conectar telemetria aos filhos | não | **Parcial** |
+| **P7** | Descoberta — `sources.yaml` + propostas + Action de PR agendado + `/discover` | não | **Roadmap** |
+| **P8** | E2E + higiene META + idempotência + custo por feature (gate final) | sim | **Roadmap** |
+
+---
+
+## Entregue
+
+Estes estão completos e verificáveis no repositório hoje.
+
+### P1 — Verdade-fundamental e ledger de licenças
+Repositórios de referência clonados e verificados contra seus arquivos `LICENSE` / `LICENSE.txt` reais; o [ledger de licenças](/reference/licensing) (`docs/REFERENCES.md` + `THIRD_PARTY_NOTICES.md`) é autoritativo. Fase de gate, marcada como `done`.
+
+### P2 — Primitivos `.claude/` e o linter
+Os próprios agents, comandos e skills do kit, mais `scripts/lint-frontmatter.py` (o [linter de frontmatter](/contributing)). O conjunto completo de skills de payload CHILD, language packs, agents RPI e os comandos RPI/produto está autorado e presente sob `templates/`. Veja o [Catálogo de Skills](/features/skills-catalog) e a [Referência de Comandos](/reference/commands).
+
+### P3 — O contrato congelado
+A interface estável da qual toda fase a jusante depende. Quatro artefatos congelados:
+
+1. **Schema do manifesto** — formato do `project.manifest.yaml` (`schema_version: 2`), com validador JSON-Schema. Veja [Manifesto e Entrevista](/concepts/manifest-and-interview).
+2. **Banco de perguntas** — `templates/interview/questions.yaml`, 39 perguntas determinísticas com gating `ask_if`/`skip_if`. Veja [Manifesto e Entrevista](/concepts/manifest-and-interview).
+3. **Contrato do render engine** — substituição `${VAR}`, inclusão condicional `.when.*`, idempotência estrutural. Veja [Contrato do Render Engine](/concepts/render-engine).
+4. **`/ack-init`** — o comando produtor. Veja [Referência de Comandos](/reference/commands).
+
+Fase de gate, marcada como `done`. **O contrato está congelado; os engines que o consomem não estão todos completos** — veja Parcial / Roadmap abaixo.
+
+### Telemetria de custo offline (engine)
+`telemetry/aggregate.py` (apenas-stdlib) e `telemetry/pricing.json` computam o custo **offline** a partir das linhas `assistant.message.usage` do transcript multiplicadas por um mapa de preços versionado. O custo é **sempre offline** — não há API de token/custo ao vivo em hooks (issue #11008; `PostToolUse` dispara apenas em turnos de tool, perdendo cerca de 61% do gasto). Veja [Telemetria de Custo Offline](/features/cost-telemetry).
+
+### Bootstrap config + `/ack-build`
+`bootstrap/ack.bootstrap.yaml` (o plano de build legível por máquina) com seu validador JSON-Schema, e o orquestrador `/ack-build` que o lê, valida e conduz as fases. Veja [Configuração de Build META](/build/bootstrap-config) e [/ack-build: Orquestrador de Build META](/build/ack-build).
+
+---
+
+## Parcial
+
+Autorado como um **contrato** ou **prova de conceito**, mas não um runtime completo. Documente e use estes com essa ressalva.
+
+### P4 — Render engine e conjuntos de templates de arquétipo
+O **contrato** do render engine está congelado e documentado ([Contrato do Render Engine](/concepts/render-engine)). O que falta: renderizar `backend-api` e `fullstack` **profundamente** contra uma rubrica de completude por arquétipo, conectar a lógica de entrevista ciente de ramificação de ponta a ponta e carregar uma entrada `LICENSE.txt` + `THIRD_PARTY_NOTICES` por skill Apache-2.0 incorporada. Os outros três arquétipos (`monorepo`, `library-sdk`, `infra-iac`) permanecem **núcleo-mínimo conhecido pelo schema** na v1. Fase de gate, **ainda não `done`**.
+
+### P5 — Runtime do contract gate
+O hook de contract-gate de 3 modos (block / warn / off) orientado a manifesto existe como um **template / prova de conceito**, não um runtime acabado. O footgun crítico está embutido no contrato: **o modo block deve usar código de saída `2` mais `hookSpecificOutput.permissionDecision: "deny"`** — a forma errada silenciosamente torna a guarda inócua. O gate é **fail-open em runtime** (manifesto corrompido/ausente -> modo off + stderr) e **fail-closed em author-time** (`/ack-init` valida antes de renderizar). Veja [Gate de Design-Contract (P5)](/features/contract-gate). Fase de gate, **ainda não `done`**.
+
+### P6 — Conexão de telemetria filho
+O engine do agregador offline está entregue (acima), mas promover o stub de custo do orquestrador para números reais e conectar telemetria aos filhos forkados (`features.cost_telemetry: true`) está **parcial**. Veja [Telemetria de Custo Offline](/features/cost-telemetry).
+
+### Conexão de MCP e agent-teams
+A conexão opcional de servidor MCP por projeto e a flag experimental de agent-teams estão autoradas como toggles da entrevista, mas seu provisionamento de ponta a ponta está **parcial / TBD**. Veja [Conexão de MCP](/features/mcp); a flag experimental de agent-teams (`features.agent_teams: true`) define `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` e ainda não tem página dedicada.
+
+---
+
+## Roadmap
+
+Ainda não implementado. Apresentado apenas como contrato / design.
+
+### P7 — Discovery engine
+O loop de descoberta propõe-mas-não-adota: `discovery/sources.yaml` (fontes semente), uma GitHub Action agendada e endurecida que abre PRs de proposta, um schema de proposta (formato TBD) e modos `/discover`. **A descoberta propõe e nunca adota** — humanos movem manualmente as propostas de `proposals/` para `adopted/`. `discovery.enabled` tem padrão **off** nos filhos, e o engine META **nunca** é copiado para um filho (forkabilidade, invariante I7). O endurecimento de permissão/segurança (isolamento, sem self-merge, kill switch) e os mecanismos de kill/expiry/reject/dedupe estão adiados. Veja [Discovery Engine (P7)](/features/discovery). **Ainda não `done`.**
+
+### P8 — Verificação de ponta a ponta
+O gate final: fork -> `/ack-init` por arquétipo -> gate bloqueia -> `/discover` -> custo de telemetria por feature. Adiciona o invariante de higiene META (a raiz e o `.claude/` contêm apenas artefatos META; nenhum manifesto ou contrato filho concreto na raiz META), idempotência de duas execuções e testes de ramificação com golden fixtures. O teste de aceitação de custo roda contra um **transcript capturado**, não orquestração ao vivo, conforme a regra de custo desacoplado. Depende de P4–P7. **Ainda não `done`.**
+
+---
+
+## Adiado / não portado
+
+Rastreado para que nada desapareça silenciosamente. A lista completa de adiados / não portados está abaixo.
+
+- **Packs de linguagem/framework/DB planejados para a v2:** `fastapi-patterns`, `gin-patterns`, `axum-patterns`, `sveltekit-patterns`, `nuxt-patterns`, `mysql-patterns`, `sqlite-patterns`, `mongodb-patterns`, `sqlalchemy-patterns`, `drizzle-patterns`, `gorm-patterns`.
+- **A conexão de `docker-patterns`** está bloqueada por uma pergunta de entrevista ausente (recomenda-se sempre renderizar para backend-api/fullstack até que a lacuna de schema seja fechada).
+- **Example skills da Anthropic disponíveis mas não portadas** (adotar atrás de feature flags se necessário): `algorithmic-art`, `brand-guidelines`, `canvas-design`, `frontend-design`, `slack-gif-creator`, `theme-factory`, `web-artifacts-builder`, `webapp-testing`, `doc-coauthoring`.
+- **Doc skills proprietárias permanentemente excluídas:** `docx`, `pdf`, `pptx`, `xlsx` — source-available, nunca lidas/copiadas/derivadas. Veja [Licenciamento](/reference/licensing).
+
+> Recomendação: proponha novas fontes via o discovery engine em vez de portá-las preventivamente.

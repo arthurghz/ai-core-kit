@@ -1,0 +1,133 @@
+---
+title: Referência de Observabilidade
+description: O ferramental de telemetria de custo da camada META — o agregador offline aggregate.py, o pricing.json versionado, o exportador Prometheus ack-cost-exporter e a stack Prometheus + Grafana que visualiza o custo offline de construir o ai-core-kit.
+---
+
+# Referência de Observabilidade
+
+A observabilidade do ai-core-kit é construída sobre a **telemetria de custo
+offline**: o custo em USD é derivado das linhas de uso de tokens do transcript
+multiplicadas por um mapa de preços versionado, nunca medido ao vivo. Os hooks do
+Claude Code não carregam campos de token ou custo
+([anthropics/claude-code#11008](https://github.com/anthropics/claude-code/issues/11008)),
+então mesmo a stack de monitoramento é **near-real-time** (atualizada a cada scrape),
+não um medidor de token ao vivo. A mecânica completa de custo está em
+[Telemetria de Custo Offline](/features/cost-telemetry).
+
+Todas as peças abaixo são da camada **META** — elas medem o custo de *construir o
+próprio ai-core-kit*. O motor de custo idêntico (`aggregate.py` + `pricing.json`) é
+entregue a projetos FILHO sob `templates/telemetry/`.
+
+---
+
+## As peças
+
+| Peça | Papel |
+|---|---|
+| `telemetry/aggregate.py` | Agregador de custo e tokens offline — ferramenta de análise pós-execução apenas com stdlib que lê transcripts do Claude Code e multiplica as contagens de tokens por um mapa de preços versionado. |
+| `telemetry/pricing.json` | Mapa de preços versionado (USD por MTok) — define o preço de modelos para operações de input/output/cache, com `unknown_model_policy=error`. |
+| `telemetry/observability/exporter/ack_cost_exporter.py` | Exportador Prometheus para custo offline — um wrapper fino em torno do `aggregate.py` que expõe os grupos de custo como gauges Prometheus em `/metrics`. |
+| `telemetry/observability/docker-compose.yml` | Stack Prometheus + Grafana + ack_cost_exporter — visualiza o custo offline de construir o ai-core-kit com dashboards near-real-time. |
+
+---
+
+## `aggregate.py` — o agregador offline
+
+A fonte da verdade para *os números*. Apenas stdlib (sem dependências de terceiros).
+Lê os transcripts JSONL sob `~/.claude/projects/**`, precifica cada linha
+`message.usage` do assistente contra o `pricing.json` e atribui o gasto por modelo,
+feature, agente e sessão. Para **cada** eixo ele prova que a soma dos grupos é igual
+ao total geral — uma divergência sai com código diferente de zero.
+
+```bash
+python3 telemetry/aggregate.py [--project-dir DIR] [--since YYYY-MM-DD] [--pricing PATH]
+```
+
+É **fail-LOUD**: modelo desconhecido, `pricing.json` ausente/inválido ou somas que
+não reconciliam todos saem com erro fatal em vez de subcontar custo silenciosamente.
+
+## `pricing.json` — o mapa de preços versionado
+
+Define o preço de modelos em **USD por 1.000.000 de tokens (MTok)** para `input`,
+`output`, `cache_read`, `cache_write_5m` e `cache_write_1h`. Carrega um
+`schema_version` e uma data `as_of` (ex. `2026-06-01`). `unknown_model_policy=error`
+significa que um modelo não listado faz o `aggregate.py` falhar barulhentamente — a
+correção é adicionar uma linha (copie uma do mesmo tier, defina os valores USD/MTok,
+atualize o `as_of`).
+
+---
+
+## A stack de observabilidade
+
+Para monitoramento de custo near-real-time, o kit oferece uma stack Docker Compose de
+três serviços sob `telemetry/observability/`:
+
+| Serviço | Imagem | Papel |
+|---|---|---|
+| `exporter` | `ack-cost-exporter:local` (build local) | Reanalisa os transcripts a cada scrape (cacheado por TTL) e expõe gauges Prometheus em `/metrics`. Reutiliza a lógica de custo do `aggregate.py` — não reimplementa preços. |
+| `prometheus` | `prom/prometheus` | Faz scrape do exportador a cada 30s e armazena as séries (retenção de 30d). |
+| `grafana` | `grafana/grafana` | Dashboards na porta de host 3001 (a 3000 é o site de docs). |
+
+```bash
+docker compose up -d        # inicia
+open http://localhost:3001  # Grafana (Viewer anônimo por padrão)
+docker compose down         # para (adicione -v para apagar as séries armazenadas)
+```
+
+Copie `.env.example` para `.env` para sobrepor os padrões (portas, diretório de
+projeto, credenciais).
+
+### `ack_cost_exporter.py` — o exportador Prometheus
+
+Um wrapper fino em torno do `aggregate.py`. Ele **importa** `load_pricing()`,
+`discover_jsonl()` e `aggregate()` da `aggregate.py` irmã e expõe os grupos
+resultantes como gauges Prometheus — ele **não** reimplementa nenhuma lógica de preço
+ou atribuição.
+
+**Near-real-time, não um medidor ao vivo.** A cada scrape do Prometheus (sujeito ao
+cache `ACK_SCRAPE_TTL`, padrão 30s) o exportador **reanalisa** os transcripts JSONL e
+re-agrega. A atualidade é, portanto, "a partir do último recompute" (por padrão
+≤30s), nunca um medidor de token verdadeiramente em tempo real.
+
+**Fail-soft no momento do scrape.** O `aggregate.py` é fail-LOUD (modelo desconhecido
+/ não reconciliado => exceção). Um exportador que falha derrubaria todo o endpoint de
+métricas, então o exportador **captura** no momento do scrape: em qualquer erro ele
+mantém os últimos valores bons de gauge, define `ack_scrape_error=1` e loga em
+stderr. Um diretório de transcripts vazio/ausente **não** é erro — emite zeros limpos
+(`ack_scrape_error=0`). Construa um alerta Grafana sobre `ack_scrape_error` para saber
+quando um scrape está obsoleto/não confiável.
+
+### Métricas principais expostas
+
+| Métrica | Significado |
+|---|---|
+| `ack_total_cost_usd` | Total geral em todos os turnos. |
+| `ack_cost_usd{model,feature,agent}` | Custo por grupo de eixo (1-D; os eixos não ativos são fixados em `*`). |
+| `ack_tokens_total{kind,feature,agent}` | Tokens por tipo por grupo de eixo. |
+| `ack_budget_usd{feature}` | Limites de orçamento consultivos do manifesto (`scope=project` => label `__project__`). |
+| `ack_reconciled` | `1` se todos os eixos reconciliam, senão `0`. |
+| `ack_scrape_error` | `1` se o último scrape deu erro, senão `0`. |
+| `ack_scrape_duration_seconds` | Tempo de relógio do último recompute. |
+
+### Configuração (ambiente)
+
+| Variável | Significado | Padrão |
+|---|---|---|
+| `ACK_PROJECT_DIR` | Raiz dos transcripts | `~/.claude/projects` |
+| `ACK_PRICING` | Caminho do `pricing.json` | `./pricing.json` |
+| `ACK_MANIFEST` | `project.manifest.yaml` (opcional; fornece orçamentos) | — |
+| `ACK_BRANCH_PREFIX` | Prefixo de atribuição de feature | `feat/` |
+| `ACK_PORT` | Porta de escuta HTTP | `9418` |
+| `ACK_SCRAPE_TTL` | Frescor do cache em segundos | `30` |
+
+---
+
+## Orçamentos são consultivos
+
+`pricing.json` produz **valores reais**. **Orçamentos** (limites de USD consultivos)
+vivem no manifesto FILHO em `telemetry.budgets[]`. Os totais por grupo são o que você
+compara contra os limites — os limites **sinalizam** o excesso, eles nunca impõem nem
+bloqueiam nada ao vivo.
+
+Veja também: [Telemetria de Custo Offline](/features/cost-telemetry),
+[Catálogo de Skills](/features/skills-catalog).

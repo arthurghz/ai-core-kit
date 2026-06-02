@@ -1,0 +1,95 @@
+---
+title: Referência de Skills
+description: Toda skill que o ai-core-kit oferece — as ferramentas de build META em .claude/skills/ e o payload de skills CHILD sob templates/skills/ renderizado em um fork, com camada, gatilho e propósito.
+---
+
+# Referência de Skills
+
+Uma *skill* é uma instrução procedural empacotada que o modelo carrega quando o
+gatilho de sua `description` corresponde (e que um humano pode invocar pelo nome).
+As skills do ai-core-kit se dividem ao longo da
+[fronteira META vs CHILD](/concepts/two-layer-model):
+
+- **Skills META** vivem no próprio `.claude/skills/` do kit. São ferramental de
+  *build* — elas ajudam a construir e manter o kit e **não** são renderizadas em
+  forks.
+- **Skills CHILD** vivem sob `templates/skills/` e são renderizadas em um fork pelo
+  `/ack-init` conforme o arquétipo e os toggles do manifesto. São o payload de
+  entrega que os agents de um projeto filho carregam durante o trabalho.
+
+O catálogo completo com proveniência (repositório de origem + licença) e gatilhos
+de integração está no [Catálogo de Skills](/features/skills-catalog); o registro
+de licenças autoritativo está em [Licenciamento e Avisos](/reference/licensing).
+
+---
+
+## Skills META (ferramental de build)
+
+Vivem em `.claude/skills/`. As quatro são as skills mais propensas a serem rodadas
+diretamente por um humano durante o trabalho no próprio kit.
+
+| Skill | Propósito | Gatilho |
+|---|---|---|
+| `cost-telemetry` | Roda o agregador de custo offline do kit e interpreta sua saída — calcula o gasto em USD de uma execução do Claude Code a partir das linhas de uso de tokens do transcript multiplicadas por um mapa de preços versionado, atribuído por modelo, feature, agente e sessão. | Quanto custou um build/sessão/feature/agente, divisão de tokens ou custo ou relatório, menção a telemetry/pricing.json/aggregate.py. |
+| `mcp-builder` | Constrói servidores MCP (Model Context Protocol) de alta qualidade que deixam LLMs alcançar serviços externos por ferramentas bem-projetadas — cobre pesquisa, implementação em Python (FastMCP) ou Node/TypeScript (MCP SDK) e avaliação. | Construir um servidor MCP, expor esta API como ferramentas MCP, FastMCP, integrar o servidor `features.mcp` do projeto. |
+| `skill-creator` | Autora, edita e faz benchmark de skills do ai-core-kit — rascunha um novo `SKILL.md`, roda evals com-skill vs baseline, avalia-os e otimiza a description para disparo confiável. | Criar/autorar/escrever uma skill, fazer um `SKILL.md`, melhorar/otimizar esta skill, rodar evals em uma skill, fazer benchmark de uma skill. |
+| `skill-validator` | Valida skills, agents e comandos de barra do ai-core-kit contra as regras canônicas de frontmatter e estrutura do kit rodando `scripts/lint-frontmatter.py` e interpretando cada achado. | Validar/lintar/checar esta skill, este `SKILL.md` segue as convenções do kit, por que o lint-frontmatter está falhando, auditar as skills. |
+
+---
+
+## Skills CHILD — engenharia e produto
+
+Vivem em `templates/skills/`, protegidas por arquétipo/manifesto e renderizadas em
+um fork pelo `/ack-init`.
+
+| Skill | Propósito | Gatilho |
+|---|---|---|
+| `agent-eval` | Comparação reproduzível, frente a frente, de agentes de codificação (Claude Code, Aider, Codex e outros) nas próprias tarefas do projeto — medindo taxa de aprovação, custo, tempo de relógio e consistência. | Qual agente de codificação é o melhor para nós, fazer benchmark destes agentes, o novo modelo regrediu. |
+| `architecture-decision-records` | Captura decisões arquiteturais como documentos ADR estruturados que vivem em `docs/adr/` junto ao código, registrando contexto, alternativas consideradas e justificativa. | Registrar esta decisão, fazer um ADR disto, escolher entre alternativas significativas, por que escolhemos X. |
+| `code-tour` | Cria arquivos CodeTour `.tour` — walkthroughs passo a passo do código direcionados a personas, ancorados a arquivos e faixas de linhas reais, escritos em `.tours/`. | Me dê um code tour, walkthrough de onboarding, tour deste PR, me explique como X funciona. |
+| `coding-standards` | Convenções de codificação baseline e cross-language para nomenclatura, legibilidade, imutabilidade, segurança de tipos e revisão de code smells — o piso de qualidade compartilhado de qualquer módulo. | Limpe isto, isto é idiomático, revisar por qualidade, quais são nossas convenções. |
+| `cost-audit` | Investigação evidência-primeiro de gasto descontrolado ou anômalo em um app ou serviço — rastreando o caminho da requisição até uma causa-raiz ranqueada e citada por arquivo e uma lista de correções ordenada por queima. | Pico de custo, taxa de queima, estamos acima do orçamento, jobs duplicados, usuários free atingindo o modelo pago. |
+| `cost-telemetry` | Roda o agregador de custo offline deste projeto e interpreta sua saída — calcula o gasto em USD de uma execução do Claude Code a partir das linhas de uso de tokens do transcript multiplicadas por um mapa de preços versionado. | Quanto custou uma sessão/feature/agente/o projeto, divisão de tokens ou custo, menção a telemetry/pricing.json/aggregate.py. |
+| `error-handling` | Contrato robusto de tratamento de erros para este projeto — hierarquias tipadas de erro, o padrão Result, envelopes de erro de API, error boundaries, retries com backoff. | Como isto deve falhar, adicionar retries, envelope de erro, este catch engole o erro. |
+| `frontend-a11y` | Padrões de acessibilidade para UIs React/Next.js — HTML semântico, ARIA correto, rotulagem de formulário e associação de erros, navegação por teclado, gerenciamento de foco, movimento reduzido, suporte a leitor de tela. | Torne isto acessível, revisão de a11y, adicionar aria labels, suporte a leitor de tela. |
+| `production-audit` | Auditoria de prontidão para produção baseada em evidência local de um app já lançado — revisões pré-lançamento, passes de risco pós-merge e perguntas do tipo "o que quebra em prod". | Isto está pronto para produção, o que quebraria em prod, pronto para lançar. |
+| `saas-scaffolder` | Gera um starter de SaaS por assinatura com forma de produção — autenticação, um schema de banco de dados, billing/checkout, rotas protegidas e um dashboard funcional. | Fazer scaffold de um novo SaaS, fazer scaffold de um app Next.js com auth e pagamentos, integrar billing do Stripe. |
+| `spec-to-repo` | Transforma uma especificação de projeto em linguagem natural em um repositório starter completo e executável — parseando a spec, projetando a árvore de arquivos e o schema, gerando código real. | Construa um app para mim, criar um projeto a partir desta spec, fazer scaffold de um novo repo, transformar esta ideia/PRD em código. |
+| `ui-design-system` | Gera e exporta um sistema de design tokens a partir de uma cor de marca — escalas de cor, uma escala tipográfica modular, uma grade de espaçamento de 8pt, raios, sombras, breakpoints, camadas de z-index. | Gerar design tokens, criar uma paleta de cores / escala tipográfica / sistema de espaçamento, exportar variáveis CSS ou tokens SCSS. |
+
+---
+
+## Skills CHILD — packs de linguagem / framework / banco de dados
+
+Vivem em `templates/skills/lang/`. São um conjunto de render determinístico
+protegido por manifesto — cada pack renderiza apenas quando a condição de manifesto
+listada é satisfeita.
+
+| Pack | Propósito | Gatilho (condição de manifesto) |
+|---|---|---|
+| `docker-patterns` | Padrões de Docker e Docker Compose para este projeto — Dockerfiles multi-stage, camadas de compose dev/prod, healthchecks e dependências de serviço, rede, estratégia de volumes. | Editando `Dockerfile`/`compose.yaml` ou integrando serviços locais. |
+| `go-patterns` | Convenções idiomáticas de Go para este projeto — wrapping de erros, a regra do zero-value, accept-interfaces-return-structs, propagação de context, concorrência e layout de pacotes. | Editando arquivos `.go` quando `project.language == go`. |
+| `node-api-patterns` | Padrões de API backend Node.js para este projeto cobrindo Express e NestJS — estrutura em camadas, DTOs validados, tratamento de erros centralizado, handlers async-safe. | Editando controllers/routes/services para backends Express ou NestJS. |
+| `postgres-patterns` | Padrões de PostgreSQL para este projeto — seleção de índices, escolhas de schema/tipo de dado, otimização de queries, paginação, locking e defaults de segurança. | Editando migrations ou `.sql` quando `persistence.db == postgres`. |
+| `prisma-patterns` | Padrões do ORM Prisma e armadilhas não óbvias para este projeto — estratégia de schema/ID, select vs include, transações, paginação por cursor, singleton do PrismaClient. | Editando `schema.prisma` ou queries/migrations do Prisma quando `persistence.orm == prisma`. |
+| `python-patterns` | Convenções idiomáticas de Python para este projeto — layout PEP 8, type hints, dataclasses, comprehensions, context managers, exceções e empacotamento. | Editando módulos `.py` quando `project.language == python`. |
+| `python-testing` | Estratégia de testes pytest para este projeto — ciclo TDD, fixtures e escopos, parametrização, mocking, testes async e gates de cobertura. | Criando `test_*.py` quando `project.language == python`. |
+| `react-patterns` | Padrões de React 18/19 para este projeto — disciplina de hooks, fronteiras server/client component, Suspense + error boundaries, form actions, escolhas de data-fetching. | Editando componentes `.tsx`/`.jsx` para React 18/19. |
+| `rust-patterns` | Convenções idiomáticas de Rust para este projeto — ownership e borrowing, propagação de erros via Result/?, enums para tornar estados ilegais irrepresentáveis, traits e concorrência segura. | Editando arquivos `.rs` quando `project.language == rust`. |
+| `typescript-patterns` | Convenções idiomáticas de TypeScript para este projeto — configurações estritas do compilador, narrowing de tipos, uniões discriminadas, generics, validação em runtime nas fronteiras. | Editando `.ts`/`.tsx` quando `project.language == typescript`. |
+
+---
+
+## Frontmatter de skill
+
+Todo `SKILL.md` é markdown com frontmatter YAML. `name` e `description` são
+obrigatórios; o `skill-validator` impõe as regras canônicas (chaves obrigatórias vs
+proibidas) rodando `scripts/lint-frontmatter.py`. Veja [Contribuindo](/contributing)
+para as convenções completas de frontmatter e o linter.
+
+```yaml
+---
+name: skill-name                                                        # REQUIRED (kebab-case)
+description: Third-person summary plus the TRIGGER / SKIP guidance.      # REQUIRED
+---
+```

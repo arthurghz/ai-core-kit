@@ -1,0 +1,953 @@
+/*
+ * ai-core-kit docs — site polish layer.
+ *
+ * Loaded in pages/_app.jsx AFTER `nextra-theme-docs/style.css`, so every rule
+ * here is an intentional, low-specificity refinement on top of the theme.
+ *
+ * Scope discipline: typographic rules are confined to `.nextra-content` (the
+ * article body) so the navbar, sidebar, search and TOC keep the stock theme.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Mermaid diagrams
+ *
+ * Nextra renders each diagram inside a bare <div> (no class) whose only
+ * child is the mermaid <svg>, which always carries `aria-roledescription`.
+ * The kit's MDX hard-codes a LIGHT mermaid theme ("theme":"base"), so the
+ * diagram art is light in both color modes — we therefore give it a
+ * near-white card in both modes so the art always sits on a readable,
+ * consistent surface. `.mermaid` is kept as an explicit fallback hook.
+ * ------------------------------------------------------------------ */
+.nextra-content div:has(> svg[aria-roledescription]),
+.mermaid {
+  display: flex;
+  justify-content: center;
+  background: #fbfcff;
+  border: 1px solid #e6e8f0;
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.nextra-content div:has(> svg[aria-roledescription]) svg,
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Keep the diagram card light even in dark mode — still pale enough that the
+ * light-themed diagram art remains crisp, with a slightly cooler border so it
+ * reads as an intentional surface rather than a blown-out white block. */
+html.dark .nextra-content div:has(> svg[aria-roledescription]),
+html.dark .mermaid {
+  background: #f4f6fc;
+  border-color: #d9def0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* ------------------------------------------------------------------ *
+ * Typography — comfortable reading rhythm in the article body
+ * ------------------------------------------------------------------ */
+.nextra-content {
+  line-height: 1.7;
+}
+
+.nextra-content p,
+.nextra-content li {
+  line-height: 1.75;
+}
+
+/* Headings: tighter tracking, a touch more breathing room above, and a
+ * confident-but-not-shouty weight progression. */
+.nextra-content h1 {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.nextra-content h2 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin-top: 2.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--nextra-border, #e6e8f0);
+}
+
+.nextra-content h3 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-top: 2rem;
+}
+
+html.dark .nextra-content h2 {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ------------------------------------------------------------------ *
+ * Inline code & code blocks
+ * ------------------------------------------------------------------ */
+.nextra-content :not(pre) > code {
+  font-size: 0.875em;
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  color: #4338ca;
+}
+
+html.dark .nextra-content :not(pre) > code {
+  background: rgba(129, 140, 248, 0.14);
+  border-color: rgba(129, 140, 248, 0.22);
+  color: #c7d2fe;
+}
+
+/* Soften the rounded corners on fenced blocks to match the cards. */
+.nextra-content pre {
+  border-radius: 12px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Tables — zebra rows + rounded border
+ * ------------------------------------------------------------------ */
+.nextra-content table {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #e6e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.nextra-content table th {
+  background: #f3f4fb;
+  font-weight: 650;
+  text-align: left;
+}
+
+.nextra-content table th,
+.nextra-content table td {
+  border: none;
+  border-bottom: 1px solid #eceef6;
+}
+
+.nextra-content table tr:last-child td {
+  border-bottom: none;
+}
+
+.nextra-content table tbody tr:nth-child(odd) {
+  background: #fafbff;
+}
+
+html.dark .nextra-content table {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+html.dark .nextra-content table th {
+  background: rgba(129, 140, 248, 0.1);
+}
+
+html.dark .nextra-content table th,
+html.dark .nextra-content table td {
+  border-bottom-color: rgba(255, 255, 255, 0.07);
+}
+
+html.dark .nextra-content table tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* ------------------------------------------------------------------ *
+ * Blockquotes / callouts — indigo accent rail
+ * ------------------------------------------------------------------ */
+.nextra-content blockquote {
+  border-left-width: 3px;
+  border-left-color: #6366f1;
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 0 10px 10px 0;
+  padding: 0.6rem 1rem;
+  color: inherit;
+}
+
+html.dark .nextra-content blockquote {
+  border-left-color: #818cf8;
+  background: rgba(129, 140, 248, 0.08);
+}
+
+/* ================================================================== *
+ * LANDING PAGE
+ *
+ * Hero + feature grid for pages/{en,pt}/index.mdx. These classes are
+ * used by raw JSX in the MDX and intentionally live OUTSIDE the
+ * `.nextra-content` typography scope so the hero sets its own rhythm.
+ * Indigo brand: #6366f1 (light) / #818cf8 (dark). Every surface has an
+ * explicit `.dark` override so contrast holds in both color modes.
+ * ================================================================== */
+
+/* ---- Hero --------------------------------------------------------- */
+.ack-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  padding: 4.5rem 1.5rem 3.5rem;
+  margin: 0 0 1rem;
+}
+
+/* Small uppercase label above the headline. */
+.ack-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.09);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+}
+
+html.dark .ack-eyebrow {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.14);
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+/* Big gradient/indigo headline. */
+.ack-hero h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  max-width: 18ch;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 45%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #4f46e5; /* fallback where background-clip:text is unsupported */
+}
+
+html.dark .ack-hero h1 {
+  background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 50%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #a5b4fc;
+}
+
+/* Muted one-line tagline. */
+.ack-hero p {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+  line-height: 1.6;
+  max-width: 56ch;
+  color: #4b5563;
+}
+
+html.dark .ack-hero p {
+  color: #a1a1aa;
+}
+
+/* ---- CTA button row ---------------------------------------------- */
+.ack-hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+/* Shared button shape. */
+.ack-hero-cta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.7rem 1.3rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Primary — solid indigo. */
+.ack-hero-cta a.ack-btn-primary {
+  color: #ffffff;
+  background: #6366f1;
+  border-color: #6366f1;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.35);
+}
+
+.ack-hero-cta a.ack-btn-primary:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+}
+
+/* Secondary — outline. */
+.ack-hero-cta a.ack-btn-secondary {
+  color: #4338ca;
+  background: transparent;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.ack-hero-cta a.ack-btn-secondary:hover {
+  color: #3730a3;
+  background: rgba(99, 102, 241, 0.07);
+  border-color: #6366f1;
+  transform: translateY(-1px);
+}
+
+html.dark .ack-hero-cta a.ack-btn-primary {
+  background: #6366f1;
+  border-color: #6366f1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html.dark .ack-hero-cta a.ack-btn-primary:hover {
+  background: #818cf8;
+  border-color: #818cf8;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
+}
+
+html.dark .ack-hero-cta a.ack-btn-secondary {
+  color: #c7d2fe;
+  border-color: rgba(129, 140, 248, 0.4);
+}
+
+html.dark .ack-hero-cta a.ack-btn-secondary:hover {
+  color: #e0e7ff;
+  background: rgba(129, 140, 248, 0.12);
+  border-color: #818cf8;
+}
+
+/* ---- Feature grid ------------------------------------------------- */
+.ack-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2.5rem;
+}
+
+/* ~3 cols desktop -> 2 cols tablet -> 1 col mobile. */
+@media (max-width: 900px) {
+  .ack-features {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .ack-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Feature card ------------------------------------------------- */
+.ack-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid #e6e8f0;
+  border-radius: 14px;
+  background: #fbfcff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.ack-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 10px 28px rgba(79, 70, 229, 0.12);
+}
+
+.ack-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #1e1b4b;
+}
+
+.ack-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: #4b5563;
+}
+
+html.dark .ack-card {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+html.dark .ack-card:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+html.dark .ack-card h3 {
+  color: #e0e7ff;
+}
+
+html.dark .ack-card p {
+  color: #a1a1aa;
+}
+
+/* ================================================================== *
+ * RAW-LAYOUT MARKETING LANDING
+ *
+ * The home page (pages/{en,pt}/index.mdx) uses a *raw* Nextra layout
+ * (`layout: full` + navbar/sidebar/footer/toc all disabled), so the
+ * docs theme contributes NO chrome and NO page background. Everything
+ * below builds a self-contained product homepage on a blank canvas:
+ * its own sticky header (.ack-nav), a page background, a max-width
+ * container, a code chip, a 3-step strip, and a footer — all polished
+ * for BOTH light mode and html.dark.
+ *
+ * Brand: indigo #6366f1 (light) / #818cf8 (dark). These rules are
+ * additive to the hero/feature block above and reuse the same brand.
+ * ================================================================== */
+
+/* ---- Page canvas -------------------------------------------------- *
+ * Raw layout drops the theme background, so paint our own. A soft
+ * indigo wash at the top fades into a clean base so the hero glows. */
+body:has(.ack-landing) {
+  background: #ffffff;
+}
+
+html.dark body:has(.ack-landing) {
+  background: #0a0a0f;
+}
+
+.ack-landing {
+  --ack-indigo: #6366f1;
+  --ack-indigo-strong: #4f46e5;
+  --ack-ink: #0f172a;
+  --ack-muted: #4b5563;
+  --ack-surface: #fbfcff;
+  --ack-border: #e6e8f0;
+  --ack-bg: #ffffff;
+
+  min-height: 100vh;
+  color: var(--ack-ink);
+  background:
+    radial-gradient(
+      60rem 32rem at 50% -8rem,
+      rgba(99, 102, 241, 0.12),
+      transparent 70%
+    ),
+    var(--ack-bg);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+html.dark .ack-landing {
+  --ack-indigo: #818cf8;
+  --ack-indigo-strong: #a5b4fc;
+  --ack-ink: #f4f4f5;
+  --ack-muted: #a1a1aa;
+  --ack-surface: rgba(255, 255, 255, 0.025);
+  --ack-border: rgba(255, 255, 255, 0.1);
+  --ack-bg: #0a0a0f;
+
+  background:
+    radial-gradient(
+      60rem 32rem at 50% -8rem,
+      rgba(129, 140, 248, 0.16),
+      transparent 70%
+    ),
+    var(--ack-bg);
+}
+
+/* Centered max-width column for every landing section. */
+.ack-container {
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+/* ---- Sticky header / nav ----------------------------------------- */
+.ack-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: 0.9rem 1.5rem;
+  border-bottom: 1px solid var(--ack-border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+}
+
+/* Full-bleed hairline + blur strip behind the centered nav content. */
+.ack-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0 calc(50% - 50vw);
+  z-index: -1;
+  border-bottom: 1px solid var(--ack-border);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(160%) blur(12px);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+}
+
+.ack-nav {
+  border-bottom: none; /* the ::before strip carries the border full-bleed */
+}
+
+html.dark .ack-nav,
+html.dark .ack-nav::before {
+  background: rgba(10, 10, 15, 0.7);
+  border-bottom-color: var(--ack-border);
+}
+
+/* Brand / logo on the left. */
+.ack-nav-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.02rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ack-ink);
+  text-decoration: none;
+}
+
+.ack-nav-brand:hover {
+  color: var(--ack-indigo-strong);
+}
+
+html.dark .ack-nav-brand:hover {
+  color: var(--ack-indigo);
+}
+
+/* A tidy little brand glyph if the markup includes <span className="ack-logo">. */
+.ack-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.4);
+}
+
+/* Right-hand link cluster. */
+.ack-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ack-nav-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--ack-muted);
+  text-decoration: none;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ack-nav-links a:hover {
+  color: var(--ack-ink);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+html.dark .ack-nav-links a:hover {
+  color: var(--ack-ink);
+  background: rgba(129, 140, 248, 0.12);
+}
+
+/* Small EN/PT note in the nav. */
+.ack-nav-lang {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ack-muted);
+  white-space: nowrap;
+  padding-left: 0.35rem;
+  border-left: 1px solid var(--ack-border);
+  margin-left: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .ack-nav {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .ack-nav-links {
+    flex-wrap: wrap;
+  }
+}
+
+/* ---- Hero tagline alias ------------------------------------------ *
+ * The hero block above styles `.ack-hero p`; the rebuilt markup may
+ * use an explicit `.ack-hero-tagline` class — keep them identical. */
+.ack-hero-tagline {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+  line-height: 1.6;
+  max-width: 56ch;
+  color: var(--ack-muted, #4b5563);
+}
+
+/* ---- CTA row alias ----------------------------------------------- *
+ * Mirror `.ack-hero-cta` for a standalone `.ack-cta` row, and make the
+ * `.ack-btn-*` classes work whether nested in `.ack-cta`/`.ack-hero-cta`
+ * or used standalone, so the markup is free to choose either. */
+.ack-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.ack-btn-primary,
+.ack-btn-secondary,
+.ack-cta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.7rem 1.3rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* Primary — solid indigo (standalone, mirrors the hero rule). */
+a.ack-btn-primary,
+.ack-cta a.ack-btn-primary {
+  color: #ffffff;
+  background: #6366f1;
+  border-color: #6366f1;
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.35);
+}
+
+a.ack-btn-primary:hover,
+.ack-cta a.ack-btn-primary:hover {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+}
+
+/* Secondary — outline. */
+a.ack-btn-secondary,
+.ack-cta a.ack-btn-secondary {
+  color: #4338ca;
+  background: transparent;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+a.ack-btn-secondary:hover,
+.ack-cta a.ack-btn-secondary:hover {
+  color: #3730a3;
+  background: rgba(99, 102, 241, 0.07);
+  border-color: #6366f1;
+  transform: translateY(-1px);
+}
+
+html.dark a.ack-btn-primary,
+html.dark .ack-cta a.ack-btn-primary {
+  background: #6366f1;
+  border-color: #6366f1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+html.dark a.ack-btn-primary:hover,
+html.dark .ack-cta a.ack-btn-primary:hover {
+  background: #818cf8;
+  border-color: #818cf8;
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.45);
+}
+
+html.dark a.ack-btn-secondary,
+html.dark .ack-cta a.ack-btn-secondary {
+  color: #c7d2fe;
+  border-color: rgba(129, 140, 248, 0.4);
+}
+
+html.dark a.ack-btn-secondary:hover,
+html.dark .ack-cta a.ack-btn-secondary:hover {
+  color: #e0e7ff;
+  background: rgba(129, 140, 248, 0.12);
+  border-color: #818cf8;
+}
+
+/* ---- Copy-pastable code chip ------------------------------------- *
+ * A dark terminal chip for the `npx create-ack ...` line. Works for a
+ * bare <div className="ack-code"> or when wrapping an MDX <pre>. */
+.ack-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 100%;
+  margin: 0.75rem auto 0;
+  padding: 0.85rem 1.1rem;
+  border-radius: 12px;
+  background: #0f1117;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  color: #e6e8f5;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  overflow-x: auto;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+/* A leading prompt glyph if the markup adds <span className="ack-code-prompt">. */
+.ack-code-prompt {
+  user-select: none;
+  color: #818cf8;
+  font-weight: 700;
+}
+
+/* If the markup nests a fenced block, strip its theme background so the
+ * chip's own dark surface shows through cleanly. */
+.ack-code pre,
+.ack-code code {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  color: inherit;
+  font-size: inherit;
+  box-shadow: none;
+}
+
+html.dark .ack-code {
+  background: #06070b;
+  border-color: rgba(129, 140, 248, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Section heading helper -------------------------------------- *
+ * Optional centered section title used above the steps/features. */
+.ack-section-title {
+  text-align: center;
+  margin: 3.5rem 0 0.5rem;
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ack-ink, #0f172a);
+}
+
+.ack-section-sub {
+  text-align: center;
+  margin: 0 auto 1.75rem;
+  max-width: 50ch;
+  color: var(--ack-muted, #4b5563);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* ---- How it works — 3 numbered steps ----------------------------- */
+.ack-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2.5rem;
+  counter-reset: ack-step;
+}
+
+@media (max-width: 760px) {
+  .ack-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ack-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1.5rem 1.5rem 1.4rem;
+  border: 1px solid var(--ack-border, #e6e8f0);
+  border-radius: 14px;
+  background: var(--ack-surface, #fbfcff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* Auto-numbered badge in the corner. */
+.ack-step::before {
+  counter-increment: ack-step;
+  content: counter(ack-step);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.35rem;
+  border-radius: 9px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.ack-step h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ack-ink, #1e1b4b);
+}
+
+.ack-step p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ack-muted, #4b5563);
+}
+
+.ack-step code {
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  color: #4338ca;
+}
+
+html.dark .ack-step {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+html.dark .ack-step code {
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.24);
+  color: #c7d2fe;
+}
+
+/* A connecting arrow between steps on wide screens. */
+@media (min-width: 761px) {
+  .ack-step:not(:last-child)::after {
+    content: "→";
+    position: absolute;
+    top: 50%;
+    right: -0.72rem;
+    transform: translateY(-50%);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: rgba(99, 102, 241, 0.5);
+  }
+  html.dark .ack-step:not(:last-child)::after {
+    color: rgba(129, 140, 248, 0.55);
+  }
+}
+
+/* ---- Footer ------------------------------------------------------- */
+.ack-footer {
+  margin-top: 3.5rem;
+  padding: 2.5rem 0 3rem;
+  border-top: 1px solid var(--ack-border, #e6e8f0);
+}
+
+.ack-footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+}
+
+.ack-footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ack-ink, #0f172a);
+}
+
+.ack-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 1.1rem;
+}
+
+.ack-footer-links a {
+  font-size: 0.9rem;
+  color: var(--ack-muted, #4b5563);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.ack-footer-links a:hover {
+  color: var(--ack-indigo-strong, #4f46e5);
+}
+
+html.dark .ack-footer-links a:hover {
+  color: var(--ack-indigo, #818cf8);
+}
+
+.ack-footer-meta {
+  width: 100%;
+  max-width: 1080px;
+  margin: 1.25rem auto 0;
+  padding-inline: 1.5rem;
+  font-size: 0.82rem;
+  color: var(--ack-muted, #6b7280);
+}
+
+@media (max-width: 640px) {
+  .ack-footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* === Landing route hardening ===
+   The landing (pages/{en,pt}/index.mdx, raw layout) ships its OWN <header class="ack-nav">,
+   so force-hide any residual Nextra docs chrome (top navbar, search, the md:_hidden sidebar
+   container + mobile drawer) and reclaim full width — so the home never "looks like docs".
+   Scoped via :has(.ack-hero) so ONLY the landing is affected, never the docs pages. */
+:root:has(.ack-hero) { --nextra-navbar-height: 0px; }
+body:has(.ack-hero) .nextra-nav-container,
+body:has(.ack-hero) .nextra-nav-container-blur,
+body:has(.ack-hero) .nextra-sidebar-container,
+body:has(.ack-hero) aside.nextra-sidebar-container,
+body:has(.ack-hero) .nextra-search,
+body:has(.ack-hero) .nextra-toc { display: none !important; }
+body:has(.ack-hero) main,
+body:has(.ack-hero) article { width: 100% !important; max-width: 100% !important; padding-top: 0 !important; margin: 0 !important; }

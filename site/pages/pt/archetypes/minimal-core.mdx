@@ -1,0 +1,98 @@
+# Archetypes minimal-core
+
+Três archetypes da v1 são **conhecidos-pelo-schema, mas minimal-core**:
+
+- `monorepo` — um workspace multi-pacote
+- `library-sdk` — uma biblioteca publicada ou pacote SDK
+- `infra-iac` — infraestrutura / infraestrutura-como-código
+
+O schema do manifest aceita os três como valores válidos de `archetype`, e a
+entrevista responde a um **core universal** seguro para eles, mas nenhum tem ainda
+uma árvore de templates de archetype dedicada. Eles renderizam o core mínimo e
+serão aprofundados na v2 (invariante **I3**: "a v1 entrega backend-api + fullstack
+em PROFUNDIDADE; monorepo | library-sdk | infra-iac são conhecidos-pelo-schema mas
+renderizam um core mínimo").
+
+## O que "minimal-core" significa
+
+Selecionar um desses archetypes faz apenas as perguntas **universais** — aquelas
+cujo `applies_to` é `all`:
+
+- `archetype` (o eixo de ramificação)
+- identidade do projeto + stack: `project_name`, `project_description`, `language`,
+  `runtime`, `package_manager`
+- toggles de feature: `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate`
+- contract gate: `gate_mode`, `gate_glob_dialect` e
+  `gate_protected_paths_core` (a pergunta de protected-paths do minimal-core)
+- `telemetry_*`
+- `discovery_enabled`
+- `ci_cd_target`
+
+As perguntas a seguir **nunca disparam** para um archetype minimal-core porque seu
+`applies_to` lista apenas os archetypes profundos:
+
+| Pergunta pulada | `applies_to` | Por que é pulada |
+|---|---|---|
+| `framework_backend` | `[backend-api]` | minimal-core não tem enum de framework de backend |
+| `framework_fullstack` | `[fullstack]` | minimal-core não tem enum de framework de fullstack |
+| `architecture` | `[backend-api, fullstack]` | sem scaffold de topologia de pastas para conduzir |
+| `api_first` | `[backend-api, fullstack]` | sem camada de API |
+| `persistence_*` (DB / ORM / migrações) | `[backend-api, fullstack]` | **uma pergunta de DB nunca é feita aqui** (determinístico, finding 4) |
+| `gate_scope_*`, `gate_exempt_*`, `gate_require_approval_by` | apenas profundos | minimal-core entrega gate `mode` + `protected_paths` e nada mais fino |
+| `design_system_*` | `[fullstack]` | exclusivo de fullstack |
+
+Esta é uma garantia **determinística**, não uma esperança do LLM: o pulo é
+conduzido pelo gating `applies_to` do banco de perguntas, avaliado antes de
+qualquer prompting. Um projeto `infra-iac` nunca pode ser perguntado sobre qual
+banco de dados usa.
+
+## Defaults do gate (minimal-core)
+
+Os três compartilham uma única pergunta de protected-paths,
+`gate_protected_paths_core`, cujas opções abrangem os layouts comuns de
+minimal-core:
+
+```yaml
+# gate_protected_paths_core
+options:  ["src/**", "packages/**", "modules/**", "lib/**",
+           "deploy/**", "infra/**", "terraform/**"]
+default:  ["src/**"]
+applies_to: [monorepo, library-sdk, infra-iac]
+```
+
+> **Finding 44 (footgun de gate-vazio) e infra-iac.** O default é `src/**`, que
+> não corresponde a um layout típico de IaC (`infra/**`, `terraform/**`,
+> `deploy/**`). O schema ainda exige que `protected_paths` seja não vazio
+> (`minItems: 1`, invariante **I4**), então o gate nunca é estruturalmente vazio —
+> mas um operador `infra-iac` deve sobrescrever o default para um caminho que
+> realmente exista em sua árvore (ex.: `terraform/**`). As opções de multiseleção
+> acima incluem os caminhos de IaC precisamente para que essa sobrescrita esteja a
+> uma seleção de distância.
+
+Archetypes minimal-core entregam apenas `mode` + `glob_dialect` +
+`protected_paths`. Os botões mais finos do gate (`scope`, `exempt`,
+`require_approval_by`) são exclusivos dos archetypes profundos.
+
+## O que renderiza para um archetype minimal-core
+
+**Não** existe diretório `templates/archetypes/monorepo/` (nem `library-sdk/`,
+`infra-iac/`). Um init minimal-core renderiza o core seguro e agnóstico ao
+archetype:
+
+- as skills CHILD sempre-ativas e as convenções de `.claude/`,
+- o `project.manifest.yaml` validado,
+- os blocos opt-in de hooks / MCP / telemetria (conduzidos por `features.*`),
+- o hook do contract-gate se `features.sdd_gate` for verdadeiro (usando os
+  `protected_paths` escolhidos acima).
+
+Nenhum scaffolding específico de domínio (sem árvores de `app/`, `api/`,
+`openapi/`, persistência ou design-system) é produzido, porque nenhuma foi
+autorada para esses archetypes ainda.
+
+## Roadmap
+
+Aprofundar `monorepo`, `library-sdk` e `infra-iac` em árvores de templates
+completas — com scaffolds por archetype, perguntas de framework/tooling e defaults
+de gate sob medida — está planejado para a **v2**. Até lá, trate esses archetypes
+como um ponto de partida válido e limpo-no-schema que conecta as convenções core e
+o gate, mas espera que você organize a estrutura do projeto por conta própria.

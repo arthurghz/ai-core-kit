@@ -1,0 +1,148 @@
+# fullstack (deep)
+
+`fullstack` is the second **deep** v1 archetype. Pick it for a web app that
+ships its own front end plus an API tier in one repo. It is the only archetype
+that can install the bundled design-system payload (shadcn/ui skills, brand
+guidelines, design tokens).
+
+## Interview subset
+
+Choosing `fullstack` activates the fullstack-specific questions: the fullstack
+framework list, a dual app/api gate, persistence, and the design-system toggle.
+
+| Question | Writes to | Notes |
+|---|---|---|
+| `project_name`, `project_description` | `project.name`, `project.description` | universal |
+| `language` | `project.language` | usually typescript |
+| `runtime`, `package_manager` | `project.runtime`, `project.package_manager` | universal |
+| `framework_fullstack` | `project.framework` | next / remix / sveltekit / nuxt |
+| `architecture` | `project.architecture` | layered / hexagonal / modular-monolith / clean / mvc |
+| `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate` | `features.*` | opt-in toggles |
+| `api_first` | `api_first` | ties to whether a separate `api/` tier exists |
+| `persistence_enabled` → `persistence_db`, `persistence_orm`, `migrations_*` | `persistence.*` | DB/ORM/migration cascade |
+| `gate_mode`, `gate_glob_dialect` | `contract_gate.mode`, `.glob_dialect` | skipped if `feat_sdd_gate == false` |
+| `gate_protected_paths_fullstack` | `contract_gate.protected_paths` | fullstack default set |
+| `gate_scope_fullstack` | `contract_gate.scope` | app + api |
+| `gate_exempt_fullstack` | `contract_gate.exempt` | adds stories + prisma migrations |
+| `gate_require_approval_by` | `contract_gate.require_approval_by` | advisory reviewers |
+| `design_system_install` → `design_system_source` | `design_system.*` | **fullstack-only** |
+| `telemetry_*` | `telemetry.*` | offline attribution config |
+| `discovery_enabled` | `discovery.enabled` | default `false` |
+| `ci_cd_target` | `ci_cd.target` | github-actions / gitlab-ci / none |
+
+The framework question (`framework_fullstack`) offers fullstack frameworks only
+(Next.js, Remix, SvelteKit, Nuxt). The backend framework question never fires.
+
+## Gate defaults (fullstack)
+
+The fullstack gate covers both the web tier and the API tier:
+
+```yaml
+contract_gate:
+  mode: block                       # default; block | warn | off
+  glob_dialect: fnmatch
+  protected_paths:                  # gate_protected_paths_fullstack default
+    - "app/**"
+    - "api/**"
+    - "src/**"
+    - "prisma/schema.prisma"
+  scope:                            # gate_scope_fullstack default
+    - "app/**"
+    - "api/**"
+  exempt:                           # gate_exempt_fullstack default
+    - "**/*.test.*"
+    - "**/*.stories.tsx"
+    - "prisma/migrations/**"
+    - "**/__snapshots__/**"
+```
+
+Compared to backend-api, the protected/scope sets reach into `app/**` (the web
+tier) and the exempt list adds `**/*.stories.tsx` (Storybook) and
+`prisma/migrations/**`.
+
+## Schema rules for fullstack
+
+The manifest schema's per-archetype `if/then` block enforces:
+
+- `design_system` is **required** (`if archetype == fullstack then required:
+  [design_system]`). A fullstack manifest must carry its own design-system block.
+- `contracts[]` is optional with default `[]` (same as all archetypes in v2).
+- `contract_gate.protected_paths` must be present and non-empty.
+
+The `design_system.tokens` map (optional) requires snake_case keys
+(`^[a-z][a-z0-9_]*$`, decision O4) because the `${var}` render regex's character
+class `[a-z0-9_]` cannot match a hyphen — a hyphenated token key would be left
+un-substituted.
+
+## The design-system install (shipped, fullstack-only)
+
+When `design_system.install == true`, `/ack-init` includes the conditional
+subtree under
+`templates/archetypes/fullstack/_when.design_system.install/design-system/`.
+This is the one archetype-specific payload that ships meaningfully today:
+
+```
+design-system/
+├── NOTICE                              # Apache-2.0 attribution (required)
+├── README.md.tpl
+├── mcp/
+│   ├── shadcn.mcp.json                 # component-discovery MCP server
+│   └── README.md
+├── skills/
+│   ├── shadcn-ui/                      # SKILL.md + references (cli, component, mcp, theming)
+│   ├── brand-guidelines/               # SKILL.md + references (logo, tokens, typography, voice)
+│   └── frontend-design-guidelines/     # SKILL.md + references (a11y, color, spacing, layout, …)
+└── theme/
+    ├── components.json.tpl
+    ├── globals.css.tpl
+    └── theme.tokens.json
+```
+
+Inclusion is doubly guarded (both halves AND together):
+
+1. The path-segment guard `_when.design_system.install/` is evaluated first; if
+   `design_system.install` is falsy the whole subtree is omitted.
+2. The `render.map.yaml` rule `glob: "**/design-system/**"` carries
+   `requires_archetype: fullstack` as a belt-and-suspenders **assertion**: if a
+   design-system file is ever reached under a non-fullstack archetype the render
+   **aborts loudly** (it never silently emits). Under any non-fullstack archetype
+   `design_system.*` is absent, so the `when` evaluates false and the file is
+   omitted before the assertion can fire.
+
+The skills carried here are Apache-2.0 example skills shipped **with a NOTICE**
+file — never docx/pdf/pptx/xlsx-derived (proprietary, source-available) content.
+See the [Design System Integration](/features/design-system) reference
+for the full tree and licensing posture.
+
+## What ships today vs P4
+
+The fullstack branch contract is **frozen and shipped** (P3). The design-system
+subtree exists with its skills, MCP config, NOTICE, and theme scaffolding. The
+broader fullstack template **tree** is being deepened in **P4** (`done: false`).
+Today the base tree under `templates/archetypes/fullstack/` is a structurally
+correct skeleton:
+
+```
+fullstack/
+├── CLAUDE.md.tpl                       # managed gate block + design-system pointer; deep body TODO(P4)
+├── .mcp.json.tpl                       # rendered only when features.mcp
+├── .claude/
+│   ├── settings.json.tpl
+│   └── hooks/contract-gate             # rendered only when features.sdd_gate
+├── app/.gitkeep.tpl                    # web tier placeholder
+├── api/.gitkeep.tpl                    # api tier placeholder
+├── src/.gitkeep.tpl
+├── docs/contracts/CONTRACT.template.md.tpl
+├── _when.design_system.install/        # the design-system subtree (above)
+└── _when.persistence.enabled/src/infra/db/.gitkeep.tpl
+```
+
+Deferred to P4 (`TODO(P4)` in the templates): the DEEP `CLAUDE.md` body (web +
+api tier conventions, design-system usage, agent roster), the materialized
+`tokens.json` from `design_system.tokens`, real component primitives, and the
+house-style web/api scaffolds beyond the `.gitkeep` placeholders.
+
+> **Accuracy note.** The design-system *skills and theming payload* ship today;
+> the surrounding fullstack app/api scaffold is a P4 skeleton. Treat the branch
+> contract and the design-system payload as real, and the deep app scaffold as
+> in-progress.

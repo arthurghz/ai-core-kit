@@ -1,0 +1,118 @@
+# backend-api (profundo)
+
+`backend-api` é um dos dois archetypes **profundos** da v1. Escolha-o para um
+serviço backend HTTP/RPC autônomo: um projeto que possui uma superfície de API,
+geralmente uma camada de persistência, e se beneficia de aplicar o contract gate
+à sua árvore de código-fonte.
+
+## Subconjunto da entrevista
+
+Como `archetype` é o eixo de ramificação, escolher `backend-api` ativa as
+perguntas específicas de backend e pula as de fullstack/design-system. As
+perguntas feitas (de `templates/interview/questions.yaml`) são:
+
+| Pergunta | Escreve em | Notas |
+|---|---|---|
+| `project_name`, `project_description` | `project.name`, `project.description` | universal |
+| `language` | `project.language` | python / typescript / go / rust / java |
+| `runtime`, `package_manager` | `project.runtime`, `project.package_manager` | universal |
+| `framework_backend` | `project.framework` | fastapi / express / nestjs / gin / axum |
+| `architecture` | `project.architecture` | layered / hexagonal / modular-monolith / clean / mvc |
+| `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate` | `features.*` | toggles opt-in |
+| `api_first` | `api_first` | default `true` para backend-api |
+| `persistence_enabled` → `persistence_db`, `persistence_orm`, `migrations_*` | `persistence.*` | cascata de DB/ORM/migração |
+| `gate_mode`, `gate_glob_dialect` | `contract_gate.mode`, `.glob_dialect` | pulado se `feat_sdd_gate == false` |
+| `gate_protected_paths_backend` | `contract_gate.protected_paths` | conjunto default de backend |
+| `gate_scope_backend` | `contract_gate.scope` | subconjunto portador de contrato |
+| `gate_exempt_backend` | `contract_gate.exempt` | prevalece sobre scope/protected_paths |
+| `gate_require_approval_by` | `contract_gate.require_approval_by` | revisores consultivos |
+| `telemetry_*` | `telemetry.*` | configuração de atribuição offline |
+| `discovery_enabled` | `discovery.enabled` | default `false` |
+| `ci_cd_target` | `ci_cd.target` | github-actions / gitlab-ci / none |
+
+A pergunta de framework (`framework_backend`) tem gating
+`applies_to: [backend-api]` e oferece apenas frameworks de backend (FastAPI,
+Express, NestJS, Gin, Axum). A pergunta de framework de fullstack nunca dispara.
+
+## Defaults do gate (backend-api)
+
+Estes são os defaults por archetype que a entrevista semeia. O hook lê os valores
+escritos, nunca um default hardcoded (invariante **I4**):
+
+```yaml
+contract_gate:
+  mode: block                       # default; block | warn | off
+  glob_dialect: fnmatch
+  protected_paths:                  # default de gate_protected_paths_backend
+    - "src/**"
+    - "migrations/**"
+    - "openapi/**"
+  scope:                            # default de gate_scope_backend
+    - "src/**"
+  exempt:                           # default de gate_exempt_backend
+    - "**/*.test.*"
+    - "migrations/**"
+    - "**/__snapshots__/**"
+```
+
+`protected_paths` tem `minItems: 1` no schema, então um gate de backend nunca é
+vazio. `exempt` prevalece tanto sobre `scope` quanto sobre `protected_paths`,
+então testes e migrações são editáveis sem um contrato aprovado, mesmo vivendo sob
+árvores protegidas.
+
+## Regras de schema para backend-api
+
+O bloco `if/then` por archetype do schema do manifest impõe:
+
+- `design_system` é **proibido** (é um bloco exclusivo de fullstack). A entrevista
+  garante isso por construção: as perguntas de design-system têm
+  `applies_to: [fullstack]`, então nenhuma chave `design_system` é jamais escrita
+  aqui.
+- `contracts[]` é **opcional** com default `[]` (v2 / decisão O3). O `/ack-init`
+  semeia uma entrada de contrato stub (ex.: `C-001-...`) como um default de
+  qualidade, não como uma exigência do schema.
+- `contract_gate.protected_paths` deve estar presente e não vazio.
+
+## O que é entregue hoje vs P4
+
+O contrato do ramo (perguntas, regras de schema, defaults de gate, regras de
+render) está **congelado e entregue** como parte da P3. A **árvore** de templates
+de `backend-api` está sendo aprofundada na **P4** (`done: false`). Hoje ela é
+entregue como um esqueleto estruturalmente correto em
+`templates/archetypes/backend-api/`:
+
+```
+backend-api/
+├── CLAUDE.md.tpl                       # CLAUDE.md do filho (bloco do gate gerenciado; corpo profundo TODO(P4))
+├── .mcp.json.tpl                       # renderizado apenas quando features.mcp
+├── .claude/
+│   ├── settings.json.tpl               # apenas chaves gerenciadas de hooks/env (O5)
+│   └── hooks/contract-gate             # renderizado apenas quando features.sdd_gate
+├── openapi/openapi.yaml.tpl            # stub OpenAPI 3.1.0; paths {} (spec profunda TODO(P4))
+├── docs/contracts/CONTRACT.template.md.tpl
+├── src/{api,domain}/.gitkeep.tpl
+└── _when.persistence.enabled/          # guarda de segmento de caminho
+    └── src/infra/db/.gitkeep.tpl
+    └── _when.persistence.migrations.enabled/migrations/.gitkeep.tpl
+```
+
+O que renderiza corretamente hoje: a inclusão condicional (as subárvores de
+persistência e migração aparecem apenas quando suas guardas são verdadeiras), o
+hook do contract-gate (apenas quando `features.sdd_gate`), a fiação do MCP (apenas
+quando `features.mcp`) e o bloco gerenciado `ack:managed` em `CLAUDE.md` carregando
+o modo do gate e os caminhos protegidos.
+
+O que está explicitamente **adiado para a P4** (marcado como `TODO(P4)` nos
+templates):
+
+- o corpo PROFUNDO do `CLAUDE.md` (estilo da casa, roster de agentes, convenções
+  por arquitetura);
+- a spec OpenAPI real (paths, schemas gerados a partir do framework escolhido) —
+  hoje `openapi.yaml.tpl` é um stub válido com `paths: {}`;
+- o scaffold completo de código-fonte no estilo da casa além dos placeholders
+  `.gitkeep`.
+
+> **Nota de precisão.** Não trate o `backend-api` como um scaffold de produção
+> pronto-para-uso ainda. Seu *contrato* está congelado; seu *conteúdo* está em
+> andamento sob a P4. O esqueleto existe para manter as árvores protegidas reais e
+> para tornar o teste da matriz de ramos significativo.

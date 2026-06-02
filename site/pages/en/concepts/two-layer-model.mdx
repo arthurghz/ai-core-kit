@@ -1,0 +1,123 @@
+---
+title: The META vs CHILD boundary
+description: The architectural separation between building the kit and what /ack-init renders into a fork.
+---
+
+# The META vs CHILD boundary
+
+The single most important idea in `ai-core-kit` is that it lives in **two layers that
+must never be conflated**. Get this boundary right and everything else — idempotency,
+template hygiene, the contract gate, telemetry — falls into place. Get it wrong and you
+leak meta-only tooling into child projects or try to apply child rules to the kit itself.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#1e1b4b","secondaryColor":"#ecfeff","tertiaryColor":"#faf5ff","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":58,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
+flowchart LR
+  subgraph META["META — the kit"]
+    direction TB
+    MT[".claude/ tooling"]
+    MD["docs/ telemetry/"]
+    MR["README / CLAUDE.md"]
+    TPL["templates/"]
+  end
+  subgraph CHILD["CHILD — product"]
+    direction TB
+    CM["project.manifest.yaml"]
+    CS["rendered .claude/"]
+    CG["contract gate"]
+  end
+  TPL -- "render only (I7)" --> CHILD
+  MT -. "never copied" .-> CHILD
+  MGOV["forkability rules"] -.-> META
+  CGOV["contract-first rules"] -.-> CHILD
+```
+
+<small>META authors the CHILD payload under `templates/` and is governed by forkability, idempotency, and template hygiene; CHILD is the rendered product (manifest, rendered `.claude/`, opt-in contract gate) governed by contract-first, interview, and contract-gate rules. The dependency runs one way: META → CHILD.</small>
+
+## The two layers
+
+| Layer | What it is | Where it lives | What governs it |
+|---|---|---|---|
+| **META** — building the kit itself | the scaffold repo and its build machinery | `README.md`, `CLAUDE.md`, `docs/`, `.claude/` tooling, `templates/` authoring, `telemetry/`, `discovery/` | forkability, idempotency, template hygiene |
+| **CHILD** — what `/ack-init` renders into a fork | the actual new project | **only** what lives under `templates/` | design-contract-first, the bootstrap interview, archetype scaffolding, the contract gate |
+
+> META = *building the machine that stamps out the standard.*
+> CHILD = *what the machine stamps out.*
+
+Design-contract-first, API-first, and the contract gate are **CHILD-layer rules**. They
+are authored here as templates and hooks that **ship into the child** — they do **not**
+govern how the meta-repo itself is built.
+
+## Why the META repo looks "incomplete"
+
+Because contract-first is a child rule, the META repo deliberately:
+
+- carries **no** `project.manifest.yaml` and **no** contract instance (those are child
+  artifacts produced by the interview); and
+- wires **no** contract-gate hook of its own (it would pass vacuously — there is no
+  child manifest for it to read).
+
+This is intentional, not a gap. The contract payload lives **only** under `templates/`
+and is exactly what `/ack-init` renders into a fork.
+
+## The one-way dependency
+
+The dependency runs strictly **META → CHILD**, never back:
+
+- The renderer reads **from** `templates/` and writes **into** the child working tree.
+- A child never reads back into the kit's `.claude/` tooling, the discovery engine, or
+  the orchestrator.
+- The renderer copies **only** files under `templates/`. The META `.claude/` tree
+  (build-tooling skills like `skill-creator`, `mcp-builder`, the orchestrator) is
+  **never** copied into a child (invariant **I7**, enforced as render rule: *render only
+  FROM `templates/`*).
+
+This is what lets the kit carry powerful meta-only machinery without any risk of it
+leaking into the projects it generates.
+
+## Forkability invariants
+
+Three concrete rules make a rendered child a clean, self-contained repo:
+
+1. **The META `.claude/` tree is never copied into a child.** Only `templates/` is
+   rendered. Meta-only agents (Research, Discovery), the telemetry MCP, and the
+   orchestrator can never appear in a fork.
+2. **Child hooks use the literal `${CLAUDE_PROJECT_DIR}`.** A rendered hook command is
+   `python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/contract-gate` — never an absolute path
+   and never a `templates/`-relative path. The render engine even asserts, before
+   writing any child file, that the content contains no `templates/archetypes/` substring
+   and no absolute kit path; a violation aborts the render.
+3. **Child template variables are `${dotted.path}` in snake_case**, resolved from
+   `managed:` in the child manifest. The render regex matches lower-case dotted paths
+   only, which is precisely why the upper-case shell variable `${CLAUDE_PROJECT_DIR}`
+   survives substitution untouched.
+
+## Two-sided safety: fail-closed at author time, fail-open at runtime
+
+The boundary is enforced asymmetrically on purpose (invariant **I6**):
+
+- **Author-time fail-closed.** `/ack-init` validates the manifest against the frozen
+  JSON-Schema **before** rendering. An invalid manifest aborts and writes nothing. The
+  meta-repo guard is the same principle: running `/ack-init` in the kit itself
+  hard-refuses.
+- **Runtime fail-open.** A corrupt or missing manifest at *consumption* time (e.g. the
+  contract gate reading it) degrades the gate to mode `off` plus a stderr notice — it
+  **never** exits 2 and never wedges a session.
+
+## Why this boundary matters
+
+- **Isolation** — meta-only tooling and child payload can evolve independently; neither
+  contaminates the other.
+- **Idempotency** — because only `managed:` is regenerated and only `rendered_files[]`
+  are owned, re-runs are byte-stable and never clobber hand-edits. See
+  [Render engine — idempotency](/concepts/render-engine#idempotent-re-renders).
+- **Template hygiene** — conditionals live in the manifest and in `_when.*` directories,
+  not as control flow inside templates, so the payload stays auditable.
+- **One-way dependency** — a child is a clean snapshot that owes nothing back to the kit.
+
+## Where the contracts live
+
+The frozen P3 contracts that span this boundary — the manifest schema, the question
+bank, and the render contract — are documented next in
+[Interview → Manifest → Render](/concepts/manifest-and-interview) and
+[Render engine contract](/concepts/render-engine).

@@ -1,0 +1,148 @@
+---
+title: Contribuindo
+description: Como contribuir com o ai-core-kit — as regras da fronteira de duas camadas, as convenções de frontmatter, o linter de frontmatter e como adicionar uma skill com skill-creator e skill-validator.
+---
+
+# Contribuindo
+
+O ai-core-kit é um **padrão forkável**, não um projeto. Contribuir significa melhorar o padrão — o ferramental do próprio kit, sua documentação e o payload CHILD que ele renderiza nos forks. Esta página cobre as regras que toda contribuição deve respeitar, as convenções que o linter impõe e o fluxo para adicionar uma skill.
+
+> Antes de contribuir arquivos derivados de outro repositório, leia o [Ledger de Licenças](/reference/licensing). Padrões são livres para aprender; arquivos não são livres para copiar.
+
+---
+
+## 1. A fronteira de duas camadas (leia isto primeiro)
+
+A regra mais importante de todas: **nunca confunda a camada META com a camada CHILD.** Veja [A fronteira META vs CHILD](/concepts/two-layer-model) para o tratamento completo.
+
+| Camada | O que é | Onde vive |
+|---|---|---|
+| **META** | construir o próprio kit | docs raiz, `.claude/`, `scripts/`, `telemetry/`, `bootstrap/` |
+| **CHILD** | o que o `/ack-init` renderiza em um fork | tudo sob `templates/` |
+
+As convenções se aplicam a **ambas** as camadas — uma skill tem o mesmo formato quer seja oferecida no `.claude/` META quer em um template filho. O que difere é a **política**:
+
+- **Design-contract-first e o contract gate são regras CHILD.** Eles são autorados aqui como templates mais hooks que vão para o filho, **nunca** conectados ao repositório META. Um gate META só passaria de forma vácua.
+- **Forkabilidade (invariante I7):** a árvore `.claude/` META **nunca** é copiada para um filho. Caminhos de hook filho usam o literal `${CLAUDE_PROJECT_DIR}`; variáveis de template filho são `${dotted.path}` (snake_case, lidas da subárvore `managed:` do manifesto). Nunca embuta `templates/` ou caminhos absolutos do kit em deliverables de payload filho.
+
+**Checklist de fronteira para qualquer mudança sob `templates/`:**
+
+- [ ] Sem caminhos absolutos e sem prefixo `templates/` na saída renderizada.
+- [ ] Comandos de hook usam `${CLAUDE_PROJECT_DIR}`.
+- [ ] Variáveis de template usam `${dotted.path}` resolvendo para a subárvore `managed:` do manifesto.
+- [ ] Nenhum ferramental somente-META (o discovery engine, `/ack-build`) vaza para o payload filho.
+
+---
+
+## 2. Convenções de frontmatter
+
+Todo primitivo do Claude Code é markdown com frontmatter YAML. As regras abaixo são o padrão canônico ([CONVENTIONS.md](https://github.com/stallae/ai-core-kit/blob/main/docs/CONVENTIONS.md)) e são **impostas mecanicamente** (veja §3).
+
+### Skills (`SKILL.md`)
+
+```yaml
+---
+name: my-skill                 # REQUIRED. lowercase-hyphenated (^[a-z0-9]+(-[a-z0-9]+)*$)
+description: >                  # REQUIRED. third-person — WHAT it does + WHEN to use it
+  Do X for Y. Use when … . Trigger when … . Do NOT use when … .
+license: Apache-2.0            # OPTIONAL (or "Complete terms in LICENSE.txt")
+allowed-tools: Read, Bash      # OPTIONAL (restrict the skill's tool surface)
+---
+```
+
+- **Chaves permitidas, no total:** `name`, `description`, `license`, `allowed-tools`. Nada mais.
+- **Chaves proibidas (o linter gera erro):** `version`, `author`, `category`, `triggers`, `updated`. São ruído que o harness ignora e que sofre drift — versionamento vive no git, gatilhos vivem na `description`.
+- A **`description`** é a superfície de gatilho. Escreva-a em terceira pessoa; declare o que faz e quando usar; inclua frases de gatilho explícitas e uma cláusula de quando-NÃO-usar.
+- O **corpo** (após o `---` de fechamento) deve permanecer em ou abaixo de **500 linhas** — consultivo, então o linter emite um *aviso*, não um erro. Empurre os detalhes para `references/*.md` (linkado um nível de profundidade), `assets/` e `scripts/`.
+
+### Agents (`.claude/agents/*.md` e `templates/agents/*.md`)
+
+```yaml
+---
+name: code-reviewer            # REQUIRED. lowercase-hyphenated, matches the file stem
+description: >                  # REQUIRED. third-person, with a "use proactively when …" clause
+  … . Use this agent proactively when … . Trigger when …
+model: sonnet                   # OPTIONAL. one of: haiku | sonnet | opus | inherit
+tools: Read, Grep, Bash         # OPTIONAL. least-privilege allowlist (omit ⟹ inherit)
+---
+```
+
+- `model` tem padrão `inherit`. Atribua por carga cognitiva: `haiku` para varreduras mecânicas, `sonnet` para autoria/extração, `opus` para QA adversarial / julgamento crítico.
+- Um agent por tarefa focada. Agents orquestram skills; não as reimplementam.
+
+### Comandos (`.claude/commands/*.md` e `templates/commands/*.md`)
+
+```yaml
+---
+description: One-line, third-person summary of what the command does.   # REQUIRED
+argument-hint: "[--flag] [<arg>]"                                       # OPTIONAL
+allowed-tools: Read, Write, Bash(git status:*)                          # OPTIONAL
+disable-model-invocation: true                                          # OPTIONAL (human-only)
+---
+```
+
+Apenas `description` é obrigatório. Comandos são **pontos de entrada finos** — a lógica de orquestração é delegada a agents e skills, não fica embutida.
+
+---
+
+## 3. O linter de frontmatter
+
+`scripts/lint-frontmatter.py` verifica mecanicamente as regras acima em `.claude/agents/*.md`, `.claude/commands/*.md`, `.claude/skills/**/SKILL.md` e `templates/**/SKILL.md`. **O CI o roda; uma violação sai com código não zero.**
+
+```bash
+# Scan the whole repo (default target is the repo root containing the script):
+python3 scripts/lint-frontmatter.py
+
+# Or scan a specific path before committing:
+python3 scripts/lint-frontmatter.py templates/skills/my-skill/SKILL.md
+```
+
+O que ele verifica:
+
+- **SKILL.md** — exige `name` (lowercase-hyphenated) + `description`; rejeita as chaves proibidas; rejeita qualquer chave fora do conjunto permitido; avisa se o corpo exceder 500 linhas.
+- **Agents** — exigem `name` + `description`; validam que `model` é um de `haiku|sonnet|opus|inherit`; avisam sobre chaves não reconhecidas.
+- **Comandos** — exigem `description`; avisam sobre chaves não reconhecidas.
+
+Ele é **apenas-stdlib** (sem PyYAML) — analisa somente linhas planas `key: value` de nível superior, o que mantém o kit livre de dependências e espelha o render engine sem dependências de runtime. Erros saem com código não zero; avisos não.
+
+> Prefira rodar a skill [`skill-validator`](/features/skills-catalog), que roda este linter para você e interpreta cada achado.
+
+---
+
+## 4. Adicionando uma skill
+
+As duas skills de ferramental de build META existem para tornar a autoria de uma skill do kit confiável. Use-as em ordem:
+
+### Passo 1 — autorar com `skill-creator`
+
+`skill-creator` rascunha um novo `SKILL.md`, roda evals with-skill vs baseline, avalia-os e otimiza a description para um disparo confiável. Use-o para construir uma skill do zero, refatorar uma existente ou ajustar uma description que dispara de menos ou de mais.
+
+Organize a skill como pasta-por-skill:
+
+```
+templates/skills/<skill-id>/        # CHILD payload  (or .claude/skills/<skill-id>/ for META)
+├── SKILL.md          # frontmatter + body (≤ 500 lines)
+├── references/*.md   # deep detail, linked ONE level deep only
+├── assets/           # templates, fixtures
+├── scripts/          # automation the skill calls
+└── LICENSE.txt       # ONLY if a file was vendored (Apache-2.0 example skills, WITH a NOTICE)
+```
+
+Decida a camada primeiro: uma skill que ajuda a **construir o kit** vai em `.claude/skills/` META; uma skill que vai **para um fork** vai em `templates/skills/`. Se ela vai para um fork, garanta que esteja conectada por uma condição de manifesto ou arquétipo (veja o [Catálogo de Skills](/features/skills-catalog) para os gatilhos de conexão).
+
+### Passo 2 — validar com `skill-validator`
+
+`skill-validator` roda `scripts/lint-frontmatter.py` e interpreta cada achado. Use-o para verificar um `SKILL.md` (ou agent, ou comando) antes de commitar, auditar um primitivo recém-portado ou autorado e aprender as chaves obrigatórias vs proibidas. Ele julga conformidade — não escreve o primitivo.
+
+### Passo 3 — registrar licenciamento se você incorporou
+
+Se algum arquivo foi copiado de um repositório externo, siga o [checklist de incorporação](/reference/licensing): mantenha o `LICENSE.txt` upstream na pasta da skill e adicione uma entrada de atribuição a `THIRD_PARTY_NOTICES.md`. **Nunca** incorpore as doc skills proprietárias (`docx`/`pdf`/`pptx`/`xlsx`).
+
+---
+
+## 5. Expectativas de pull request
+
+- Mantenha o `CLAUDE.md` como um **apontador mínimo** — ele é carregado a cada turno, então o inchaço é um imposto permanente de tokens. Coloque detalhes em docs sob demanda, não no `CLAUDE.md`.
+- Rode o linter (`python3 scripts/lint-frontmatter.py`) e garanta que ele saia com código zero antes de abrir um PR.
+- Respeite a fronteira de camada e os invariantes de forkabilidade na §1.
+- Para qualquer coisa derivada de um repositório externo, confirme sua postura de licença contra o [Ledger de Licenças](/reference/licensing) e atualize `THIRD_PARTY_NOTICES.md` se um arquivo foi copiado.

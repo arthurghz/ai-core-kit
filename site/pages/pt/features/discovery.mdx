@@ -1,0 +1,85 @@
+---
+title: Motor de Descoberta (roadmap)
+description: O loop de descoberta propõe-nunca-adota-automaticamente planejado para P7 — fontes semente, uma Action de PR agendada que abre propostas e adoção apenas-humana. Ainda não construído.
+---
+
+# Motor de Descoberta (roadmap)
+
+> **Status: ROADMAP (P7 — não construído).** Nada nesta página é entregue hoje. O
+> diretório `discovery/`, o comando `/discover`, o schema de propostas e a Action
+> de PR agendada estão todos **planejados**, não presentes. O único artefato
+> relacionado a descoberta no repositório é um *prompt* de agente META
+> (`.claude/agents/discovery.md`) descrevendo a intenção. O campo de manifesto
+> `discovery.enabled` existe mas o padrão é `false`. Esta página documenta o
+> **contrato pretendido**, para que o design não se perca — não trate nada disso
+> como uma feature funcional.
+
+## O princípio central: propor, nunca adotar automaticamente
+
+O motor de descoberta é projetado para **propor** skills, plugins e ferramentas
+Claude Code de terceiros — e **nunca** para adotá-los automaticamente. A
+descoberta propõe; **humanos decidem**. A adoção é uma etapa manual e revisada.
+Este é o único invariante sobre o qual todo o design se sustenta.
+
+## Peças pretendidas
+
+| Peça | Papel pretendido | Status |
+|---|---|---|
+| `discovery/sources.yaml` | Lista semente de fontes upstream para escanear. | Planejado (layout-alvo). |
+| `discovery/proposals/` | Propostas abertas por máquina aguardando revisão humana. | Planejado. |
+| `discovery/adopted/` | O que um humano moveu manualmente de `proposals/`. | Planejado. |
+| comando `/discover` | Roda a descoberta; formato/schema da proposta **A DEFINIR**. | Planejado. |
+| Action de PR agendada | Escaneia fontes periodicamente e abre propostas como PRs. | Planejado. |
+
+### Fontes semente (pretendidas)
+
+De `docs/BOOTSTRAP.md`, o conjunto semente `sources.yaml` planejado:
+
+- `awesome-claude-code` (hesreallyhim/awesome-claude-code)
+- `claude-plugins-official` (anthropics/claude-plugins-official)
+- ferramentas de custo (ccusage / tokscale)
+- `cc-sdd` (gotalab/cc-sdd)
+- HumanLayer "writing a good CLAUDE.md"
+
+### Formato pretendido da proposta
+
+Uma proposta deve ser um `slug.yaml` carregando: `source`, um **ref fixado**, uma
+**licença SPDX**, `kind`, `summary`, `rationale`, `kill_after` e `status`. O schema
+exato está **A DEFINIR** nesta fase — está em desenvolvimento, não congelado.
+
+## Fluxo de adoção pretendido
+
+1. A Action agendada (ou `/discover`) escaneia as fontes semente.
+2. Ela abre **propostas** como PRs em `discovery/proposals/` — nunca faz merge do
+   próprio trabalho.
+3. Um humano revisa a postura de licença e a adequação, depois **manualmente** move
+   uma entrada aceita para `discovery/adopted/`.
+4. Apenas conteúdo **vendorável** (Apache-2.0, MIT) é copiado, **com um NOTICE**;
+   conteúdo source-available / proprietário permanece **apenas-referência** e nunca
+   é vendorado. Veja [Registro de licenças](/reference/licensing).
+
+## Endurecimento exigido (antes que isto possa ser entregue)
+
+O design do P7 chama explicitamente o trabalho de segurança/permissão que deve
+chegar primeiro:
+
+- **Isolamento** do job de descoberta.
+- **Sem auto-merge** — a Action propõe, ela não pode fazer merge.
+- Um **kill switch**.
+
+E vários mecanismos estão explicitamente **adiados**:
+
+- Imposição de expiração do `kill_after`.
+- Um ledger de rejeições.
+- Deduplicação de propostas repetidas.
+- Idempotência de PR agendado (um único PR estável por ciclo de cron).
+
+## Por que está no roadmap e não entregue
+
+O P7 fica depois do contrato P3 congelado (entregue), do renderer (P4, parcial),
+do gate de contrato (P5, parcial) e da telemetria (P6, entregue). A descoberta
+depende de um schema de propostas que ainda está A DEFINIR e do endurecimento de
+segurança acima. Até que isso chegue, o motor é apenas intenção.
+
+Veja também: [Catálogo de skills](/features/skills-catalog),
+[Registro de licenças e referências](/reference/licensing).

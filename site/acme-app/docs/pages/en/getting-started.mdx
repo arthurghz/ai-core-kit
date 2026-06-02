@@ -1,0 +1,41 @@
+---
+title: Getting Started
+description: Install dependencies and run acme-app locally.
+---
+
+# Getting Started
+
+This page covers running **acme-app** on your machine.
+
+## Prerequisites
+
+- **Language:** `python`
+- **Runtime:** ``
+- **Package manager:** `uv`
+
+> If any value above is blank, fill it in for your environment — the scaffold emits
+> whatever was captured during the create-ack interview.
+
+## Run the project
+
+From the repository root (`${CLAUDE_PROJECT_DIR}`), install dependencies and start the
+project. Adjust the commands to match this project's actual scripts:
+
+```sh
+uv install
+uv run dev
+```
+
+## Run these docs
+
+The documentation site lives in `docs/` at the repository root:
+
+```sh
+cd docs
+npm install
+npm run dev      # preview at http://localhost:3000
+npm run build    # production build
+```
+
+Next: see [Architecture](/architecture) for how the project is shaped, and
+[Reference](/reference) to document its API and modules.

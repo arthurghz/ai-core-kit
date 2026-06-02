@@ -1,0 +1,83 @@
+---
+title: Discovery Engine (roadmap)
+description: The propose-never-auto-adopt discovery loop planned for P7 — seed sources, a scheduled PR Action that opens proposals, and human-only adoption. Not built yet.
+---
+
+# Discovery Engine (roadmap)
+
+> **Status: ROADMAP (P7 — not built).** Nothing in this page ships today. The
+> `discovery/` directory, the `/discover` command, the proposal schema, and the
+> scheduled PR Action are all **planned**, not present. The only discovery-related
+> artifact in the repo is a META agent *prompt* (`.claude/agents/discovery.md`)
+> describing the intent. The `discovery.enabled` manifest field exists but defaults
+> to `false`. This page documents the **intended contract**, so the design is not
+> lost — do not treat any of it as a working feature.
+
+## The core principle: propose, never auto-adopt
+
+The discovery engine is designed to **propose** third-party Claude Code skills,
+plugins, and tooling — and **never** to adopt them automatically. Discovery
+proposes; **humans dispose**. Adoption is a manual, reviewed step. This is the
+single invariant the whole design hangs on.
+
+## Intended pieces
+
+| Piece | Intended role | Status |
+|---|---|---|
+| `discovery/sources.yaml` | Seed list of upstream sources to scan. | Planned (target layout). |
+| `discovery/proposals/` | Machine-opened proposals awaiting human review. | Planned. |
+| `discovery/adopted/` | What a human manually moved in from `proposals/`. | Planned. |
+| `/discover` command | Run discovery; proposal format/schema **TBD**. | Planned. |
+| Scheduled PR Action | Periodically scans sources and opens proposals as PRs. | Planned. |
+
+### Seed sources (intended)
+
+From `docs/BOOTSTRAP.md`, the planned `sources.yaml` seed set:
+
+- `awesome-claude-code` (hesreallyhim/awesome-claude-code)
+- `claude-plugins-official` (anthropics/claude-plugins-official)
+- cost tooling (ccusage / tokscale)
+- `cc-sdd` (gotalab/cc-sdd)
+- HumanLayer "writing a good CLAUDE.md"
+
+### Intended proposal shape
+
+A proposal is intended to be a `slug.yaml` carrying: `source`, a **pinned ref**, an
+**SPDX license**, `kind`, `summary`, `rationale`, `kill_after`, and `status`. The
+exact schema is **TBD** at this phase — it is under development, not frozen.
+
+## Intended adoption flow
+
+1. The scheduled Action (or `/discover`) scans the seed sources.
+2. It opens **proposals** as PRs into `discovery/proposals/` — it never merges its
+   own work.
+3. A human reviews license posture and fit, then **manually** moves an accepted
+   entry into `discovery/adopted/`.
+4. Only **vendorable** content (Apache-2.0, MIT) is copied, **with a NOTICE**;
+   source-available / proprietary content stays **reference-only** and is never
+   vendored. See [License ledger](/reference/licensing).
+
+## Required hardening (before this can ship)
+
+The P7 design explicitly calls out security/permission work that must land first:
+
+- **Isolation** of the discovery job.
+- **No self-merge** — the Action proposes, it cannot merge.
+- A **kill switch**.
+
+And several mechanisms are explicitly **deferred**:
+
+- `kill_after` expiry enforcement.
+- A reject ledger.
+- Dedupe of repeat proposals.
+- Scheduled-PR idempotency (a single stable PR per cron cycle).
+
+## Why it is on the roadmap and not shipped
+
+P7 sits after the frozen P3 contract (shipped), the renderer (P4, partial), the
+contract gate (P5, partial), and telemetry (P6, shipped). Discovery depends on a
+proposal schema that is still TBD and on the security hardening above. Until those
+land, the engine is intent only.
+
+See also: [Skills catalog](/features/skills-catalog),
+[License ledger & references](/reference/licensing).

@@ -1,0 +1,71 @@
+---
+title: Installation
+description: Fork ai-core-kit and prepare to initialize a new child project.
+---
+
+# Installation
+
+`ai-core-kit` is consumed by **forking** it. You do not install it as a dependency; you
+fork the meta-repo and run `/ack-init` once inside the fork to turn it into your new
+project. This page covers getting a fork ready; [Quickstart](/getting-started/quickstart)
+walks the interview itself.
+
+## Prerequisites
+
+- **Claude Code** (the CLI / IDE harness that exposes slash commands like `/ack-init`).
+- **git** and a GitHub (or equivalent) account to host the fork.
+- **Python 3** on your `PATH`. The contract-gate hook and the telemetry aggregator are
+  `python3`-pinned (stdlib only). No `pip install` and no Node toolchain are required
+  just to render a child — the render engine has **zero npm/pip dependencies**.
+
+> The kit deliberately avoids a Python-runtime-plus-dependencies precondition on every
+> fork (the reason it does **not** use copier/cookiecutter). See
+> [Render engine](/concepts/render-engine#why-not-copier-or-cookiecutter).
+
+## 1. Fork the repo
+
+Fork `ai-core-kit` into your own namespace, then clone your fork:
+
+```bash
+# after forking on GitHub:
+git clone https://github.com/<you>/<your-new-project>.git
+cd <your-new-project>
+```
+
+The fork **is** your new project's starting point. After `/ack-init` runs, the
+archetype scaffold, `.claude/` tooling, and `project.manifest.yaml` live in this same
+repo — you do not copy files out of `ai-core-kit` by hand.
+
+## 2. Understand what you forked (META vs CHILD)
+
+A fresh fork still looks like the META repo. The pieces that matter:
+
+| Path | Layer | Role at init time |
+|---|---|---|
+| `templates/` | META → CHILD payload | The archetype trees, manifest schema, and question bank `/ack-init` renders **from**. |
+| `templates/manifest/project.manifest.schema.{yaml,json}` | contract | The frozen manifest schema (`schema_version: 2`) the interview validates against. |
+| `templates/interview/questions.yaml` | contract | The deterministic question bank the interview walks. |
+| `docs/RENDER-ENGINE.md` | contract | The render contract the renderer obeys. |
+| `.claude/` (META tooling) | META | Build-tooling for the kit itself. **Never** copied into your child. |
+
+The single most important rule: **the META `.claude/` tree is never rendered into a
+child.** Only files under `templates/` become your project. Read why in
+[The META vs CHILD boundary](/concepts/two-layer-model).
+
+## 3. The meta-repo guard
+
+`/ack-init` is designed to run **inside a fork**, producing a child project. If you run
+it in the original `ai-core-kit` meta-repo, it **hard-refuses**: a meta-repo has no
+`project.manifest.yaml` and no contract instance by design, and rendering a child on top
+of the kit itself would corrupt the templates.
+
+This is the author-time **fail-closed** half of the kit's safety model: an invalid
+starting state aborts before anything is written (invariant **I6**). The runtime half is
+**fail-open** — a corrupt or missing manifest at *consumption* time degrades the contract
+gate to mode `off` and never wedges a session.
+
+## Next
+
+You now have a fork on disk with `python3` available. Continue to the
+[Quickstart](/getting-started/quickstart) to run the archetype-first interview and render
+your project.

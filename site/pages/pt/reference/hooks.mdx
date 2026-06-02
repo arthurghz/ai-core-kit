@@ -1,0 +1,103 @@
+---
+title: Referência de Hooks
+description: Todo hook que o ai-core-kit oferece — o gate de contrato PreToolUse renderizado nos arquétipos backend-api e fullstack, seu matcher, modos e comportamento fail-open.
+---
+
+# Referência de Hooks
+
+Um *hook* é um comando que o Claude Code dispara em torno de eventos da sessão
+(`PreToolUse`, `PostToolUse`, `SessionStart`, …), registrado em
+`.claude/settings.json`. O ai-core-kit oferece um único hook como payload CHILD: o
+**contract-gate**, um guarda `PreToolUse` que impõe edição
+*design-contract-first*.
+
+> **Restrição rígida.** Os hooks do Claude Code recebem apenas `session_id`,
+> `transcript_path`, `cwd`, `permission_mode` e `hook_event_name` —
+> **nenhum campo de token ou custo**
+> ([anthropics/claude-code#11008](https://github.com/anthropics/claude-code/issues/11008)).
+> Por isso nenhum hook do kit pode medir custo ao vivo; a telemetria de custo é
+> sempre offline. Veja [Telemetria de Custo Offline](/features/cost-telemetry).
+
+---
+
+## O hook contract-gate
+
+| Propriedade | Valor |
+|---|---|
+| Tipo | `PreToolUse` (comando) |
+| Matcher | `Edit\|Write\|MultiEdit\|NotebookEdit` |
+| Camada | CHILD (renderizado em um fork pelo `/ack-init`) |
+| Renderizado quando | `features.sdd_gate == true` |
+| Localização no fork | `.claude/hooks/contract-gate` |
+| Runtime | `python3` (dialeto de glob: `fnmatch` com `**`) |
+
+O hook é oferecido nos conjuntos de arquétipo **backend-api** e **fullstack**:
+
+| Arquétipo | Caminho do hook (no kit) |
+|---|---|
+| `backend-api` | `templates/archetypes/backend-api/.claude/hooks/contract-gate` |
+| `fullstack` | `templates/archetypes/fullstack/.claude/hooks/contract-gate` |
+
+Os dois arquivos compartilham comportamento idêntico — eles diferem apenas nos
+padrões de `protected_paths` por arquétipo que o `/ack-init` congela no manifesto.
+
+---
+
+## O que o gate faz
+
+Um matcher `PreToolUse` só pode filtrar por **nome de ferramenta**, nunca por
+caminho de arquivo. Então o hook recebe toda chamada
+`Edit`/`Write`/`MultiEdit`/`NotebookEdit`, lê o `tool_input.file_path` do JSON em
+stdin e **escopa no próprio script**:
+
+1. **`exempt`** vence tudo — uma edição que corresponde é sempre permitida.
+2. **`protected_paths`** / **`scope`** — edições aqui exigem um contrato `approved`
+   em `contracts[]`.
+3. Qualquer arquivo que não corresponda a nenhum acima é **PERMITIDO**.
+
+Os três modos (`contract_gate.mode`) são mecanismos distintos:
+
+| Modo | Exit | Saída | Efeito |
+|---|---|---|---|
+| `block` | `2` | define `hookSpecificOutput.permissionDecision: "deny"` | Para a chamada da ferramenta. |
+| `warn` | `0` | mensagem em stderr / `additionalContext` | Registra e continua — **não** bloqueia. |
+| `off` | `0` | nenhuma; retorno antecipado | No-op silencioso. |
+
+**Fail-open em runtime.** Se o manifesto estiver ausente ou não-analisável quando o
+hook roda, o gate se comporta como `off` mais um aviso em stderr — ele nunca sai com
+`2` e nunca trava a sessão. A análise de manifesto é deliberadamente fail-open.
+
+> **Status.** O contrato do manifesto e o formato de dados do gate estão
+> **CONGELADOS e entregues** (`contract_gate.*` e `contracts[]` no schema, o matcher
+> do `settings.json`, a localização do hook e o comportamento fail-open). O runtime
+> profundo (escopo via fnmatch no próprio script, percurso do oráculo de aprovados,
+> os três mecanismos de modo distintos) é **P5 / roadmap**. O hook entregue é um
+> stub fail-open coerente que sai com `0`.
+
+---
+
+## Registro no settings.json
+
+O matcher renderizado em `.claude/settings.json` está congelado:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "python3 ${CLAUDE_PROJECT_DIR}/.claude/hooks/contract-gate" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Quando `features.sdd_gate: false`, o `/ack-init` não renderiza nem o hook nem o
+matcher `PreToolUse`, e `contract_gate.mode` torna-se irrelevante.
+
+O tratamento completo — chave-mestra, padrões de caminho por arquétipo, o oráculo de
+contratos aprovados e o que está entregue vs. roadmap — está em
+[Gate de Contrato de Design](/features/contract-gate).

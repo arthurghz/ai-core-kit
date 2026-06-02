@@ -1,0 +1,72 @@
+---
+title: Instalação
+description: Faça o fork do ai-core-kit e prepare-se para inicializar um novo projeto filho.
+---
+
+# Instalação
+
+`ai-core-kit` é consumido **fazendo fork** dele. Você não o instala como uma dependência;
+você faz o fork do meta-repositório e executa `/ack-init` uma vez dentro do fork para
+transformá-lo no seu novo projeto. Esta página cobre como deixar um fork pronto; o
+[Início rápido](/getting-started/quickstart) percorre a própria entrevista.
+
+## Pré-requisitos
+
+- **Claude Code** (a CLI / harness de IDE que expõe slash commands como `/ack-init`).
+- **git** e uma conta no GitHub (ou equivalente) para hospedar o fork.
+- **Python 3** no seu `PATH`. O hook do portão de contrato e o agregador de telemetria são
+  fixados em `python3` (apenas stdlib). Nenhum `pip install` e nenhuma toolchain Node são
+  necessários apenas para renderizar um filho — o motor de render tem **zero dependências
+  npm/pip**.
+
+> O kit deliberadamente evita um pré-requisito de runtime-Python-mais-dependências em todo
+> fork (a razão pela qual ele **não** usa copier/cookiecutter). Veja
+> [Motor de render](/concepts/render-engine#why-not-copier-or-cookiecutter).
+
+## 1. Faça o fork do repositório
+
+Faça o fork do `ai-core-kit` para o seu próprio namespace, depois clone seu fork:
+
+```bash
+# after forking on GitHub:
+git clone https://github.com/<you>/<your-new-project>.git
+cd <your-new-project>
+```
+
+O fork **é** o ponto de partida do seu novo projeto. Depois que `/ack-init` roda, o scaffold
+do arquétipo, a ferramenta `.claude/` e o `project.manifest.yaml` vivem neste mesmo
+repositório — você não copia arquivos do `ai-core-kit` à mão.
+
+## 2. Entenda o que você fez fork (META vs CHILD)
+
+Um fork novo ainda se parece com o repositório META. As peças que importam:
+
+| Caminho | Camada | Papel no momento do init |
+|---|---|---|
+| `templates/` | payload META → CHILD | As árvores de arquétipo, o schema do manifesto e o banco de perguntas **a partir do qual** `/ack-init` renderiza. |
+| `templates/manifest/project.manifest.schema.{yaml,json}` | contrato | O schema de manifesto congelado (`schema_version: 2`) contra o qual a entrevista valida. |
+| `templates/interview/questions.yaml` | contrato | O banco determinístico de perguntas que a entrevista percorre. |
+| `docs/RENDER-ENGINE.md` | contrato | O contrato de render que o renderizador obedece. |
+| `.claude/` (ferramenta META) | META | Ferramenta de build para o próprio kit. **Nunca** copiada para o seu filho. |
+
+A regra mais importante de todas: **a árvore `.claude/` da META nunca é renderizada em um
+filho.** Somente arquivos sob `templates/` se tornam o seu projeto. Leia o porquê em
+[A fronteira META vs CHILD](/concepts/two-layer-model).
+
+## 3. A guarda do meta-repositório
+
+`/ack-init` foi projetado para rodar **dentro de um fork**, produzindo um projeto filho. Se
+você o executar no meta-repositório `ai-core-kit` original, ele **recusa de forma rígida**:
+um meta-repositório não tem `project.manifest.yaml` nem instância de contrato por design, e
+renderizar um filho em cima do próprio kit corromperia os templates.
+
+Esta é a metade **fail-closed** em tempo de autoria do modelo de segurança do kit: um estado
+inicial inválido aborta antes de qualquer coisa ser escrita (invariante **I6**). A metade de
+runtime é **fail-open** — um manifesto corrompido ou ausente no momento do *consumo* rebaixa
+o portão de contrato para o modo `off` e nunca trava uma sessão.
+
+## Próximo
+
+Você agora tem um fork em disco com `python3` disponível. Continue para o
+[Início rápido](/getting-started/quickstart) para rodar a entrevista que começa pelo
+arquétipo e renderizar seu projeto.

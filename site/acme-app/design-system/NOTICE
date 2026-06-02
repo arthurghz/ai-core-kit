@@ -1,0 +1,104 @@
+ai-core-kit fullstack design-system
+====================================
+
+The design-guideline skills in this subtree are licensed under the Apache
+License, Version 2.0.
+
+    SPDX-License-Identifier: Apache-2.0
+
+This subtree ships ONLY Apache-2.0 example content WITH this NOTICE (manifest
+findings 21/45). It MUST NOT contain docx/pdf/pptx/xlsx-derived (proprietary,
+source-available) material, and no file here is read from, copied from, or
+derived from those proprietary doc skills.
+
+Attribution
+-----------
+
+The skills below are ORIGINAL works authored for ai-core-kit. Their *structure*
+(the SKILL.md frontmatter shape, the body-plus-references/ layout, and the
+overall skill organization) is modeled on Anthropic's Apache-2.0 example skills
+`frontend-design` and `brand-guidelines`. Per the Apache-2.0 NOTICE
+requirement we attribute that origin:
+
+    Portions of the structure of the skills in this subtree are adapted from
+    the Anthropic example skills "frontend-design" and "brand-guidelines".
+
+    Copyright 2026 Anthropic, PBC.
+    Licensed under the Apache License, Version 2.0 (the "License"); you may not
+    use these files except in compliance with the License. You may obtain a
+    copy of the License at:
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+    License for the specific language governing permissions and limitations
+    under the License.
+
+Skills in this subtree
+----------------------
+
+    skills/frontend-design-guidelines/  — layout, spacing, type scale, color,
+        components, responsive, accessibility (UI composition rules).
+    skills/brand-guidelines/            — design tokens, typography families,
+        voice/tone, logo usage (brand identity, snake_case token keys per O4).
+    skills/shadcn-ui/                   — using shadcn/ui in a React+Tailwind
+        child: copy-in component model, init/add CLI, OKLch CSS-variable theming
+        and dark mode, registries, and the shadcn MCP. Re-authored guidance for
+        the MIT-licensed shadcn/ui (see "Third-party: shadcn/ui (MIT)" below).
+
+The skill *content* is independently authored for ai-core-kit and is not copied
+or derived from any Anthropic skill body; only the example-skill structure is
+adapted under Apache-2.0. The shadcn-ui skill's guidance is independently
+re-authored and does not copy upstream shadcn/ui source.
+
+Third-party: shadcn/ui (MIT)
+----------------------------
+
+This subtree integrates shadcn/ui via the Model Context Protocol. The
+`mcp/shadcn.mcp.json` server fragment invokes the upstream `shadcn` CLI
+(`npx shadcn@latest mcp`); the MCP guidance under `mcp/`, the default theme under
+`theme/` (`theme/globals.css.tpl`, `theme/components.json.tpl`,
+`theme/theme.tokens.json`), and the design-system skills are independently
+re-authored for ai-core-kit and do NOT copy upstream source. The CSS-variable
+token names and the OKLch theming convention in `theme/` follow shadcn/ui's
+public conventions; the specific OKLch values are an independently authored
+default. shadcn/ui components are copied INTO the child project by the CLI (you
+own the resulting source). shadcn/ui is licensed under MIT:
+
+    shadcn/ui (https://github.com/shadcn-ui/ui)
+    Copyright (c) 2023 shadcn
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+Render notes
+------------
+
+Static (no .tpl): copied byte-for-byte; not substitution-scanned. The SKILL.md
+and references/*.md files here are static so literal token names (e.g.
+`color_brand`) survive verbatim, as are `theme/theme.tokens.json` and
+`theme/README.md` (literal CSS-variable names like `--primary` and `oklch(...)`
+must survive). Rendered files (`.tpl`, scanned for `${...}` managed paths):
+`README.md.tpl`, and under `theme/`: `globals.css.tpl` (only `${project.name}`
+in its leading comment is substituted — every OKLch token VALUE is a static
+default, because an unbound `${...}` is a hard render error) and
+`components.json.tpl` (static; valid JSON after render). Token keys are snake_case
+`^[a-z][a-z0-9_]*$` (decision O4) so the lowercase render regex never leaves a
+hyphenated key un-substituted.

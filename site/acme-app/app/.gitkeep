@@ -1,0 +1,3 @@
+# acme-app — web/app tier (next, layered)
+# Protected path app/**. TODO(P4): DEEP web-tier scaffold (routes, pages,
+# components for next) deferred to P4.

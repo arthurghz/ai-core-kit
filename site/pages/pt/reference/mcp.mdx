@@ -1,0 +1,86 @@
+---
+title: Referência de MCP
+description: Todo servidor MCP que o ai-core-kit oferece — a entrada shadcn/ui renderizada no .mcp.json do arquétipo fullstack quando design_system.install é true, com seu comando, gate e fronteira de aprovação.
+---
+
+# Referência de MCP (Model Context Protocol)
+
+Um servidor MCP deixa um agente alcançar um serviço externo por ferramentas
+bem-projetadas. Um projeto FILHO forkado pode optar por um `.mcp.json` com escopo de
+projeto que declara esses servidores; o `/ack-init` o renderiza apenas quando
+`features.mcp: true`. Os servidores de projeto **exigem aprovação explícita do
+usuário no primeiro uso** — uma fronteira de segurança deliberada.
+
+A integração completa (toggle de feature, propriedade do bloco gerenciado, segurança
+em re-execução, timeout de cold-start) está em [Integração de MCP](/features/mcp);
+para autorar servidores, veja a skill [`mcp-builder`](/reference/skills).
+
+---
+
+## Servidores MCP oferecidos
+
+| Servidor | Comando | Camada | Renderizado quando | Caminho do fragmento (no kit) |
+|---|---|---|---|---|
+| `shadcn` | `npx shadcn@latest mcp` | CHILD | `features.mcp == true` **E** `design_system.install == true` | `templates/archetypes/fullstack/_when.design_system.install/design-system/mcp/shadcn.mcp.json` |
+
+O servidor MCP do **shadcn/ui** deixa um agente navegar, buscar e instalar
+componentes shadcn/ui (e componentes de quaisquer registries configurados)
+diretamente do `components.json` do projeto. O fragmento canônico é exatamente:
+
+```json
+{ "mcpServers": { "shadcn": { "command": "npx", "args": ["shadcn@latest", "mcp"] } } }
+```
+
+---
+
+## Duplo gate
+
+A entrada `shadcn` é **duplamente protegida**:
+
+1. **`features.mcp`** — o `.mcp.json.tpl` inteiro só renderiza quando o filho optou
+   por um `.mcp.json` de projeto. Se false, a entrada shadcn nunca aparece.
+2. **`design_system.install`** — dentro desse arquivo o bloco `shadcn` é envolvido na
+   diretiva de linha `#ack:if design_system.install` … `#ack:endif` do renderer,
+   então a entrada é emitida **apenas quando `design_system.install == true`**.
+   Quando false (ou ausente, ex. backend-api), o bloco é omitido e o JSON restante
+   permanece válido.
+
+O predicado efetivo é, portanto, **`features.mcp && design_system.install`**.
+
+> **Status.** A renderização do `.mcp.json`, o gate `features.mcp`, o duplo-gate do
+> design-system e o fragmento do MCP shadcn estão **entregues**. O servidor de
+> projeto genérico profundo (`ack-example`) é um **stub P4** — sua integração real de
+> servidor é roadmap. O MCP shadcn faz shell out para ferramentas upstream e funciona
+> hoje.
+
+---
+
+## Servidores de projeto exigem aprovação
+
+O `.mcp.json` é uma config com **escopo de projeto**. O Claude Code **não** confia em
+servidores de projeto automaticamente: no primeiro uso o usuário é solicitado a
+**aprovar** cada servidor (e qualquer mudança em seu `command`/`args` re-solicita).
+Aprove apenas após revisar a entrada — um `.mcp.json` versionado não pode rodar
+silenciosamente um comando na máquina de um colega de equipe.
+
+### Timeout de cold-start
+
+O MCP shadcn faz shell out para o `npx`, que pode baixar o pacote `shadcn` na
+primeira invocação. Se o servidor for lento para iniciar, aumente o timeout de
+inicialização via a variável de ambiente `MCP_TIMEOUT` (milissegundos, ex.
+`MCP_TIMEOUT=30000`) antes de lançar o Claude Code.
+
+---
+
+## Autorando servidores: a skill `mcp-builder`
+
+Para construir ou estender um servidor MCP — envolvendo uma API ou serviço externo
+como ferramentas MCP bem-projetadas — o kit oferece a skill **META**
+[`mcp-builder`](/reference/skills) (Apache-2.0, vendorada + adaptada de
+anthropics/skills). Ela cobre pesquisa, implementação em Python (FastMCP) ou
+Node/TypeScript (MCP SDK) e avaliação, e é a skill invocada ao construir o servidor
+`features.mcp` de um filho. Ela vive em `.claude/skills/` (META) e **não** é
+renderizada em forks.
+
+Veja também: [Integração de MCP](/features/mcp),
+[Design system](/features/design-system).

@@ -1,0 +1,155 @@
+# fullstack (profundo)
+
+`fullstack` é o segundo archetype **profundo** da v1. Escolha-o para um app web
+que entrega seu próprio front end mais uma camada de API em um único repositório.
+É o único archetype que pode instalar o payload de design-system empacotado
+(skills shadcn/ui, diretrizes de marca, design tokens).
+
+## Subconjunto da entrevista
+
+Escolher `fullstack` ativa as perguntas específicas de fullstack: a lista de
+frameworks de fullstack, um gate duplo app/api, persistência e o toggle de
+design-system.
+
+| Pergunta | Escreve em | Notas |
+|---|---|---|
+| `project_name`, `project_description` | `project.name`, `project.description` | universal |
+| `language` | `project.language` | geralmente typescript |
+| `runtime`, `package_manager` | `project.runtime`, `project.package_manager` | universal |
+| `framework_fullstack` | `project.framework` | next / remix / sveltekit / nuxt |
+| `architecture` | `project.architecture` | layered / hexagonal / modular-monolith / clean / mvc |
+| `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate` | `features.*` | toggles opt-in |
+| `api_first` | `api_first` | vincula-se a haver ou não uma camada `api/` separada |
+| `persistence_enabled` → `persistence_db`, `persistence_orm`, `migrations_*` | `persistence.*` | cascata de DB/ORM/migração |
+| `gate_mode`, `gate_glob_dialect` | `contract_gate.mode`, `.glob_dialect` | pulado se `feat_sdd_gate == false` |
+| `gate_protected_paths_fullstack` | `contract_gate.protected_paths` | conjunto default de fullstack |
+| `gate_scope_fullstack` | `contract_gate.scope` | app + api |
+| `gate_exempt_fullstack` | `contract_gate.exempt` | adiciona stories + migrações do prisma |
+| `gate_require_approval_by` | `contract_gate.require_approval_by` | revisores consultivos |
+| `design_system_install` → `design_system_source` | `design_system.*` | **exclusivo de fullstack** |
+| `telemetry_*` | `telemetry.*` | configuração de atribuição offline |
+| `discovery_enabled` | `discovery.enabled` | default `false` |
+| `ci_cd_target` | `ci_cd.target` | github-actions / gitlab-ci / none |
+
+A pergunta de framework (`framework_fullstack`) oferece apenas frameworks de
+fullstack (Next.js, Remix, SvelteKit, Nuxt). A pergunta de framework de backend
+nunca dispara.
+
+## Defaults do gate (fullstack)
+
+O gate de fullstack cobre tanto a camada web quanto a camada de API:
+
+```yaml
+contract_gate:
+  mode: block                       # default; block | warn | off
+  glob_dialect: fnmatch
+  protected_paths:                  # default de gate_protected_paths_fullstack
+    - "app/**"
+    - "api/**"
+    - "src/**"
+    - "prisma/schema.prisma"
+  scope:                            # default de gate_scope_fullstack
+    - "app/**"
+    - "api/**"
+  exempt:                           # default de gate_exempt_fullstack
+    - "**/*.test.*"
+    - "**/*.stories.tsx"
+    - "prisma/migrations/**"
+    - "**/__snapshots__/**"
+```
+
+Comparado ao backend-api, os conjuntos protected/scope alcançam `app/**` (a camada
+web) e a lista exempt adiciona `**/*.stories.tsx` (Storybook) e
+`prisma/migrations/**`.
+
+## Regras de schema para fullstack
+
+O bloco `if/then` por archetype do schema do manifest impõe:
+
+- `design_system` é **obrigatório** (`if archetype == fullstack then required:
+  [design_system]`). Um manifest de fullstack deve carregar seu próprio bloco de
+  design-system.
+- `contracts[]` é opcional com default `[]` (igual a todos os archetypes na v2).
+- `contract_gate.protected_paths` deve estar presente e não vazio.
+
+O mapa `design_system.tokens` (opcional) exige chaves em snake_case
+(`^[a-z][a-z0-9_]*$`, decisão O4) porque a classe de caracteres `[a-z0-9_]` da
+regex de render `${var}` não consegue corresponder a um hífen — uma chave de token
+com hífen ficaria sem substituição.
+
+## A instalação do design-system (entregue, exclusiva de fullstack)
+
+Quando `design_system.install == true`, o `/ack-init` inclui a subárvore
+condicional sob
+`templates/archetypes/fullstack/_when.design_system.install/design-system/`.
+Este é o único payload específico de archetype que é entregue de forma
+significativa hoje:
+
+```
+design-system/
+├── NOTICE                              # atribuição Apache-2.0 (obrigatória)
+├── README.md.tpl
+├── mcp/
+│   ├── shadcn.mcp.json                 # servidor MCP de descoberta de componentes
+│   └── README.md
+├── skills/
+│   ├── shadcn-ui/                      # SKILL.md + referências (cli, component, mcp, theming)
+│   ├── brand-guidelines/               # SKILL.md + referências (logo, tokens, typography, voice)
+│   └── frontend-design-guidelines/     # SKILL.md + referências (a11y, color, spacing, layout, …)
+└── theme/
+    ├── components.json.tpl
+    ├── globals.css.tpl
+    └── theme.tokens.json
+```
+
+A inclusão tem dupla guarda (as duas metades E juntas):
+
+1. A guarda de segmento de caminho `_when.design_system.install/` é avaliada
+   primeiro; se `design_system.install` for falsy, toda a subárvore é omitida.
+2. A regra do `render.map.yaml` `glob: "**/design-system/**"` carrega
+   `requires_archetype: fullstack` como uma **asserção** de cinto-e-suspensório:
+   se um arquivo de design-system alguma vez for alcançado sob um archetype
+   não-fullstack, o render **aborta ruidosamente** (nunca emite em silêncio). Sob
+   qualquer archetype não-fullstack, `design_system.*` está ausente, então o
+   `when` avalia como falso e o arquivo é omitido antes que a asserção possa
+   disparar.
+
+As skills carregadas aqui são skills de exemplo Apache-2.0 entregues **com um
+arquivo NOTICE** — nunca conteúdo derivado de docx/pdf/pptx/xlsx (proprietário,
+source-available). Veja a referência de
+[Integração com Design System](/features/design-system) para a árvore completa e a
+postura de licenciamento.
+
+## O que é entregue hoje vs P4
+
+O contrato do ramo fullstack está **congelado e entregue** (P3). A subárvore de
+design-system existe com suas skills, configuração de MCP, NOTICE e scaffolding de
+tema. A **árvore** de templates de fullstack mais ampla está sendo aprofundada na
+**P4** (`done: false`). Hoje a árvore base sob `templates/archetypes/fullstack/` é
+um esqueleto estruturalmente correto:
+
+```
+fullstack/
+├── CLAUDE.md.tpl                       # bloco do gate gerenciado + ponteiro de design-system; corpo profundo TODO(P4)
+├── .mcp.json.tpl                       # renderizado apenas quando features.mcp
+├── .claude/
+│   ├── settings.json.tpl
+│   └── hooks/contract-gate             # renderizado apenas quando features.sdd_gate
+├── app/.gitkeep.tpl                    # placeholder da camada web
+├── api/.gitkeep.tpl                    # placeholder da camada api
+├── src/.gitkeep.tpl
+├── docs/contracts/CONTRACT.template.md.tpl
+├── _when.design_system.install/        # a subárvore de design-system (acima)
+└── _when.persistence.enabled/src/infra/db/.gitkeep.tpl
+```
+
+Adiado para a P4 (`TODO(P4)` nos templates): o corpo PROFUNDO do `CLAUDE.md`
+(convenções das camadas web + api, uso do design-system, roster de agentes), o
+`tokens.json` materializado a partir de `design_system.tokens`, primitivas de
+componentes reais e os scaffolds web/api no estilo da casa além dos placeholders
+`.gitkeep`.
+
+> **Nota de precisão.** As *skills e o payload de theming* do design-system são
+> entregues hoje; o scaffold app/api de fullstack ao redor é um esqueleto da P4.
+> Trate o contrato do ramo e o payload de design-system como reais, e o scaffold
+> profundo do app como em andamento.

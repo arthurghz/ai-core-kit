@@ -1,0 +1,116 @@
+---
+title: Licenciamento e Avisos de Terceiros
+description: A postura de licenciamento autoritativa para tudo que o ai-core-kit estudou ou tomou emprestado — example skills Apache-2.0 incorporadas COM AVISO, repositórios MIT reescritos, doc skills proprietárias nunca incorporadas.
+---
+
+# Licenciamento e Avisos de Terceiros
+
+Esta página resume os dois documentos de licença autoritativos do kit:
+
+- [`docs/REFERENCES.md`](https://github.com/stallae/ai-core-kit/blob/main/docs/REFERENCES.md) — o **ledger de licenças**: cada repositório externo que o kit estudou ou do qual toma emprestado, com seu identificador SPDX e o que pegamos.
+- [`THIRD_PARTY_NOTICES.md`](https://github.com/stallae/ai-core-kit/blob/main/THIRD_PARTY_NOTICES.md) — **atribuição** para o material que o kit de fato incorpora (copia arquivos de).
+
+> **Regra de ouro.** *Padrões e convenções são livres para aprender. **Arquivos** não são livres para copiar.* Qualquer coisa incorporada (copiar um arquivo) deve carregar sua licença upstream mais a atribuição em `THIRD_PARTY_NOTICES.md`. Material source-available / proprietário é **apenas referência**: nunca copiado, nunca derivado.
+
+Cada entrada abaixo foi verificada abrindo os **arquivos `LICENSE` / `LICENSE.txt` reais** em um clone local (`/tmp/ack-refs/...`), não confiando em READMEs upstream. O ledger prevalece sobre qualquer tabela de resumo em outro lugar onde houver divergência.
+
+---
+
+## Em resumo
+
+| Repositório | SPDX | Incorporável? | Postura |
+|---|---|---|---|
+| `anthropics/skills` — *example skills* | `Apache-2.0` | Sim, **com AVISO** | Incorporadas + adaptadas (`skill-creator`, `mcp-builder`); formato de frontmatter adotado como canônico. |
+| `anthropics/skills` — *doc skills* (`docx`/`pdf`/`pptx`/`xlsx`) | **Proprietário / source-available** | **Nunca** | Apenas referência — não ler, copiar, parafrasear ou derivar. |
+| `alirezarezvani/claude-skills` | `MIT` | Sim, com aviso | Skills de produto reescritas; taxonomia de pastas por domínio + padrões de validador/pontuador. |
+| `shanraisshan/claude-code-best-practice` | `MIT` | Sim, com aviso | Comandos/agents RPI reescritos; espinha Command -> Agent -> Skill, taxonomia de hooks. |
+| `affaan-m/ecc` | `MIT` | Sim, com aviso | Language packs + revisores de engenharia reescritos; hierarquia de regras, formato de settings. |
+| `gotalab/cc-sdd` | `MIT` | Sim, com aviso | **Apenas padrão** (nada incorporado) — abordagem de placeholder do template-renderer, formato YAML de agent. |
+
+> **Verificação de realidade sobre `anthropics/skills`.** O repositório **não tem um único `LICENSE` raiz** — o licenciamento é **por skill**, declarado no `LICENSE.txt` de cada skill. As example skills são Apache-2.0; as quatro doc skills carregam um aviso **proprietário** distinto. Sempre verifique o `LICENSE.txt` *dentro da pasta específica da skill* antes de tocar em qualquer arquivo.
+
+---
+
+## Apache-2.0 — anthropics/skills (example skills)
+
+As example skills são licenciadas sob a **Apache License, Version 2.0** (`SPDX-License-Identifier: Apache-2.0`), cada uma carregando a linha de copyright literal:
+
+```
+Copyright 2026 Anthropic, PBC.
+```
+
+**Example skills incorporáveis:** `algorithmic-art`, `brand-guidelines`, `canvas-design`, `claude-api`, `frontend-design`, `internal-comms`, `mcp-builder`, `skill-creator`, `slack-gif-creator`, `theme-factory`, `web-artifacts-builder`, `webapp-testing`.
+
+**De fato incorporadas no kit (META):** `skill-creator` e `mcp-builder` — copiadas por inteiro e adaptadas às convenções do kit sob `.claude/skills/`. Quando incorporada como está, o `LICENSE.txt` upstream de cada skill deve acompanhar sua pasta; a declaração NOTICE na raiz do repositório satisfaz a exigência de atribuição da Apache-2.0.
+
+**Declaração NOTICE** (carregada na raiz do repositório):
+
+```
+This product includes software developed by Anthropic, PBC.
+
+Portions of this product are derived from the Anthropic example Agent Skills
+("anthropics/skills"), Copyright 2026 Anthropic, PBC., licensed under the
+Apache License, Version 2.0.
+```
+
+Dois casos de borda que vale conhecer:
+
+- `frontend-design/LICENSE.txt` termina em `END OF TERMS AND CONDITIONS` (seu apêndice é omitido). Ao incorporá-lo, reanexe o apêndice padrão da Apache e a linha `Copyright 2026 Anthropic, PBC.` para que o NOTICE fique completo.
+- `doc-coauthoring` **não** vem com `LICENSE.txt` e, portanto, **não** é incorporável até que o upstream esclareça sua licença.
+
+> `skill-validator` e a skill META `cost-telemetry` são **originais do kit** (sem upstream); a atribuição Apache-2.0 não se aplica a elas.
+
+---
+
+## Proprietário — nunca incorporado
+
+As quatro **document skills** da Anthropic — `docx`, `pdf`, `pptx`, `xlsx` — são **proprietárias / source-available**. Cada `LICENSE.txt` abre com `© 2025 Anthropic, PBC. All rights reserved.` e proíbe expressamente extrair os materiais, reproduzir/copiar, **criar trabalhos derivados**, distribuir/sublicenciar e fazer engenharia reversa.
+
+> **Source-available não é open source.** Você pode *ver* o código no GitHub, mas a licença não concede **nenhum** direito de copiar, adaptar ou redistribuí-lo.
+
+| Adotamos | NÃO podemos fazer |
+|---|---|
+| **Nada** dessas pastas. | Não ler, abrir, copiar, parafrasear ou derivar de `docx`/`pdf`/`pptx`/`xlsx`. Não deixar um agent ingeri-las como contexto. Não referenciar sua prosa interna como um "padrão". |
+
+Essas skills são **excluídas do kit por completo** e nunca aparecem em `THIRD_PARTY_NOTICES.md`. Se um projeto filho precisar de geração de documentos, direcione os usuários às skills upstream pelos canais delas.
+
+---
+
+## MIT — reescrito, não copiado
+
+Os quatro repositórios MIT abaixo são a base para conteúdo reescrito do kit. O kit toma emprestado **padrões**; onde arquivos foram usados como ponto de partida, o trabalho foi **reescrito no estilo canônico do kit** e a linha de copyright literal é mantida.
+
+| Repositório | Linha de copyright literal | O que foi reescrito no kit |
+|---|---|---|
+| `alirezarezvani/claude-skills` | `Copyright (c) 2025 Alireza Rezvani` | Skills de produto CHILD `saas-scaffolder`, `spec-to-repo`, `ui-design-system`. |
+| `shanraisshan/claude-code-best-practice` | `Copyright (c) 2025-2026 Shayan Rais` | Comandos RPI CHILD (`/rpi/research`, `/rpi/plan`, `/rpi/implement`) e agents (`requirement-parser`, `constitutional-validator`). |
+| `affaan-m/ecc` | `Copyright (c) 2026 Affaan Mustafa` | Language packs CHILD (`python-patterns`, `python-testing`, `go-patterns`, `rust-patterns`, `react-patterns`, `postgres-patterns`, `prisma-patterns`, `docker-patterns`, `node-api-patterns`) e agents revisores de engenharia (`architect`, `code-explorer`, `code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `refactor-cleaner`). |
+| `gotalab/cc-sdd` | `Copyright (c) 2025 gotalab` | **Apenas padrão** — nada copiado. Informou o render engine `${dotted.path}` e o formato de config YAML de agent. |
+
+> `typescript-patterns` é **original do kit** (sem skill-fonte ECC); licenciado sob MIT.
+
+Se algum arquivo MIT for copiado em algum momento, adicione uma entrada concreta a `THIRD_PARTY_NOTICES.md` com a linha de copyright literal e mantenha o texto de permissão MIT junto ao arquivo copiado.
+
+---
+
+## Original do ai-core-kit
+
+Autorado do zero para o kit (MIT, sem atribuição upstream necessária):
+
+- **Skills CHILD:** `coding-standards`, `error-handling`, `code-tour`, `architecture-decision-records`, `production-audit`, `cost-audit`, `cost-telemetry`, `agent-eval`, `frontend-a11y`, `typescript-patterns`.
+- **Comandos CHILD:** `/prd`, `/rice`.
+- **Skills META:** `skill-validator`, `cost-telemetry`.
+
+---
+
+## Checklist de incorporação
+
+Antes de copiar **qualquer** arquivo externo:
+
+1. **Abra o `LICENSE` / `LICENSE.txt` que rege** aquele arquivo ou pasta exata (para `anthropics/skills`, o *por skill*).
+2. Confirme que o SPDX é `Apache-2.0` ou `MIT` (ou outra licença permissiva aprovada pela OSI). Se disser **"All rights reserved" / source-available / proprietário -> PARE**, apenas referência.
+3. Copie o arquivo **com** seu cabeçalho de licença / `LICENSE` / `LICENSE.txt` irmão.
+4. Adicione uma entrada de atribuição a `THIRD_PARTY_NOTICES.md` (SPDX + linha de copyright literal).
+5. Para material Apache-2.0, mantenha qualquer `NOTICE` upstream e o NOTICE combinado intactos.
+
+> Aprender um *padrão* de um repositório **não** exige uma entrada. Copiar um *arquivo* exige.

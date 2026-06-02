@@ -1,0 +1,116 @@
+---
+title: Licensing & Third-Party Notices
+description: The authoritative license posture for everything ai-core-kit studied or borrowed from — Apache-2.0 example skills vendored WITH NOTICE, MIT repos re-authored, proprietary doc skills never vendored.
+---
+
+# Licensing & Third-Party Notices
+
+This page summarizes the kit's two authoritative license documents:
+
+- [`docs/REFERENCES.md`](https://github.com/stallae/ai-core-kit/blob/main/docs/REFERENCES.md) — the **license ledger**: every external repository the kit studied or borrows from, with its SPDX identifier and what we take.
+- [`THIRD_PARTY_NOTICES.md`](https://github.com/stallae/ai-core-kit/blob/main/THIRD_PARTY_NOTICES.md) — **attribution** for material the kit actually vendors (copies files from).
+
+> **Golden rule.** *Patterns and conventions are free to learn from. **Files** are not free to copy.* Anything vendored (copying a file) must carry its upstream license plus attribution in `THIRD_PARTY_NOTICES.md`. Source-available / proprietary material is **reference-only**: never copied, never derived from.
+
+Every entry below was verified by opening the **actual `LICENSE` / `LICENSE.txt`** files in a local clone (`/tmp/ack-refs/...`), not by trusting upstream READMEs. The ledger supersedes any summary table elsewhere where they differ.
+
+---
+
+## At a glance
+
+| Repository | SPDX | Vendorable? | Posture |
+|---|---|---|---|
+| `anthropics/skills` — *example skills* | `Apache-2.0` | Yes, **with NOTICE** | Vendored + adapted (`skill-creator`, `mcp-builder`); frontmatter shape adopted as canon. |
+| `anthropics/skills` — *doc skills* (`docx`/`pdf`/`pptx`/`xlsx`) | **Proprietary / source-available** | **Never** | Reference-only — do not read, copy, paraphrase, or derive. |
+| `alirezarezvani/claude-skills` | `MIT` | Yes, with notice | Re-authored product skills; domain-folder taxonomy + validator/scorer patterns. |
+| `shanraisshan/claude-code-best-practice` | `MIT` | Yes, with notice | Re-authored RPI commands/agents; Command -> Agent -> Skill spine, hook taxonomy. |
+| `affaan-m/ecc` | `MIT` | Yes, with notice | Re-authored language packs + engineering reviewers; rules hierarchy, settings shape. |
+| `gotalab/cc-sdd` | `MIT` | Yes, with notice | **Pattern only** (nothing vendored) — template-renderer placeholder approach, agent YAML shape. |
+
+> **Reality check on `anthropics/skills`.** The repo has **no single root `LICENSE`** — licensing is **per-skill**, declared in each skill's `LICENSE.txt`. The example skills are Apache-2.0; the four document skills carry a distinct **proprietary** notice. Always check the `LICENSE.txt` *inside the specific skill folder* before touching any file.
+
+---
+
+## Apache-2.0 — anthropics/skills (example skills)
+
+The example skills are licensed under the **Apache License, Version 2.0** (`SPDX-License-Identifier: Apache-2.0`), each carrying the verbatim copyright line:
+
+```
+Copyright 2026 Anthropic, PBC.
+```
+
+**Vendorable example skills:** `algorithmic-art`, `brand-guidelines`, `canvas-design`, `claude-api`, `frontend-design`, `internal-comms`, `mcp-builder`, `skill-creator`, `slack-gif-creator`, `theme-factory`, `web-artifacts-builder`, `webapp-testing`.
+
+**Actually vendored into the kit (META):** `skill-creator` and `mcp-builder` — copied whole and adapted to kit conventions under `.claude/skills/`. When vendored as-is, each skill's upstream `LICENSE.txt` must accompany its folder; the repository-root NOTICE statement satisfies the Apache-2.0 attribution requirement.
+
+**NOTICE statement** (carried at the repository root):
+
+```
+This product includes software developed by Anthropic, PBC.
+
+Portions of this product are derived from the Anthropic example Agent Skills
+("anthropics/skills"), Copyright 2026 Anthropic, PBC., licensed under the
+Apache License, Version 2.0.
+```
+
+Two edge cases worth knowing:
+
+- `frontend-design/LICENSE.txt` ends at `END OF TERMS AND CONDITIONS` (its appendix is omitted). When vendoring it, reattach the standard Apache appendix and the `Copyright 2026 Anthropic, PBC.` line so the NOTICE is complete.
+- `doc-coauthoring` ships **no** `LICENSE.txt` and is therefore **not** vendorable until upstream clarifies its license.
+
+> `skill-validator` and the META `cost-telemetry` skill are **original to the kit** (no upstream); the Apache-2.0 attribution does not apply to them.
+
+---
+
+## Proprietary — never vendored
+
+The four Anthropic **document skills** — `docx`, `pdf`, `pptx`, `xlsx` — are **proprietary / source-available**. Each `LICENSE.txt` opens with `© 2025 Anthropic, PBC. All rights reserved.` and expressly forbids extracting the materials, reproducing/copying, **creating derivative works**, distributing/sublicensing, and reverse-engineering.
+
+> **Source-available is not open source.** You can *see* the code on GitHub, but the license grants **no** right to copy, adapt, or redistribute it.
+
+| We adopt | We must NOT do |
+|---|---|
+| **Nothing** from these folders. | Do not read, open, copy, paraphrase, or derive from `docx`/`pdf`/`pptx`/`xlsx`. Do not let an agent ingest them as context. Do not reference their internal prose as a "pattern." |
+
+These skills are **excluded from the kit entirely** and never appear in `THIRD_PARTY_NOTICES.md`. If a child project needs document generation, point users at the upstream skills via their own channels.
+
+---
+
+## MIT — re-authored, not copied
+
+The four MIT repositories below are the basis for re-authored kit content. The kit borrows **patterns**; where files were used as a starting point, the work was **rewritten in kit canonical style** and the verbatim copyright line is retained.
+
+| Repository | Verbatim copyright line | What was re-authored into the kit |
+|---|---|---|
+| `alirezarezvani/claude-skills` | `Copyright (c) 2025 Alireza Rezvani` | CHILD product skills `saas-scaffolder`, `spec-to-repo`, `ui-design-system`. |
+| `shanraisshan/claude-code-best-practice` | `Copyright (c) 2025-2026 Shayan Rais` | CHILD RPI commands (`/rpi/research`, `/rpi/plan`, `/rpi/implement`) and agents (`requirement-parser`, `constitutional-validator`). |
+| `affaan-m/ecc` | `Copyright (c) 2026 Affaan Mustafa` | CHILD language packs (`python-patterns`, `python-testing`, `go-patterns`, `rust-patterns`, `react-patterns`, `postgres-patterns`, `prisma-patterns`, `docker-patterns`, `node-api-patterns`) and engineering reviewer agents (`architect`, `code-explorer`, `code-reviewer`, `security-reviewer`, `silent-failure-hunter`, `refactor-cleaner`). |
+| `gotalab/cc-sdd` | `Copyright (c) 2025 gotalab` | **Pattern only** — nothing copied. Informed the `${dotted.path}` render engine and the agent YAML config shape. |
+
+> `typescript-patterns` is **original to the kit** (no ECC source skill); MIT-licensed.
+
+If any MIT file is ever copied in, add a concrete entry to `THIRD_PARTY_NOTICES.md` with the verbatim copyright line and retain the MIT permission text alongside the copied file.
+
+---
+
+## Original to ai-core-kit
+
+Authored fresh for the kit (MIT, no upstream attribution required):
+
+- **CHILD skills:** `coding-standards`, `error-handling`, `code-tour`, `architecture-decision-records`, `production-audit`, `cost-audit`, `cost-telemetry`, `agent-eval`, `frontend-a11y`, `typescript-patterns`.
+- **CHILD commands:** `/prd`, `/rice`.
+- **META skills:** `skill-validator`, `cost-telemetry`.
+
+---
+
+## Vendoring checklist
+
+Before copying **any** external file:
+
+1. **Open the governing `LICENSE` / `LICENSE.txt`** for that exact file or folder (for `anthropics/skills`, the *per-skill* one).
+2. Confirm the SPDX is `Apache-2.0` or `MIT` (or another OSI-approved permissive license). If it says **"All rights reserved" / source-available / proprietary -> STOP**, reference-only.
+3. Copy the file **with** its license header / sibling `LICENSE` / `LICENSE.txt`.
+4. Add an attribution entry to `THIRD_PARTY_NOTICES.md` (SPDX + verbatim copyright line).
+5. For Apache-2.0 material, keep any upstream `NOTICE` and the combined NOTICE intact.
+
+> Learning a *pattern* from a repo does **not** require an entry. Copying a *file* does.

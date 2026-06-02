@@ -1,0 +1,133 @@
+---
+title: Referência de Comandos
+description: Todo comando de barra que o ai-core-kit oferece — os dois comandos do kit (/ack-build, /ack-init) e os comandos CHILD invocáveis pelo usuário renderizados em um fork.
+---
+
+# Referência de Comandos
+
+O ai-core-kit oferece dois tipos de comando de barra, divididos ao longo da [fronteira META vs CHILD](/concepts/two-layer-model):
+
+- **Comandos META** vivem no próprio `.claude/commands/` do kit e operam sobre o próprio kit ou sobre um fork durante a configuração. São exatamente dois: `/ack-build` (construir o kit) e `/ack-init` (inicializar um fork).
+- **Comandos CHILD** vivem em `templates/commands/` e são renderizados em um fork pelo `/ack-init`. Estes são os comandos de entrega do dia a dia que os desenvolvedores de um projeto filho invocam: o trio RPI mais o par de planejamento de produto.
+
+As skills invocáveis pelo usuário (`skill-creator`, `skill-validator`, `mcp-builder`, `cost-telemetry`) são invocadas pelo modelo ou por humanos, em vez de serem comandos de barra; elas estão listadas no final por completude e detalhadas no [Catálogo de Skills](/features/skills-catalog).
+
+---
+
+## Comandos META
+
+### `/ack-build` — orquestrador de build META
+
+Orquestra o próprio auto-build do kit a partir de `bootstrap/ack.bootstrap.yaml`. Lê a configuração de build orientada a dados, valida-a contra seu JSON-Schema e então conduz o build **fase por fase** com uma equipe multiagente por fase (verdade-fundamental -> autor -> QA adversarial), expondo o status por fase e o custo cumulativo **offline**, parando em cada gate para aprovação.
+
+> Roda **somente** dentro do repositório META do ai-core-kit. Ele recusa a menos que ambos os sentinelas META estejam presentes (`bootstrap/ack.bootstrap.yaml` e `docs/BOOTSTRAP.md`). É o inverso de `/ack-init`.
+
+**Argumentos** (todos opcionais):
+
+| Flag | Efeito |
+|---|---|
+| `--phase <Pn>` | Roda exatamente uma fase (ainda respeita seu `depends_on`; aborta se uma dependência não estiver `done`). |
+| `--from <Pn>` | Inicia a varredura na fase `Pn`; pula fases anteriores já `done` mas ainda roda seus testes de aceitação como gate de regressão. |
+| `--dry-run` | Imprime o plano resolvido (ordem das fases, equipe por fase, resolução de modelo/orçamento, gates) e para. Não escreve nada. |
+| `--no-stop` | Não pausa em fases com `gate: true` (varreduras de CI). O padrão é parar em cada gate e pedir aprovação. |
+| `--rebuild` | Reescreve uma fase mesmo que ela esteja `done: true`; ainda roda os testes de aceitação depois. |
+
+**Garantias e invariantes:**
+
+- **O custo é sempre offline.** Não há API de token/custo ao vivo em hooks (issue #11008). O gasto cumulativo é computado por `telemetry/aggregate.py` sobre `~/.claude/projects/**/*.jsonl` multiplicado por um `pricing.json` versionado. Se o agregador ainda não existir, ele reporta `cost: unavailable (P6 pending)` e prossegue — nunca fabrica um número.
+- **A verdade-fundamental é obrigatória por fase.** Cada fase de autoria clona `meta.reference_repos` para extração exata e verifica os primitivos contra `code.claude.com/docs` antes de escrever.
+- **Disciplina de camada.** `/ack-build` escreve somente artefatos META. Se um worker fosse escrever um `project.manifest.yaml` concreto, uma instância de contrato ou uma entrada de contract-gate na raiz META, isso é uma violação de camada e é recusado.
+- **`done:` é gerenciado pelo operador.** Autorar uma fase não muda sua flag `done` — essa é uma decisão humana após revisar o QA.
+
+Veja [Construindo o Kit: /ack-build](/build/ack-build) para o passo a passo completo.
+
+---
+
+### `/ack-init` — inicializador de projeto CHILD
+
+Inicializa um projeto CHILD forkado. Pergunta o **arquétipo primeiro**, roda uma entrevista determinística com escopo no arquétipo, escreve `project.manifest.yaml` (a única fonte de verdade), renderiza o conjunto de templates do arquétipo e conecta hooks / MCP / telemetria / descoberta opt-in. É **reentrante e idempotente** via merge de bloco gerenciado.
+
+> Este é o `/ack-init`, **não** o `/init` — a skill `init` embutida é dona do `/init`. Rode-o em um repositório CHILD forkado, nunca no repositório META do ai-core-kit. Ele **recusa** (fail-closed, sem flag de override) se qualquer sentinela META estiver presente: um diretório `templates/archetypes/` ou um arquivo `docs/BOOTSTRAP.md`.
+
+**Argumentos** (todos opcionais):
+
+| Flag | Efeito |
+|---|---|
+| `--non-interactive` | Modo QA / CI. Sem chamadas `AskUserQuestion`. Requer `--answers`. |
+| `--answers <path>` | Arquivo de respostas (YAML) que especifica completamente a entrevista. |
+| `--archetype <name>` | Pré-seleciona o eixo de ramificação, pulando a primeira pergunta. |
+| `--force` | Política de conflito na re-renderização: sobrescreve regiões pertencentes ao ack mesmo que editadas à mão dentro do bloco gerenciado (nunca toca arquivos/regiões não gerenciados). |
+| `--skip` | Política de conflito na re-renderização: mantém o existente em qualquer conflito (padrão seguro para CI). |
+
+**Sequência de passos:**
+
+1. **Guarda de repositório META** — fail-closed se rodando dentro do próprio ai-core-kit.
+2. **Detectar modo e reentrância** — interativo vs QA; sonda se um manifesto já existe (re-execução -> território de merge).
+3. **Congelar o contrato, perguntar o arquétipo primeiro** — verificação cruzada de que o `writes_to` de cada pergunta da entrevista resolve para uma propriedade real do schema (invariante I1); o arquétipo é o eixo de ramificação (invariante I3).
+4. **Rodar a entrevista, escrever o manifesto** — a entrevista é a única escritora; `managed:` é regenerado por inteiro, `user:` é semeado uma vez e preservado; valida contra o schema antes de qualquer escrita irreversível (fail-closed, invariante I6); computa `manifest_hash` por último.
+5. **Renderizar** via o render engine contra `managed:`.
+6. **Conectar integrações** conforme os toggles opt-in usando merge de bloco gerenciado delimitado (nunca sobrescrita cega).
+7. **Emitir um `CLAUDE.md` filho mínimo** apontador e atualizar o ledger `rendered_files[]`.
+
+**Menu de arquétipos:** `backend-api` e `fullstack` renderizam **profundamente** (subconjunto completo de perguntas + conjunto de templates); `monorepo`, `library-sdk`, `infra-iac` são conhecidos pelo schema e renderizam um **núcleo mínimo** na v1 (um aviso é impresso quando um deles é selecionado).
+
+> Um comando de barra invocado pelo usuário não pode ser invocado pelo nome sob `claude -p`. O modo QA / não interativo é alcançado embutindo a tarefa e canalizando um arquivo de respostas via stdin. A mesma guarda de repositório META, validação de schema e merge idempotente se aplicam inalterados.
+
+O modelo produtor/consumidor por trás do manifesto é coberto em [Manifesto e Entrevista](/concepts/manifest-and-interview); o passo a passo de primeiros passos está em [Início Rápido](/getting-started/quickstart).
+
+---
+
+## Comandos CHILD (renderizados em um fork)
+
+Estes são oferecidos em `templates/commands/` e renderizados em um projeto filho pelo `/ack-init`. São os comandos de entrega cotidianos da equipe do projeto.
+
+### RPI: Research -> Plan -> Implement
+
+O loop de entrega padrão do kit para trabalho não trivial. Cada etapa tem um gate de aprovação (Research -> Plan -> Implement).
+
+| Comando | Etapa | O que faz | Dica de argumento |
+|---|---|---|---|
+| `/rpi/research` | 1 | Pesquisa a viabilidade de uma feature e produz uma recomendação **GO / NO-GO** antes de qualquer planejamento. | `<feature-slug>` |
+| `/rpi/plan` | 2 | Transforma um relatório de pesquisa aprovado em documentos de planejamento de produto, UX, engenharia e roadmap por fases. | `<feature-slug>` |
+| `/rpi/implement` | 3 | Executa o plano por fases de uma feature com discovery de código por fase, revisão e um gate de validação do usuário. | `<feature-slug> [--phase N] [--validate-only] [--skip-validation]` |
+
+> Os comandos RPI foram reescritos para o ai-core-kit a partir de `shanraisshan/claude-code-best-practice` (MIT). Veja o [Ledger de Licenças](/reference/licensing).
+
+### Planejamento de produto
+
+| Comando | O que faz | Dica de argumento |
+|---|---|---|
+| `/prd` | Gera um documento conciso de requisitos de produto para uma feature, iniciativa ou enunciado de problema. | `<feature-or-problem>` |
+| `/rice` | Prioriza features com pontuação RICE (Reach, Impact, Confidence, Effort), opcionalmente sob um limite de capacidade de esforço. | `<features.csv \| lista inline> [--capacity N]` |
+
+`/prd` e `/rice` são originais do ai-core-kit.
+
+---
+
+## Skills invocáveis pelo usuário
+
+Estas são skills, não comandos de barra — o modelo as invoca quando o gatilho de sua `description` corresponde, e um humano pode invocá-las pelo nome. As quatro que vêm no próprio `.claude/skills/` do kit (ferramental de build META) são as mais propensas a serem executadas diretamente:
+
+| Skill | Camada | Propósito |
+|---|---|---|
+| `skill-creator` | META | Autorar, editar e fazer benchmark de uma skill do kit (rascunha `SKILL.md`, roda evals, otimiza a description). |
+| `skill-validator` | META | Validar skills / agents / comandos contra as regras de frontmatter do kit rodando `scripts/lint-frontmatter.py`. |
+| `mcp-builder` | META | Construir um servidor MCP de alta qualidade (pesquisa, implementação, avaliação). |
+| `cost-telemetry` | META + CHILD | Rodar o agregador de custo offline e interpretar sua saída. |
+
+As skills de payload CHILD (`coding-standards`, `production-audit`, language packs e assim por diante) são carregadas por agents durante a entrega, em vez de serem invocadas como comandos. O catálogo completo com proveniência e gatilhos de conexão está no [Catálogo de Skills](/features/skills-catalog).
+
+---
+
+## Frontmatter de comando
+
+Todo arquivo de comando é markdown com frontmatter YAML. Apenas `description` é obrigatório; o linter avisa sobre chaves não reconhecidas e gera erro nas chaves proibidas para SKILL. Veja [Contribuindo](/contributing) para as convenções completas de frontmatter e o linter.
+
+```yaml
+---
+description: One-line, third-person summary of what the command does.   # REQUIRED
+argument-hint: "[--flag] [<arg>]"                                       # OPTIONAL
+allowed-tools: Read, Write, Bash(git status:*)                          # OPTIONAL
+disable-model-invocation: true                                          # OPTIONAL (human-only)
+---
+```

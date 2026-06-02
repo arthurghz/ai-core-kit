@@ -1,0 +1,98 @@
+---
+title: Roadmap
+description: Honest phase status for ai-core-kit — what is shipped, what is partial, and what remains roadmap (P4 render engine, P5 gate runtime, P6 wiring, P7 discovery, P8 E2E).
+---
+
+# Roadmap
+
+ai-core-kit builds itself in **eight phases**, driven by `/ack-build` over the data-driven config `bootstrap/ack.bootstrap.yaml`. This page is the honest status of each phase, taken from the `done` and `gate` flags in that config. It tells you exactly what works today versus what is a **contract or roadmap** item.
+
+> **Accuracy note.** A frozen *contract* is not the same as a working *runtime*. P3 froze the interface that P4–P6 depend on, and those contracts are stable and documented — but the engines that consume them are not all complete. Where this page says "contract / partial / roadmap," treat the feature as **not fully working today**.
+
+---
+
+## Status at a glance
+
+| Phase | Title | Gate | Status |
+|---|---|---|---|
+| **P1** | Ground-truth + repo tree + license ledger | yes | **Shipped** |
+| **P2** | `.claude/` core + team agents + `settings.json` + frontmatter linter | no | **Shipped** (skills/agents/commands + linter) |
+| **P3** | Frozen contract — manifest schema + `questions.yaml` + render-engine contract + `/ack-init` | yes | **Shipped** (the contract is frozen) |
+| **P6 (telemetry engine)** | Offline aggregator + `pricing.json` | no | **Shipped (engine)**, child wiring partial |
+| **(bootstrap-config)** | `ack.bootstrap.yaml` + schema + `/ack-build` orchestrator | — | **Shipped** |
+| **P4** | Archetype template sets (deep) + completeness rubric + license NOTICEs | yes | **Partial / roadmap** (render engine is a frozen contract; not all template sets complete) |
+| **P5** | Contract template + 3-mode manifest-driven gate hook | yes | **Partial** (hook template exists, proof-of-concept only) |
+| **P6 (child wiring)** | Promote orchestrator cost stub to real numbers; wire telemetry into children | no | **Partial** |
+| **P7** | Discovery — `sources.yaml` + proposals + scheduled-PR Action + `/discover` | no | **Roadmap** |
+| **P8** | E2E + META-hygiene + idempotency + per-feature cost (final gate) | yes | **Roadmap** |
+
+---
+
+## Shipped
+
+These are complete and verifiable in the repo today.
+
+### P1 — Ground-truth and license ledger
+Reference repos cloned and verified against their actual `LICENSE` / `LICENSE.txt` files; the [license ledger](/reference/licensing) (`docs/REFERENCES.md` + `THIRD_PARTY_NOTICES.md`) is authoritative. Gate phase, marked `done`.
+
+### P2 — `.claude/` primitives and the linter
+The kit's own agents, commands, and skills, plus `scripts/lint-frontmatter.py` (the [frontmatter linter](/contributing)). The full set of CHILD-payload skills, language packs, RPI agents, and the RPI/product commands is authored and present under `templates/`. See the [Skills Catalog](/features/skills-catalog) and [Commands Reference](/reference/commands).
+
+### P3 — The frozen contract
+The stable interface every downstream phase depends on. Four frozen artifacts:
+
+1. **Manifest schema** — `project.manifest.yaml` shape (`schema_version: 2`), with JSON-Schema validator. See [Manifest & Interview](/concepts/manifest-and-interview).
+2. **Question bank** — `templates/interview/questions.yaml`, 39 deterministic questions with `ask_if`/`skip_if` gating. See [Manifest & Interview](/concepts/manifest-and-interview).
+3. **Render-engine contract** — `${VAR}` substitution, `.when.*` conditional inclusion, structural idempotency. See [Render Engine Contract](/concepts/render-engine).
+4. **`/ack-init`** — the producer command. See [Commands Reference](/reference/commands).
+
+Gate phase, marked `done`. **The contract is frozen; the engines that consume it are not all complete** — see Partial / Roadmap below.
+
+### Offline cost telemetry (engine)
+`telemetry/aggregate.py` (stdlib-only) and `telemetry/pricing.json` compute cost **offline** from transcript `assistant.message.usage` lines times a versioned pricing map. Cost is **always offline** — there is no live token/cost API in hooks (issue #11008; `PostToolUse` fires on tool turns only, missing roughly 61% of spend). See [Offline Cost Telemetry](/features/cost-telemetry).
+
+### Bootstrap config + `/ack-build`
+`bootstrap/ack.bootstrap.yaml` (the machine-readable build plan) with its JSON-Schema validator, and the `/ack-build` orchestrator that reads it, validates it, and drives the phases. See [META Build Configuration](/build/bootstrap-config) and [/ack-build: META Build Orchestrator](/build/ack-build).
+
+---
+
+## Partial
+
+Authored as a **contract** or **proof-of-concept**, but not a complete runtime. Document and use these with that caveat.
+
+### P4 — Render engine and archetype template sets
+The render-engine **contract** is frozen and documented ([Render Engine Contract](/concepts/render-engine)). What remains: rendering `backend-api` and `fullstack` **deep** against a per-archetype completeness rubric, wiring branch-aware interview logic end to end, and carrying a `LICENSE.txt` + `THIRD_PARTY_NOTICES` entry per vendored Apache-2.0 skill. The other three archetypes (`monorepo`, `library-sdk`, `infra-iac`) stay **schema-known minimal-core** in v1. Gate phase, **not yet `done`**.
+
+### P5 — Contract gate runtime
+The 3-mode (block / warn / off) manifest-driven contract-gate hook exists as a **template / proof-of-concept**, not a finished runtime. The load-bearing footgun is baked into the contract: **block mode must use exit code `2` plus `hookSpecificOutput.permissionDecision: "deny"`** — the wrong form silently no-ops the guard. The gate is **fail-open at runtime** (corrupt/missing manifest -> mode off + stderr) and **fail-closed at author-time** (`/ack-init` validates before render). See [Design-Contract Gate (P5)](/features/contract-gate). Gate phase, **not yet `done`**.
+
+### P6 — Telemetry child wiring
+The offline aggregator engine is shipped (above), but promoting the orchestrator's cost stub to real numbers and wiring telemetry into forked children (`features.cost_telemetry: true`) is **partial**. See [Offline Cost Telemetry](/features/cost-telemetry).
+
+### MCP and agent-teams wiring
+Optional per-project MCP server wiring and the experimental agent-teams flag are authored as interview toggles, but their end-to-end provisioning is **partial / TBD**. See [MCP Wiring](/features/mcp); the experimental agent-teams flag (`features.agent_teams: true`) sets `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` and has no dedicated page yet.
+
+---
+
+## Roadmap
+
+Not yet implemented. Presented as a contract / design only.
+
+### P7 — Discovery engine
+The propose-not-adopt discovery loop: `discovery/sources.yaml` (seed sources), a hardened scheduled GitHub Action that opens proposal PRs, a proposal schema (format TBD), and `/discover` modes. **Discovery proposes and never adopts** — humans manually move proposals from `proposals/` to `adopted/`. `discovery.enabled` defaults **off** in children, and the META engine is **never** copied into a child (forkability, invariant I7). Permission/security hardening (isolation, no self-merge, kill switch) and the kill/expiry/reject/dedupe mechanisms are deferred. See [Discovery Engine (P7)](/features/discovery). **Not yet `done`.**
+
+### P8 — End-to-end verification
+The final gate: fork -> `/ack-init` per archetype -> gate blocks -> `/discover` -> per-feature telemetry cost. Adds the META-hygiene invariant (root and `.claude/` contain only META artifacts; no concrete child manifest or contract at the META root), two-run idempotency, and golden-fixture branch tests. The cost acceptance test runs against a **captured transcript**, not live orchestration, per the decoupled-cost rule. Depends on P4–P7. **Not yet `done`.**
+
+---
+
+## Deferred / not ported
+
+Tracked so nothing disappears silently. The full deferred / not-ported list is below.
+
+- **Language/framework/DB packs planned for v2:** `fastapi-patterns`, `gin-patterns`, `axum-patterns`, `sveltekit-patterns`, `nuxt-patterns`, `mysql-patterns`, `sqlite-patterns`, `mongodb-patterns`, `sqlalchemy-patterns`, `drizzle-patterns`, `gorm-patterns`.
+- **`docker-patterns` wiring** is blocked by a missing interview question (recommend always-render for backend-api/fullstack until the schema gap is closed).
+- **Anthropic example skills available but not ported** (adopt behind feature flags if needed): `algorithmic-art`, `brand-guidelines`, `canvas-design`, `frontend-design`, `slack-gif-creator`, `theme-factory`, `web-artifacts-builder`, `webapp-testing`, `doc-coauthoring`.
+- **Proprietary doc skills permanently excluded:** `docx`, `pdf`, `pptx`, `xlsx` — source-available, never read/copied/derived from. See [Licensing](/reference/licensing).
+
+> Recommendation: propose new sources via the discovery engine rather than pre-emptively porting them.

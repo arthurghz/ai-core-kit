@@ -1,0 +1,81 @@
+---
+title: Referência de Agents
+description: Todo subagente que o ai-core-kit oferece — o time de build META em .claude/agents/ e a frota de entrega CHILD sob templates/agents/ renderizada em um fork, com camada, modelo e gatilho.
+---
+
+# Referência de Agents
+
+Um *agent* (subagente) é um trabalhador focado, com prompt e ferramentas próprios,
+que o orquestrador invoca para uma tarefa delimitada. Os agents do ai-core-kit se
+dividem ao longo da [fronteira META vs CHILD](/concepts/two-layer-model):
+
+- **Agents META** vivem no próprio `.claude/agents/` do kit. São o **time de
+  build** — o orquestrador `/ack-build` os invoca fase por fase para autorar o
+  payload do kit (ground-truth -> autor -> QA adversarial). Eles **não** são
+  renderizados em forks.
+- **Agents CHILD** vivem sob `templates/agents/` e são renderizados em um fork pelo
+  `/ack-init`. São a frota de entrega que um projeto filho delega durante o
+  trabalho — discovery, design, revisão e limpeza.
+
+A proveniência completa (repositório de origem + licença) está no
+[Catálogo de Skills](/features/skills-catalog); o registro de licenças autoritativo
+está em [Licenciamento e Avisos](/reference/licensing).
+
+---
+
+## Agents META (time de build)
+
+Vivem em `.claude/agents/`. O `/ack-build` os monta em times por fase. Use-os
+proativamente quando uma fase precisar do artefato correspondente autorado.
+
+| Agent | Propósito | Gatilho |
+|---|---|---|
+| `contract` | Autora a metodologia de payload CHILD — o template de contrato e o hook contract-gate de 3 modos orientado a manifesto. | Template de contrato, gate de contrato, modos de gate, oráculo de aprovados, scaffolding design-contract-first. |
+| `design-system` | Autora o payload de design-system do arquétipo fullstack — skills derivadas de frontend-design e brand-guidelines mais o scaffold de design-tokens. | Design system, design tokens, skill frontend-design, brand-guidelines, scaffold de UI fullstack. |
+| `infra` | Autora o encanamento de plataforma da camada META — a árvore `.claude/`, o `.mcp.json` do projeto, o agregador de telemetria offline + `pricing.json`. | `settings.json`, layout `.claude`, integração de MCP, agregador de telemetria, `pricing.json`, orçamentos, script de linter/validator. |
+| `qa` | Valida os artefatos de cada fase contra os testes de aceitação e verifica adversarialmente a fronteira de duas camadas. Use ao final de toda fase. | Validar, verificar contra testes de aceitação, fazer QA desta fase, testar-fork dos arquétipos. |
+| `research` | Faz extração de verdade-fundamental dos repositórios de referência ou dos docs da Anthropic — extrai convenções EXATAS e a licença por repositório. | Extrair convenções, verificar contra docs, o que `<repo>` de fato faz, construir o ledger de licenças. |
+| `template` | Autora ou revisa os conjuntos de template de payload CHILD — as árvores de arquétipo, as perguntas `questions.yaml` da entrevista, o mapa de render. | Templates de arquétipo, scaffold da árvore do `<arquétipo>`, ramificação da entrevista, `questions.yaml`, `render.map`. |
+
+---
+
+## Agents CHILD (frota de entrega)
+
+Vivem em `templates/agents/` e são renderizados em um fork pelo `/ack-init`. A
+coluna **Modelo** é o modelo padrão fixado no frontmatter do agent.
+
+| Agent | Modelo | Propósito | Gatilho |
+|---|---|---|---|
+| `architect` | opus | Especialista em arquitetura de software para design de sistemas, escalabilidade e decisões de trade-off técnico — produz designs de alto nível, responsabilidades de componentes, fluxos de dados, contratos de API, ADRs. | Projete isto, como devemos estruturar, quais são os trade-offs, escreva um ADR. |
+| `code-explorer` | sonnet | Especialista em análise de código que rastreia caminhos de execução, mapeia camadas de arquitetura e documenta dependências para que o trabalho novo comece ancorado na realidade do código. | Como X funciona, rastreie este fluxo, mapeie a arquitetura, o que toca este módulo. |
+| `code-reviewer` | sonnet | Especialista sênior em revisão de código que revisa um diff por correção, segurança e manutenibilidade e retorna achados ranqueados por severidade e respaldados por evidência. | Revise isto, cheque minhas mudanças, este PR está pronto. |
+| `constitutional-validator` | opus | Valida itens de roadmap, features e decisões técnicas contra a constituição, os princípios e o arquétipo escolhido do projeto. | Isto se encaixa em nossos princípios, validar contra a constituição, isto está no escopo. |
+| `refactor-cleaner` | sonnet | Especialista em limpeza de código morto e consolidação que encontra código, exports, dependências e duplicatas não usados, e os remove com segurança em lotes pequenos e verificados. | Remover código morto, limpar imports/deps não usados, consolidar duplicatas, arrumar o código. |
+| `requirement-parser` | sonnet | Especialista em extração de requisitos que transforma uma solicitação de feature não estruturada em requisitos, objetivos, restrições, complexidade e perguntas de esclarecimento estruturados. | Parse esta solicitação, o que exatamente estamos construindo. |
+| `security-reviewer` | sonnet | Especialista em detecção e remediação de vulnerabilidades de segurança que escaneia código alterado por problemas do OWASP Top 10, segredos hardcoded, injeção, SSRF e cripto insegura. | Revisão de segurança, isto é seguro, checar por vulnerabilidades. |
+| `silent-failure-hunter` | sonnet | Auditor de tratamento de erros que caça falhas silenciosas — exceções engolidas, blocos catch vazios, fallbacks perigosos, stack traces perdidos e propagação de erro ausente. | Encontrar erros engolidos, por que isto está falhando silenciosamente, auditar o tratamento de erros. |
+
+> Os revisores de engenharia (`architect`, `code-explorer`, `code-reviewer`,
+> `security-reviewer`, `silent-failure-hunter`, `refactor-cleaner`) foram
+> reescritos a partir de `affaan-m/ecc` (MIT); os agents de fluxo RPI
+> (`requirement-parser`, `constitutional-validator`) a partir de
+> `shanraisshan/claude-code-best-practice` (MIT). Veja o
+> [Registro de Licenças](/reference/licensing).
+
+---
+
+## Frontmatter de agent
+
+Todo arquivo de agent é markdown com frontmatter YAML. `name`, `description` e
+`model` são as chaves principais; o `skill-validator` impõe as regras de frontmatter
+do kit rodando `scripts/lint-frontmatter.py`. Veja [Contribuindo](/contributing)
+para as convenções completas de frontmatter e o linter.
+
+```yaml
+---
+name: agent-name                                                        # REQUIRED (kebab-case)
+description: When to use this agent (use proactively for ...).          # REQUIRED
+model: sonnet                                                           # OPTIONAL (opus | sonnet | haiku)
+tools: Read, Grep, Glob, Bash                                          # OPTIONAL
+---
+```

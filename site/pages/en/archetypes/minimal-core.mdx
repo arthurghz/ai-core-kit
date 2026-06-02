@@ -1,0 +1,94 @@
+# Minimal-core archetypes
+
+Three v1 archetypes are **schema-known but minimal-core**:
+
+- `monorepo` — a multi-package workspace
+- `library-sdk` — a published library or SDK package
+- `infra-iac` — infrastructure / infrastructure-as-code
+
+The manifest schema accepts all three as valid `archetype` values, and the
+interview answers a safe **universal core** for them, but none has a dedicated
+archetype template tree yet. They render the minimal core and will be deepened
+in v2 (invariant **I3**: "v1 ships backend-api + fullstack DEEPLY; monorepo |
+library-sdk | infra-iac are schema-known but render a minimal core").
+
+## What "minimal-core" means
+
+Selecting one of these archetypes asks only the **universal** questions — those
+whose `applies_to` is `all`:
+
+- `archetype` (the branch axis)
+- project identity + stack: `project_name`, `project_description`, `language`,
+  `runtime`, `package_manager`
+- feature toggles: `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate`
+- contract gate: `gate_mode`, `gate_glob_dialect`, and
+  `gate_protected_paths_core` (the minimal-core protected-paths question)
+- `telemetry_*`
+- `discovery_enabled`
+- `ci_cd_target`
+
+The following questions **never fire** for a minimal-core archetype because
+their `applies_to` lists only the deep archetypes:
+
+| Skipped question | `applies_to` | Why it is skipped |
+|---|---|---|
+| `framework_backend` | `[backend-api]` | minimal-core has no backend framework enum |
+| `framework_fullstack` | `[fullstack]` | minimal-core has no fullstack framework enum |
+| `architecture` | `[backend-api, fullstack]` | no folder-topology scaffold to drive |
+| `api_first` | `[backend-api, fullstack]` | no API tier |
+| `persistence_*` (DB / ORM / migrations) | `[backend-api, fullstack]` | **a DB question is never asked here** (deterministic, finding 4) |
+| `gate_scope_*`, `gate_exempt_*`, `gate_require_approval_by` | deep only | minimal-core ships gate `mode` + `protected_paths` and nothing finer |
+| `design_system_*` | `[fullstack]` | fullstack-only |
+
+This is a **deterministic** guarantee, not an LLM hope: the skip is driven by the
+question bank's `applies_to` gating, evaluated before any prompting. An
+`infra-iac` project can never be asked which database it uses.
+
+## Gate defaults (minimal-core)
+
+All three share one protected-paths question, `gate_protected_paths_core`, whose
+options span the common minimal-core layouts:
+
+```yaml
+# gate_protected_paths_core
+options:  ["src/**", "packages/**", "modules/**", "lib/**",
+           "deploy/**", "infra/**", "terraform/**"]
+default:  ["src/**"]
+applies_to: [monorepo, library-sdk, infra-iac]
+```
+
+> **Finding 44 (gate-vacuous footgun) and infra-iac.** The default is `src/**`,
+> which does not match a typical IaC layout (`infra/**`, `terraform/**`,
+> `deploy/**`). The schema still requires `protected_paths` to be non-empty
+> (`minItems: 1`, invariant **I4**), so the gate is never structurally vacuous —
+> but an `infra-iac` operator should override the default to a path that
+> actually exists in their tree (e.g. `terraform/**`). The multiselect options
+> above include the IaC paths precisely so this override is one selection away.
+
+Minimal-core archetypes ship only `mode` + `glob_dialect` + `protected_paths`.
+The finer gate knobs (`scope`, `exempt`, `require_approval_by`) are
+deep-archetype only.
+
+## What renders for a minimal-core archetype
+
+There is **no** `templates/archetypes/monorepo/` (or `library-sdk/`,
+`infra-iac/`) directory. A minimal-core init renders the safe, archetype-agnostic
+core:
+
+- the always-on CHILD skills and `.claude/` conventions,
+- the validated `project.manifest.yaml`,
+- the opted-in hooks / MCP / telemetry blocks (driven by `features.*`),
+- the contract-gate hook if `features.sdd_gate` is true (using the
+  `protected_paths` chosen above).
+
+No domain-specific scaffolding (no `app/`, `api/`, `openapi/`, persistence, or
+design-system trees) is produced, because none has been authored for these
+archetypes yet.
+
+## Roadmap
+
+Deepening `monorepo`, `library-sdk`, and `infra-iac` into full template trees —
+with per-archetype scaffolds, framework/tooling questions, and tailored gate
+defaults — is planned for **v2**. Until then, treat these archetypes as a valid,
+schema-clean starting point that wires the core conventions and gate but expects
+you to lay out the project structure yourself.

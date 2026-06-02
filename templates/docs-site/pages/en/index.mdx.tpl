@@ -7,7 +7,7 @@ description: ${project.description}
 
 ${project.description}
 
-These docs are scaffolded by [ai-core-kit](https://github.com/stallae/ai-core-kit)
+These docs are scaffolded by [ai-core-kit](https://github.com/arthurghz/ai-core-kit)
 and live alongside your product. Edit them freely — they are yours; the kit
 manages `project.manifest.yaml`, not this site.
 

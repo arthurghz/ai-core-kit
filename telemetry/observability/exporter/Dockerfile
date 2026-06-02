@@ -25,7 +25,7 @@ FROM python:3.12-slim
 
 LABEL org.opencontainers.image.title="ai-core-kit cost exporter" \
       org.opencontainers.image.description="Prometheus exporter for OFFLINE Claude Code cost (wraps telemetry/aggregate.py)." \
-      org.opencontainers.image.source="https://github.com/stallae/ai-core-kit"
+      org.opencontainers.image.source="https://github.com/arthurghz/ai-core-kit"
 
 # No .pyc, unbuffered logs (so scrape errors show up immediately in `docker logs`).
 ENV PYTHONDONTWRITEBYTECODE=1 \

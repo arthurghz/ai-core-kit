@@ -33,9 +33,9 @@ const config: DocsThemeConfig = {
     </span>
   ),
   project: {
-    link: 'https://github.com/stallae/ai-core-kit'
+    link: 'https://github.com/arthurghz/ai-core-kit'
   },
-  docsRepositoryBase: 'https://github.com/stallae/ai-core-kit/tree/main/site',
+  docsRepositoryBase: 'https://github.com/arthurghz/ai-core-kit/tree/main/site',
   footer: {
     content: (
       <span>

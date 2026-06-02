@@ -1,7 +1,7 @@
 # acme-app — docs
 
 A lightweight [Nextra](https://nextra.site) documentation site for **acme-app**
-(archetype: `fullstack`), scaffolded by [ai-core-kit](https://github.com/stallae/ai-core-kit)
+(archetype: `fullstack`), scaffolded by [ai-core-kit](https://github.com/arthurghz/ai-core-kit)
 via `create-ack`.
 
 ## Develop

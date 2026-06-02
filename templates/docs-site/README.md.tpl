@@ -1,7 +1,7 @@
 # ${project.name} — docs
 
 A lightweight [Nextra](https://nextra.site) documentation site for **${project.name}**
-(archetype: `${archetype}`), scaffolded by [ai-core-kit](https://github.com/stallae/ai-core-kit)
+(archetype: `${archetype}`), scaffolded by [ai-core-kit](https://github.com/arthurghz/ai-core-kit)
 via `create-ack`.
 
 ## Develop

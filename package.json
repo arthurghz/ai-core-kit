@@ -1,6 +1,6 @@
 {
   "name": "@arthurghz/create-ack",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Forkable standard for spinning up production-grade, spec-first Claude Code projects. `npx @arthurghz/create-ack <name> --archetype <x>` scaffolds a fully-wired child from frozen archetype templates — deterministic, zero LLM in the render loop.",
   "type": "module",
   "bin": {

@@ -167,6 +167,25 @@ there. Your task is to **replace the prompts with real prose while preserving th
 headings** (other specs, the CLAUDE.md, and the contract gate link to these headings
 by name — renaming or dropping a heading breaks those links).
 
+> **API-CONTRACT-FIRST (when `managed.api_first: true`).** The API is the product's
+> primary contract with its consumers, so author it **FIRST** — right after the
+> interview, before the rest of the spec set is fleshed out. In order:
+> 1. **Pin the API surface** in `specs/REQUIREMENTS.md` (each endpoint/operation as an
+>    FR-NN with request/response shapes + error contracts + auth) and in
+>    `specs/ARCHITECTURE.md` (the boundary + data flow), drawing the invariants from
+>    `specs/DOMAIN.md`.
+> 2. **Populate the machine-readable interface** the archetype ships — e.g.
+>    `openapi/openapi.yaml` — with those operations + schemas (this IS context, not app
+>    code: it is the agreed interface, the thing every later slice traces to).
+> 3. **Draft the first contract** so its scope pins that API surface (STEP 6, brought
+>    forward): `docs/contracts/C-001-*` with the API operations as its interface +
+>    invariants + acceptance. The interface is agreed and gate-bound FIRST.
+>
+> THEN author the remaining items (NFRs, the rest of ARCHITECTURE/DOMAIN, PLAN, ROADMAP,
+> NON-GOALS, DESIGN). Specs still lead code — this only orders the **API contract to the
+> front** of the authoring. For non-API projects (`api_first` false), author in the
+> normal doc order below.
+
 Doc set and what each holds (see each file's own header comment for the contract):
 
 - **`specs/PRD.md`** — the product: problem, vision, why-now, personas, goals &
@@ -271,10 +290,12 @@ If a `.claude/conventions.md` is referenced but absent, you MAY seed a short stu
 
 ---
 
-## STEP 6 — PROPOSE THE FIRST CONTRACT (optional, from the filled specs)
+## STEP 6 — PROPOSE THE FIRST CONTRACT (the API contract leads when api_first)
 
-The specs are the source the first contract is drawn from. If the project has a
-contract gate (`managed.features.sdd_gate: true`) and no approved contract yet:
+The specs are the source the first contract is drawn from. **When `managed.api_first`
+is true, do this step FIRST (per STEP 4's API-contract-first ordering) — the C-001 you
+draft here is the API contract, authored before the rest of the spec set.** If the
+project has a contract gate (`managed.features.sdd_gate: true`) and no approved contract yet:
 
 - Read `docs/contracts/CONTRACT.template.md` for the contract shape.
 - Draft `docs/contracts/C-001-<project-slug>.contract.md` with `status: draft`:

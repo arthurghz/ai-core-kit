@@ -87,8 +87,15 @@ questions:
     writes_to: archetype
 
   # ===========================================================================
-  # 1. PROJECT IDENTITY + STACK  -- universal, asked for every archetype.
-  #    framework + architecture are archetype-scoped (deep archetypes only).
+  # 1. PROJECT IDENTITY + STACK  -- name/description are universal.
+  #    language + package_manager are archetype-scoped: they are a REAL choice for
+  #    backend-api + the minimal-core archetypes, but the JS/TS web archetypes
+  #    (fullstack, saas) are TypeScript by construction (Next.js & friends), so the
+  #    "Primary implementation language" question would be incoherent for them
+  #    (you cannot write Next.js in Python). For those two the assembler DERIVES
+  #    project.language=typescript + project.package_manager=pnpm (lib/manifest.mjs,
+  #    TS_PINNED_ARCHETYPES) instead of asking. framework + architecture are
+  #    archetype-scoped too (deep archetypes only).
   # ===========================================================================
   - id: project_name
     prompt: "Project name (lowercase, kebab-case; used as ${PROJECT_NAME})"
@@ -104,6 +111,9 @@ questions:
     applies_to: all
     writes_to: project.description
 
+  # language: a REAL choice for backend-api + minimal-core. NOT asked for fullstack/
+  # saas (TypeScript by construction — the assembler derives it; see the section
+  # header above and TS_PINNED_ARCHETYPES in lib/manifest.mjs).
   - id: language
     prompt: "Primary implementation language"
     type: select
@@ -114,7 +124,7 @@ questions:
       - { value: rust,       label: "Rust" }
       - { value: java,       label: "Java" }
     default: python
-    applies_to: all
+    applies_to: [backend-api, monorepo, library-sdk, infra-iac]
     writes_to: project.language
 
   - id: runtime
@@ -126,6 +136,8 @@ questions:
 
   # Package manager options are language-dependent; the full union is offered and
   # the consumer simply records the chosen value (schema accepts a free string).
+  # Archetype-scoped like language: NOT asked for fullstack/saas (the assembler
+  # derives pnpm for them — Node tooling — alongside language=typescript).
   - id: package_manager
     prompt: "Package manager"
     type: select
@@ -137,7 +149,7 @@ questions:
       - { value: cargo, label: "cargo (Rust)" }
       - { value: go,    label: "go modules (Go)" }
     default: uv
-    applies_to: all
+    applies_to: [backend-api, monorepo, library-sdk, infra-iac]
     writes_to: project.package_manager
 
   # --- framework: ENUM IS ARCHETYPE-SCOPED. Two mutually-exclusive questions, one

@@ -1,7 +1,7 @@
 ---
 description: Scaffold (or safely re-scaffold) an ai-core-kit CHILD project from this kit. Asks the archetype first, runs an archetype-scoped interview, writes project.manifest.yaml (the single source of truth), renders the template set, and wires opt-in hooks/MCP/telemetry/discovery. Re-entrant and idempotent via managed-block merge. Run this in a forked CHILD repo, never in the ai-core-kit META repo.
 argument-hint: "[--non-interactive] [--answers <answers-file.yaml>] [--archetype <name>] [--migrate] [--force|--skip]"
-allowed-tools: Read, Write, Edit, Bash(yq *), Bash(jq *), Bash(git rev-parse *), Bash(git config *), Bash(test *), Bash(ls *), Bash(cat project.manifest.yaml), Bash(sha256sum *), Bash(shasum *), AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Bash(yq *), Bash(jq *), Bash(git rev-parse *), Bash(git config *), Bash(ls *), Bash(sha256sum *), Bash(shasum *), AskUserQuestion
 disable-model-invocation: true
 ---
 
@@ -57,13 +57,13 @@ in a forked CHILD. Refuse if EITHER sentinel is present in the project root:
 - `templates/archetypes/` directory exists, OR
 - `docs/BOOTSTRAP.md` exists.
 
-Detect with bundled-safe checks (these are dynamic-context preprocessing; their
-output is injected before you act):
+Detect the sentinels with your TOOLS (do NOT embed shell command-substitution in this
+prompt; paths are relative to the project root, your working directory):
 
-- templates/archetypes present? !`test -d "${CLAUDE_PROJECT_DIR}/templates/archetypes" && echo PRESENT || echo absent`
-- docs/BOOTSTRAP.md present? !`test -f "${CLAUDE_PROJECT_DIR}/docs/BOOTSTRAP.md" && echo PRESENT || echo absent`
+- **Glob** `templates/archetypes/*` — ANY match means the META sentinel is present.
+- **Read**/**Glob** `docs/BOOTSTRAP.md` — if it exists, the META sentinel is present.
 
-If EITHER reports `PRESENT`: **STOP IMMEDIATELY.** Write nothing. Render nothing.
+If EITHER is present: **STOP IMMEDIATELY.** Write nothing. Render nothing.
 Print exactly:
 
 > `/ack-init refuses to run inside the ai-core-kit META repository`
@@ -87,11 +87,11 @@ Then end the turn. This guard is non-negotiable and has no override flag.
      `claude -p`. QA mode is reached by *inlining this task* and piping the answers
      file on stdin; see "QA / NON-INTERACTIVE MODE" at the end.
 
-2. **Re-entrancy probe**: does a manifest already exist?
-   - manifest present? !`test -f "${CLAUDE_PROJECT_DIR}/project.manifest.yaml" && echo PRESENT || echo absent`
-   - current manifest (if any): !`cat "${CLAUDE_PROJECT_DIR}/project.manifest.yaml" 2>/dev/null || echo "<<none>>"`
+2. **Re-entrancy probe**: does a manifest already exist? Use the **Read** tool on
+   `project.manifest.yaml` (relative to the project root). A "file not found" result
+   means there is NO prior manifest (first run); otherwise read its full contents.
 
-   If PRESENT this is a **RE-RUN**. You are in MERGE / idempotent territory:
+   If it EXISTS this is a **RE-RUN**. You are in MERGE / idempotent territory:
    - Read the existing `managed.rendered_files` ledger — it is authoritative about
      what ack owns. Anything NOT listed there is USER TERRITORY and is off-limits.
    - The existing `user:` subtree is HUMAN-OWNED. You seed it ONCE on first run and

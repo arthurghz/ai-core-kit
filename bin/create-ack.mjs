@@ -334,8 +334,11 @@ async function promptInteractive({ questions, presets }) {
       );
     }
 
-    // language
-    if (!answers.language) {
+    // language — prompt ONLY for archetypes where it's a real choice (applies_to
+    // gating via firedIds). fullstack/saas pin TypeScript + pnpm (derived in
+    // lib/manifest.mjs assembleManaged), so the language question never fires for
+    // them and we must not prompt it here.
+    if (!answers.language && firedIds.has("language")) {
       answers.language = await promptSelect(ask, getQuestion(questions, "language"));
     }
 

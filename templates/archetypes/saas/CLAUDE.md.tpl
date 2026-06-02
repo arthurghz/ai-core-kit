@@ -51,6 +51,9 @@ WCAG AA verified) and, where a design path is protected, traces to a contract.
 #ack:if persistence.enabled
 - **Data via ${persistence.db} / ${persistence.orm}**: client + schema under `lib/db/` and `db/`.
 #ack:endif
+- **Containers**: local dev is **`docker compose up --build`** (app + Postgres); the
+  production image is built from `Dockerfile` (Next.js standalone). Prod targets
+  ${hosting.target}; the compose Postgres is for local dev only.
 
 ## Contract gate
 Contract gate: **${contract_gate.mode}** (dialect ${contract_gate.glob_dialect}). Protected paths:

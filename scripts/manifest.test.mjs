@@ -130,6 +130,40 @@ test("fullstack: design_system REQUIRED, contracts [], framework next", () => {
   assert.deepEqual(m.contracts, []);
 });
 
+// -----------------------------------------------------------------------------
+// language / package_manager are NOT asked for the JS-pinned web archetypes
+// (fullstack, saas): the assembler DERIVES typescript + pnpm. "Primary
+// implementation language" with a Python default is incoherent for a Next.js app,
+// so the question's applies_to excludes them. backend-api + minimal-core keep the
+// question (python/uv defaults). An explicit raw override is still honored.
+// -----------------------------------------------------------------------------
+test("language/pkg: fullstack + saas derive typescript + pnpm (no language question fires)", () => {
+  for (const archetype of ["fullstack", "saas"]) {
+    const p = mk({ archetype, project_name: "web-app" }).managed.project;
+    assert.equal(p.language, "typescript", `${archetype} language`);
+    assert.equal(p.package_manager, "pnpm", `${archetype} package_manager`);
+  }
+});
+
+test("language/pkg: backend-api + minimal-core keep the asked python/uv defaults", () => {
+  for (const archetype of ["backend-api", "monorepo", "library-sdk", "infra-iac"]) {
+    const p = mk({ archetype, project_name: "svc" }).managed.project;
+    assert.equal(p.language, "python", `${archetype} language`);
+    assert.equal(p.package_manager, "uv", `${archetype} package_manager`);
+  }
+});
+
+test("language/pkg: an explicit override is honored even for a JS-pinned archetype", () => {
+  const p = mk({
+    archetype: "fullstack",
+    project_name: "web-app",
+    language: "go",
+    package_manager: "npm",
+  }).managed.project;
+  assert.equal(p.language, "go");
+  assert.equal(p.package_manager, "npm");
+});
+
 test("Phase B: fullstack design_system.tokens.color_brand seeded to default when install=true", () => {
   // The renderer materializes ${design_system.tokens.color_brand}; the engine has
   // no default syntax, so the assembler MUST always bind it. Default: #0066CC.

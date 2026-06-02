@@ -1,7 +1,7 @@
 ---
 description: Author (or refresh) this project's moment-0 SPECS. Runs a deep, narrative discovery interview, then WRITES the filled Markdown specs into specs/ (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, PLAN, ROADMAP, NON-GOALS — plus DESIGN for design-bearing archetypes) and refreshes the lean CLAUDE.md — all model-authored prose, idempotent via managed blocks. Emits CONTEXT, not code. Run once after create-ack / ack-init, before the first contract gate.
 argument-hint: "[--from <prd-or-spec-path>] [--only <doc[,doc...]>] [--review] [--non-interactive --answers <file.yaml>]"
-allowed-tools: Read, Write, Edit, Bash(test *), Bash(ls *), Bash(cat project.manifest.yaml), AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Bash(ls:*), AskUserQuestion
 disable-model-invocation: true
 ---
 
@@ -65,11 +65,16 @@ Raw arguments: `$ARGUMENTS`
 ## STEP 1 — LOAD THE MANIFEST (read-only) + DETECT STATE
 
 The manifest is the machine source of truth and the **archetype oracle**. Read it;
-never mutate it. (Bundled-safe checks; their output is injected before you act.)
+never mutate it. Detect state with your TOOLS — do NOT embed shell command-substitution
+in this prompt. Paths are relative to the project root (your working directory):
 
-- manifest present? !`test -f "${CLAUDE_PROJECT_DIR}/project.manifest.yaml" && echo PRESENT || echo absent`
-- specs dir present? !`test -d "${CLAUDE_PROJECT_DIR}/specs" && ls "${CLAUDE_PROJECT_DIR}/specs" || echo "<<no specs/ dir>>"`
-- discovery bank present? !`test -f "${CLAUDE_PROJECT_DIR}/.claude/interview/spec-questions.yaml" && echo PRESENT || (test -f "${CLAUDE_PROJECT_DIR}/specs/.discovery/spec-questions.yaml" && echo PRESENT-ALT || echo absent)`
+- **Manifest** — use the **Read** tool on `project.manifest.yaml`. A "file not found"
+  result means the manifest is ABSENT (handle per item 1 below); otherwise parse it.
+- **Specs** — use **Glob** (`specs/*`) or `ls specs` (Bash) to see whether spec docs
+  already exist (this is what distinguishes a first author from a REFRESH).
+- **Discovery bank** — use **Read**/**Glob** to look for the narrative question set at
+  `.claude/interview/spec-questions.yaml`, then `specs/.discovery/spec-questions.yaml`
+  (STEP 3 covers the fallback when neither exists).
 
 1. If the manifest is **absent**, STOP and instruct the user to scaffold first:
    > No `project.manifest.yaml` found. Run `create-ack` (new repo) or `/ack-init`
@@ -116,8 +121,8 @@ Parse `$ARGUMENTS` and pick the path:
 Load the project's **moment-0 discovery bank** — the narrative, free-text question
 set that drives this interview. Look for it, in order, at:
 
-- `${CLAUDE_PROJECT_DIR}/.claude/interview/spec-questions.yaml` (rendered by `/ack-init`), or
-- `${CLAUDE_PROJECT_DIR}/specs/.discovery/spec-questions.yaml` (alternate lay-down).
+- `.claude/interview/spec-questions.yaml` (rendered by `/ack-init`), or
+- `specs/.discovery/spec-questions.yaml` (alternate lay-down).
 
 If neither exists, conduct the interview from the doc set's own section prompts
 instead (each `specs/*.md` skeleton's inline `<!-- ... -->` prompts ARE the question

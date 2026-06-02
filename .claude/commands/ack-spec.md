@@ -1,7 +1,7 @@
 ---
 description: Author (or refresh) the moment-0 SPECS of an ai-core-kit CHILD project. Runs the deep, narrative discovery interview from templates/interview/spec-questions.yaml, then WRITES the filled Markdown specs into specs/ (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, PLAN, ROADMAP, NON-GOALS — plus DESIGN for design-bearing archetypes) and refreshes the lean child CLAUDE.md — all model-authored prose, idempotent via managed blocks. This emits CONTEXT, not code. Run it in a forked CHILD repo after create-ack/ack-init, before the first contract gate. Never run in the ai-core-kit META repo.
 argument-hint: "[--from <prd-or-spec-path>] [--only <doc[,doc...]>] [--review] [--non-interactive --answers <file.yaml>]"
-allowed-tools: Read, Write, Edit, Bash(test *), Bash(ls *), Bash(cat project.manifest.yaml), AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Bash(ls:*), AskUserQuestion
 disable-model-invocation: true
 ---
 
@@ -64,12 +64,13 @@ a forked CHILD. Refuse if EITHER sentinel is present in the project root:
 - `templates/archetypes/` directory exists, OR
 - `docs/BOOTSTRAP.md` exists.
 
-Detect with bundled-safe checks (their output is injected before you act):
+Detect the sentinels with your TOOLS (do NOT embed shell command-substitution in this
+prompt; paths are relative to the project root, your working directory):
 
-- templates/archetypes present? !`test -d "${CLAUDE_PROJECT_DIR}/templates/archetypes" && echo PRESENT || echo absent`
-- docs/BOOTSTRAP.md present? !`test -f "${CLAUDE_PROJECT_DIR}/docs/BOOTSTRAP.md" && echo PRESENT || echo absent`
+- **Glob** `templates/archetypes/*` — ANY match means the META sentinel is present.
+- **Read**/**Glob** `docs/BOOTSTRAP.md` — if it exists, the META sentinel is present.
 
-If EITHER reports `PRESENT`: **STOP IMMEDIATELY.** Write nothing. Print exactly:
+If EITHER is present: **STOP IMMEDIATELY.** Write nothing. Print exactly:
 
 > `/ack-spec refuses to run inside the ai-core-kit META repository`
 > (sentinel detected: `templates/archetypes/` or `docs/BOOTSTRAP.md`). This command
@@ -83,10 +84,13 @@ Then end the turn. This guard is non-negotiable and has no override flag.
 ## STEP 1 — LOAD THE MANIFEST (read-only) + DETECT STATE
 
 The manifest is the machine source of truth and the **archetype oracle**. Read it;
-never mutate it.
+never mutate it. Detect state with your TOOLS (no shell command-substitution; paths are
+relative to the project root):
 
-- manifest present? !`test -f "${CLAUDE_PROJECT_DIR}/project.manifest.yaml" && echo PRESENT || echo absent`
-- specs dir present? !`test -d "${CLAUDE_PROJECT_DIR}/specs" && ls "${CLAUDE_PROJECT_DIR}/specs" || echo "<<no specs/ dir>>"`
+- **Manifest** — use the **Read** tool on `project.manifest.yaml`. "File not found"
+  means it is ABSENT (handle per item 1 below); otherwise parse it.
+- **Specs** — use **Glob** (`specs/*`) or `ls specs` (Bash) to detect existing specs
+  (first author vs REFRESH).
 
 1. If the manifest is **absent**, STOP and instruct the user to scaffold first:
    > No `project.manifest.yaml` found. Run `create-ack` (new repo) or `/ack-init`

@@ -12,6 +12,9 @@ Contract gate: **${contract_gate.mode}** (dialect ${contract_gate.glob_dialect})
 
 Design system: install=${design_system.install}, source=${design_system.source}.
 
+Local dev runs in containers: **`docker compose up --build`** (web + Postgres). The
+image is built from `Dockerfile`; tune it as the app lands.
+
 Child pointers (see child docs/agent config):
 @.claude/conventions.md
 @docs/contracts/

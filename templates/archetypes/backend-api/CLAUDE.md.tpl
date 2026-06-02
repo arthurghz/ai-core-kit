@@ -10,6 +10,9 @@ ${project.description}
 Contract gate: **${contract_gate.mode}** (dialect ${contract_gate.glob_dialect}). Protected paths:
 #ack:each contract_gate.protected_paths as "- `$item`"
 
+Local dev runs in containers: **`docker compose up --build`** (API + Postgres). The
+image is built from `Dockerfile`; tune it as the code lands.
+
 Child pointers (see child docs/agent config):
 @.claude/conventions.md
 @docs/contracts/

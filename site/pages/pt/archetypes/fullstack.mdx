@@ -18,8 +18,8 @@ design-system.
 | Pergunta | Escreve em | Notas |
 |---|---|---|
 | `project_name`, `project_description` | `project.name`, `project.description` | universal |
-| `language` | `project.language` | geralmente typescript |
-| `runtime`, `package_manager` | `project.runtime`, `project.package_manager` | universal |
+| `language` | `project.language` | não perguntado — derivado: sempre `typescript` |
+| `runtime`, `package_manager` | `project.runtime`, `project.package_manager` | `runtime` universal; `package_manager` derivado: `pnpm` |
 | `framework_fullstack` | `project.framework` | next / remix / sveltekit / nuxt |
 | `architecture` | `project.architecture` | layered / hexagonal / modular-monolith / clean / mvc |
 | `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate` | `features.*` | toggles opt-in |

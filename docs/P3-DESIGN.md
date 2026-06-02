@@ -63,14 +63,20 @@ All 33 distinct targets resolve. The schema properties **not** driven by any que
 
 `✓` asked · `—` not asked (gated out by `applies_to`) · `cond` asked only if its `ask_if`/`skip_if` predicate holds.
 
+> † `language` + `package_manager` are NOT asked for the JS/TS web archetypes
+> (`fullstack`, `saas`): "Primary implementation language" is incoherent for a Next.js
+> app. For those two the assembler **derives** `project.language = typescript` and
+> `project.package_manager = pnpm` (`TS_PINNED_ARCHETYPES` in `lib/manifest.mjs`); an
+> explicit override is still honored. See `templates/interview/questions.yaml` §1.
+
 | Question (id) | writes_to | backend-api | fullstack | gating predicate |
 |---|---|:--:|:--:|---|
 | archetype | `archetype` | ✓ | ✓ | first/mandatory |
 | project_name | `project.name` | ✓ | ✓ | — |
 | project_description | `project.description` | ✓ | ✓ | — |
-| language | `project.language` | ✓ | ✓ | — |
+| language | `project.language` | ✓ | — | `applies_to:[backend-api,monorepo,library-sdk,infra-iac]` † |
 | runtime | `project.runtime` | ✓ | ✓ | — |
-| package_manager | `project.package_manager` | ✓ | ✓ | — |
+| package_manager | `project.package_manager` | ✓ | — | `applies_to:[backend-api,monorepo,library-sdk,infra-iac]` † |
 | framework_backend | `project.framework` | ✓ | — | `applies_to:[backend-api]` |
 | framework_fullstack | `project.framework` | — | ✓ | `applies_to:[fullstack]` |
 | architecture | `project.architecture` | ✓ | ✓ | — |

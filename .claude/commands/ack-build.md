@@ -50,10 +50,13 @@ Arguments (all optional):
 `/ack-build` must run **only** inside the ai-core-kit META repo (the inverse of
 `/ack-init`, which refuses there). Confirm BOTH META sentinels are present:
 
-- bootstrap config present? !`test -f "${CLAUDE_PROJECT_DIR}/bootstrap/ack.bootstrap.yaml" && echo PRESENT || echo absent`
-- BOOTSTRAP doc present? !`test -f "${CLAUDE_PROJECT_DIR}/docs/BOOTSTRAP.md" && echo PRESENT || echo absent`
+Confirm with your TOOLS (no shell command-substitution; paths are relative to the
+project root, your working directory):
 
-If EITHER reports `absent`: **STOP.** Print exactly:
+- **Read**/**Glob** `bootstrap/ack.bootstrap.yaml` — must EXIST.
+- **Read**/**Glob** `docs/BOOTSTRAP.md` — must EXIST.
+
+If EITHER is missing: **STOP.** Print exactly:
 
 > `/ack-build only runs inside the ai-core-kit META repository`
 > (missing sentinel: `bootstrap/ack.bootstrap.yaml` or `docs/BOOTSTRAP.md`).
@@ -71,37 +74,41 @@ on an unvalidated or malformed config.
 
 1. Read `bootstrap/ack.bootstrap.yaml`.
 2. **Validate it against the schema** `bootstrap/schema/bootstrap.schema.json`
-   (JSON-Schema draft 2020-12). Validate via the bundled-safe preprocessing
-   below; its output is injected before you act:
+   (JSON-Schema draft 2020-12). Run this validator YOURSELF with the **Bash** tool
+   (do NOT embed it as a `!`-prefixed prompt injection — that triggers a "Contains
+   expansion" refusal). It reads paths relative to the project root (your working
+   directory), so no shell variable expansion is needed:
 
-   !`python3 - "$CLAUDE_PROJECT_DIR" <<'PY'
-import json, sys, pathlib
-root = pathlib.Path(sys.argv[1])
-try:
-    import yaml
-except Exception as e:
-    print("BLOCKER: PyYAML missing:", e); sys.exit(0)
-try:
-    from jsonschema import Draft202012Validator
-except Exception as e:
-    print("BLOCKER: jsonschema missing:", e); sys.exit(0)
-cfg = yaml.safe_load((root/"bootstrap/ack.bootstrap.yaml").read_text())
-schema = json.loads((root/"bootstrap/schema/bootstrap.schema.json").read_text())
-v = Draft202012Validator(schema)
-errs = sorted(v.iter_errors(cfg), key=lambda e: list(e.path))
-if errs:
-    print(f"INVALID: {len(errs)} error(s)")
-    for e in errs[:25]:
-        print("  -", "/".join(map(str, e.path)) or "<root>", ":", e.message)
-    sys.exit(0)
-phases = cfg["phases"]
-ids = [p["id"] for p in phases]
-print("VALID. phases:", ",".join(ids))
-print("done:", ",".join(p["id"] for p in phases if p["done"]) or "(none)")
-print("gates:", ",".join(p["id"] for p in phases if p["gate"]) or "(none)")
-PY`
+   ```bash
+   python3 - <<'PY'
+   import json, sys, pathlib
+   root = pathlib.Path(".")
+   try:
+       import yaml
+   except Exception as e:
+       print("BLOCKER: PyYAML missing:", e); sys.exit(0)
+   try:
+       from jsonschema import Draft202012Validator
+   except Exception as e:
+       print("BLOCKER: jsonschema missing:", e); sys.exit(0)
+   cfg = yaml.safe_load((root/"bootstrap/ack.bootstrap.yaml").read_text())
+   schema = json.loads((root/"bootstrap/schema/bootstrap.schema.json").read_text())
+   v = Draft202012Validator(schema)
+   errs = sorted(v.iter_errors(cfg), key=lambda e: list(e.path))
+   if errs:
+       print(f"INVALID: {len(errs)} error(s)")
+       for e in errs[:25]:
+           print("  -", "/".join(map(str, e.path)) or "<root>", ":", e.message)
+       sys.exit(0)
+   phases = cfg["phases"]
+   ids = [p["id"] for p in phases]
+   print("VALID. phases:", ",".join(ids))
+   print("done:", ",".join(p["id"] for p in phases if p["done"]) or "(none)")
+   print("gates:", ",".join(p["id"] for p in phases if p["gate"]) or "(none)")
+   PY
+   ```
 
-   If the preprocessing reports `INVALID` or `BLOCKER`, **STOP**: print the
+   If it reports `INVALID` or `BLOCKER`, **STOP**: print the
    errors and instruct the user to fix `ack.bootstrap.yaml` (or install
    `pyyaml`/`jsonschema`). Author nothing on an invalid config.
 

@@ -130,6 +130,46 @@ test("fullstack: design_system REQUIRED, contracts [], framework next", () => {
   assert.deepEqual(m.contracts, []);
 });
 
+test("Phase B: fullstack design_system.tokens.color_brand seeded to default when install=true", () => {
+  // The renderer materializes ${design_system.tokens.color_brand}; the engine has
+  // no default syntax, so the assembler MUST always bind it. Default: #0066CC.
+  const m = mk({ archetype: "fullstack", project_name: "web-app" }).managed;
+  assert.equal(m.design_system.tokens.color_brand, "#0066CC");
+});
+
+test("Phase B: confirmed design_brand_color (the /ack-spec answer) materializes into tokens.color_brand", () => {
+  const m = mk({ archetype: "fullstack", project_name: "web-app", design_brand_color: "#0B5FFF" }).managed;
+  assert.equal(m.design_system.tokens.color_brand, "#0B5FFF");
+});
+
+test("Phase B: a carried design_system_tokens map (re-run merge) is preserved verbatim", () => {
+  const m = mk({
+    archetype: "fullstack",
+    project_name: "web-app",
+    design_system_tokens: { color_brand: "#112233", radius_base: "0.5rem" },
+  }).managed;
+  assert.equal(m.design_system.tokens.color_brand, "#112233");
+  assert.equal(m.design_system.tokens.radius_base, "0.5rem");
+});
+
+test("Phase B: brand color participates in the hash (re-brand => new hash)", () => {
+  const a = mk({ archetype: "fullstack", project_name: "web-app", design_brand_color: "#0B5FFF" });
+  const b = mk({ archetype: "fullstack", project_name: "web-app", design_brand_color: "#000000" });
+  assert.notEqual(a.managed.manifest_hash, b.managed.manifest_hash);
+});
+
+test("Phase B: design_system NOT seeded when install=false (var has no .tpl to bind)", () => {
+  // With install=false the design-system subtree is omitted (path-segment guard),
+  // so there is no template referencing the token — no need to seed it.
+  const m = mk({
+    archetype: "fullstack",
+    project_name: "web-app",
+    design_system_install: false,
+  }).managed;
+  assert.equal(m.design_system.install, false);
+  assert.ok(!("tokens" in m.design_system));
+});
+
 test("minimal-core (library-sdk): no persistence/api_first/design_system; protected_paths defaulted", () => {
   const m = mk({ archetype: "library-sdk", project_name: "lib-thing" }).managed;
   assert.ok(!("persistence" in m));

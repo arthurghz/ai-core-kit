@@ -684,3 +684,135 @@ test('lookupBool: absent => false; present bool coerced', () => {
   assert.equal(lookupBool('features.sdd_gate', BASE_MANAGED), true);
   assert.equal(lookupBool('design_system.install', BASE_MANAGED), false);
 });
+
+// -----------------------------------------------------------------------------
+// Phase B — design-system brand-token MATERIALIZATION
+// (docs/SPEC-FIRST-BOOTSTRAP.md §5 Phase B). The renderer substitutes
+// ${design_system.tokens.color_brand} into the theme files. The token is ALWAYS
+// bound because lib/manifest.mjs seeds a default (#0066CC) whenever
+// design_system.install is true — the render engine has NO default syntax, so an
+// unbound ${...} would be a hard RenderError. These tests pin BOTH halves:
+// an explicit brand hex materializes verbatim, and the seeded default renders
+// cleanly (never an unbound-var error).
+// -----------------------------------------------------------------------------
+
+// Build a fullstack fixture tree whose design-system theme files mirror the real
+// shipped templates: globals.css.tpl carries --brand: ${...}, and
+// theme.tokens.json.tpl carries the brand hex in two places. The path-segment
+// guard _when.design_system.install/ matches the real tree layout.
+function buildDesignSystemFixtureTree() {
+  const templates = mkTmp('ack-ds-templates-');
+  writeFile(templates, 'render.map.yaml', [
+    'version: 1',
+    'rules:',
+    '  - glob: "**/design-system/**"',
+    '    archetype: fullstack',
+    '    when: design_system.install',
+    '    requires_archetype: fullstack',
+  ].join('\n'));
+
+  writeFile(templates, 'fullstack/CLAUDE.md.tpl', '# ${project.name} (fullstack)\n');
+  writeFile(
+    templates,
+    'fullstack/_when.design_system.install/design-system/theme/globals.css.tpl',
+    [
+      '/* theme for ${project.name} */',
+      ':root {',
+      '  --brand: ${design_system.tokens.color_brand};',
+      '  --primary: var(--brand);',
+      '}',
+      '.dark {',
+      '  --brand: ${design_system.tokens.color_brand};',
+      '}',
+    ].join('\n') + '\n',
+  );
+  writeFile(
+    templates,
+    'fullstack/_when.design_system.install/design-system/theme/theme.tokens.json.tpl',
+    JSON.stringify({
+      brand: { color_brand: '${design_system.tokens.color_brand}' },
+      mappings: { color_primary: { css_var: '--primary', value: '${design_system.tokens.color_brand}' } },
+    }),
+  );
+  return templates;
+}
+
+function fullstackDsManaged(extra) {
+  return {
+    ...BASE_MANAGED,
+    project: { ...BASE_MANAGED.project, name: 'web-app' },
+    archetype: 'fullstack',
+    features: { hooks: true, mcp: false, agent_teams: false, sdd_gate: true },
+    ...extra,
+  };
+}
+
+test('Phase B: fullstack+design-system WITH a brand token materializes the hex into globals.css + theme.tokens.json', async () => {
+  const templates = buildDesignSystemFixtureTree();
+  const { loadRenderMap } = await import('./render.mjs');
+  const map = await loadRenderMap(templates);
+  const out = mkTmp('ack-out-ds-brand-');
+
+  const BRAND = '#0B5FFF';
+  const managed = fullstackDsManaged({
+    design_system: { install: true, source: 'design-system', tokens: { color_brand: BRAND } },
+    manifest_hash: 'sha256:' + 'a'.repeat(64),
+  });
+  renderTree({ managed, archetypesDir: templates, outDir: out, renderMap: map, ackInstallDir: '/nonexistent' });
+
+  const css = fs.readFileSync(path.join(out, 'design-system/theme/globals.css'), 'utf8');
+  assert.match(css, new RegExp(`--brand:\\s*${BRAND.replace('#', '\\#')};`), 'brand hex materialized in :root');
+  assert.match(css, /--primary:\s*var\(--brand\);/, 'primary maps to --brand');
+  // both :root and .dark carry the brand
+  assert.equal((css.match(new RegExp(BRAND.replace('#', '\\#'), 'g')) || []).length, 2, 'brand hex in both :root and .dark');
+
+  const tokens = JSON.parse(fs.readFileSync(path.join(out, 'design-system/theme/theme.tokens.json'), 'utf8'));
+  assert.equal(tokens.brand.color_brand, BRAND, 'brand hex materialized in theme.tokens.json brand block');
+  assert.equal(tokens.mappings.color_primary.value, BRAND, 'brand hex materialized into color_primary.value');
+});
+
+test('Phase B: fullstack+design-system WITHOUT an explicit brand token renders the DEFAULT (no unbound-var RenderError)', async () => {
+  const templates = buildDesignSystemFixtureTree();
+  const { loadRenderMap } = await import('./render.mjs');
+  const map = await loadRenderMap(templates);
+  const out = mkTmp('ack-out-ds-default-');
+
+  // No explicit color_brand provided by a human, but the assembler ALWAYS seeds
+  // the default (#0066CC) whenever install is true — mirrored here. This is the
+  // contract that keeps the var bound; the render must succeed.
+  const DEFAULT_BRAND = '#0066CC';
+  const managed = fullstackDsManaged({
+    design_system: { install: true, source: 'design-system', tokens: { color_brand: DEFAULT_BRAND } },
+    manifest_hash: 'sha256:' + 'b'.repeat(64),
+  });
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = renderTree({ managed, archetypesDir: templates, outDir: out, renderMap: map, ackInstallDir: '/nonexistent' });
+  }, 'design-system fork with the default brand seeded renders without an unbound-var error');
+  void result;
+
+  const css = fs.readFileSync(path.join(out, 'design-system/theme/globals.css'), 'utf8');
+  assert.match(css, /--brand:\s*\#0066CC;/, 'default brand hex materialized');
+  const tokens = JSON.parse(fs.readFileSync(path.join(out, 'design-system/theme/theme.tokens.json'), 'utf8'));
+  assert.equal(tokens.brand.color_brand, DEFAULT_BRAND);
+});
+
+test('Phase B: the seed is LOAD-BEARING — an UNSEEDED design-system fork (tokens absent) is a hard RenderError', async () => {
+  // This pins WHY lib/manifest.mjs must seed color_brand: with NO tokens map at
+  // all, the engine has no default to fall back on and ${design_system.tokens.color_brand}
+  // is genuinely unbound. The seed (approach (a)) is the only thing preventing this.
+  const templates = buildDesignSystemFixtureTree();
+  const { loadRenderMap } = await import('./render.mjs');
+  const map = await loadRenderMap(templates);
+  const out = mkTmp('ack-out-ds-unseeded-');
+
+  const managed = fullstackDsManaged({
+    design_system: { install: true, source: 'design-system' }, // tokens intentionally absent
+    manifest_hash: 'sha256:' + 'c'.repeat(64),
+  });
+  assert.throws(
+    () => renderTree({ managed, archetypesDir: templates, outDir: out, renderMap: map, ackInstallDir: '/nonexistent' }),
+    (e) => e instanceof RenderError && e.path === 'design_system.tokens.color_brand' && /unbound/.test(e.message),
+  );
+});

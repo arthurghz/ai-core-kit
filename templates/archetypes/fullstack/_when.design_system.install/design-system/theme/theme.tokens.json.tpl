@@ -1,5 +1,9 @@
 {
-  "$comment": "Mapping doc (NOT a shadcn config). Maps snake_case brand-guideline tokens to the shadcn CSS variables in globals.css. Static file (no .tpl) so it is copied byte-for-byte and never substitution-scanned. To re-brand: read your brand token VALUE (e.g. color_brand) and write the listed css_var VALUE in :root / .dark of globals.css. Token keys are snake_case (^[a-z][a-z0-9_]*$, decision O4) so they survive the renderer's lowercase ${var} regex. shadcn theming uses OKLch, NOT hex/HSL: convert hex brand values to oklch(L C H) before writing them in. Attribution: CSS-variable names follow shadcn/ui (MIT); see ../NOTICE.",
+  "$comment": "Mapping doc (NOT a shadcn config). Maps snake_case brand-guideline tokens to the shadcn CSS variables in globals.css. Rendered from theme.tokens.json.tpl: the renderer materializes the confirmed brand color (design_system.tokens.color_brand) into brand.color_brand and color_primary.value below, then byte-sorts the keys. To re-brand: change design_system.tokens.color_brand in the manifest and re-run /ack-init (do not hand-edit the generated brand value). Token keys are snake_case (^[a-z][a-z0-9_]*$, decision O4) so they survive the renderer's lowercase variable-substitution regex (which cannot match a hyphen). shadcn neutral roles use OKLch; the brand color is carried verbatim as the confirmed hex and wired into --primary via var(--brand) in globals.css. Attribution: CSS-variable names follow shadcn/ui (MIT); see ../NOTICE.",
+  "brand": {
+    "$comment": "The single materialized design token. color_brand is the confirmed brand hex (design_system.tokens.color_brand; default #0066CC). globals.css carries it as --brand and maps --primary to it.",
+    "color_brand": "${design_system.tokens.color_brand}"
+  },
   "color_space": "oklch",
   "note_on_pairs": "Each surface/role token has a matching *_foreground that must contrast it (text/icon color drawn on top). primary <-> primary_foreground, card <-> card_foreground, etc.",
   "mappings": {
@@ -37,6 +41,7 @@
       "css_var": "--primary",
       "role": "primary action / brand accent (maps from brand-guidelines color_brand)",
       "brand_source": "color_brand",
+      "value": "${design_system.tokens.color_brand}",
       "oklch_example": "oklch(0.205 0 0)"
     },
     "color_primary_foreground": {

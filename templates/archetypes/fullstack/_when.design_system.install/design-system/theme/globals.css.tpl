@@ -1,15 +1,23 @@
 /* Default shadcn/ui theme for ${project.name} (Tailwind v4, OKLch).
  *
  * Rendered into the child as `app/globals.css` (Next.js App Router) or your
- * framework's global stylesheet. STATIC by design: every value below is a
- * concrete default, so the renderer never sees an unbound `${...}` (an unbound
- * substitution is a hard render error per docs/RENDER-ENGINE.md). The only
- * `${...}` in this file is `${project.name}` above, which is always bound.
+ * framework's global stylesheet. Neutral surfaces are concrete OKLch defaults;
+ * the ONE materialized value is the brand color `--brand`, substituted from
+ * `${design_system.tokens.color_brand}`. That manifest token is ALWAYS bound:
+ * `/ack-init` seeds it (default #0066CC) whenever the design system is installed,
+ * so the renderer never sees an unbound `${...}` (an unbound substitution is a
+ * hard render error per docs/RENDER-ENGINE.md). The other `${...}` in this file
+ * is `${project.name}` above, also always bound.
  *
  * Base style: new-york. Base color: neutral. Color space: OKLch (oklch(L C H)).
- * To re-brand, override the token VALUES in `:root` / `.dark` only — never the
- * variable names, and never the `@theme inline` mapping (utilities depend on it).
- * See theme.tokens.json for brand-token -> CSS-variable wiring, and README.md.
+ * The brand color is carried verbatim (the confirmed hex from your brand
+ * guidelines) in `--brand` and wired into the `--primary` role via var(); CSS
+ * accepts a hex value in a custom property directly. To re-brand permanently,
+ * change `design_system.tokens.color_brand` in the manifest and re-run /ack-init
+ * — never hand-edit this generated value. Override the OTHER token VALUES in
+ * `:root` / `.dark` only; never the variable names, and never the `@theme inline`
+ * mapping (utilities depend on it). See theme.tokens.json for the brand-token ->
+ * CSS-variable wiring, and README.md.
  *
  * Attribution: token names and OKLch theming convention follow shadcn/ui (MIT);
  * these values are an independently authored default. See ../NOTICE.
@@ -29,6 +37,12 @@
   /* Base radius; the derived radii below are computed from it. */
   --radius: 0.625rem;
 
+  /* Brand color — the ONE materialized token. Carried verbatim from
+   * design_system.tokens.color_brand (confirmed brand hex; default #0066CC).
+   * The --primary role maps to it via var() below. A hex value in a CSS custom
+   * property is valid and interoperates with the OKLch neutrals around it. */
+  --brand: ${design_system.tokens.color_brand};
+
   /* Surfaces and text */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -37,8 +51,9 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
 
-  /* Semantic roles */
-  --primary: oklch(0.205 0 0);
+  /* Semantic roles. --primary is the brand accent: it tracks --brand so the
+   * confirmed brand color drives every primary surface/utility. */
+  --primary: var(--brand);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -64,7 +79,7 @@
   /* Sidebar surface (used by the shadcn sidebar block) */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
@@ -77,6 +92,10 @@
  * (light surfaces become dark, etc.); the variable NAMES stay identical.
  * ------------------------------------------------------------------------- */
 .dark {
+  /* Same materialized brand hex; the brand identity is constant across themes.
+   * Tune this independently if your brand needs a lighter shade on dark surfaces. */
+  --brand: ${design_system.tokens.color_brand};
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -84,7 +103,7 @@
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
 
-  --primary: oklch(0.922 0 0);
+  --primary: var(--brand);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -109,7 +128,7 @@
 
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -124,6 +143,9 @@
  * the whole set. Do not rename these — shadcn components reference the utilities.
  * ------------------------------------------------------------------------- */
 @theme inline {
+  /* Expose the brand color as a `bg-brand` / `text-brand` utility in addition to
+   * the --primary role it drives. */
+  --color-brand: var(--brand);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

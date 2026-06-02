@@ -3,11 +3,28 @@ title: MCP Wiring
 description: Optional per-project .mcp.json wiring — how /ack-init renders project-scoped MCP servers, the shadcn/ui MCP (npx shadcn@latest mcp), approval as a security boundary, and the mcp-builder skill for authoring servers.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # MCP (Model Context Protocol) Wiring
+
+<TerminalCast src="/demo/ack-mcp.cast" />
 
 A forked CHILD project can opt into a project-scoped `.mcp.json` that declares MCP
 servers an agent can use. This is **opt-in**: `/ack-init` renders `.mcp.json` only
 when `features.mcp: true`.
+
+**What MCP is.** The Model Context Protocol is the open standard Claude Code uses to
+talk to external **servers** that expose tools, resources, and prompts — a database
+browser, a component installer, an internal API gateway. A `.mcp.json` at the project
+root declares which servers the agent may launch and how (`command` + `args`). MCP is
+how you give an agent *capabilities the kit does not ship itself*.
+
+**Why it is opt-in and project-scoped.** Most forks do not need a project MCP server,
+and an unused `.mcp.json` is just noise plus an approval prompt. So the kit keeps it
+behind `features.mcp` and renders nothing when the answer is `false`. When a fork does
+opt in, the file is **project-scoped** (checked into the repo, shared by the team) —
+which is exactly why every server requires explicit approval on first use (see the
+[security boundary](#project-mcp-servers-require-approval-security-boundary) below).
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#1e1b4b","secondaryColor":"#ecfeff","tertiaryColor":"#faf5ff","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":58,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
@@ -40,6 +57,37 @@ features:
 
 When `false`, no `.mcp.json` is rendered at all. When `true`, `/ack-init` renders
 the archetype's `.mcp.json.tpl` to the project root.
+
+### What gets rendered
+
+The fullstack archetype's template makes the gating concrete. The `ack-example`
+server is always present (a P4 stub so the conditional file is never empty), and the
+`shadcn` block is wrapped in a renderer `#ack:if` directive:
+
+```json
+{
+  "//": "ack:managed-keys json:mcpServers. Within mcpServers ack owns ONLY ack-* entries.",
+  "mcpServers": {
+    "ack-example": {
+      "command": "python3",
+      "args": ["${CLAUDE_PROJECT_DIR}/.claude/mcp/ack-example-server.py"]
+    }
+    #ack:if design_system.install
+    ,
+    "shadcn": {
+      "command": "npx",
+      "args": ["shadcn@latest", "mcp"]
+    }
+    #ack:endif
+  }
+}
+```
+
+The leading comma inside the `#ack:if` block is deliberate: when
+`design_system.install` is false the whole block (comma included) is dropped, and the
+remaining JSON stays valid. `${CLAUDE_PROJECT_DIR}` is the **literal** hook/path
+variable Claude Code expands at runtime — it is not a render-time substitution, so it
+survives into the rendered file unchanged.
 
 ## Ownership and re-run safety
 

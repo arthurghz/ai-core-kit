@@ -3,7 +3,11 @@ title: The META vs CHILD boundary
 description: The architectural separation between building the kit and what /ack-init renders into a fork.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # The META vs CHILD boundary
+
+<TerminalCast src="/demo/ack-two-layer.cast" />
 
 The single most important idea in `ai-core-kit` is that it lives in **two layers that
 must never be conflated**. Get this boundary right and everything else — idempotency,
@@ -92,6 +96,11 @@ Three concrete rules make a rendered child a clean, self-contained repo:
    only, which is precisely why the upper-case shell variable `${CLAUDE_PROJECT_DIR}`
    survives substitution untouched.
 
+A fourth, quieter forkability default lives in the manifest itself: `discovery.enabled`
+defaults **off** (invariant **I7**), so the META discovery engine is never wired into a
+fork unless the operator deliberately opts in. The kit can carry a powerful
+codebase-discovery capability without it becoming a surprise dependency of every child.
+
 ## Two-sided safety: fail-closed at author time, fail-open at runtime
 
 The boundary is enforced asymmetrically on purpose (invariant **I6**):
@@ -115,9 +124,27 @@ The boundary is enforced asymmetrically on purpose (invariant **I6**):
   not as control flow inside templates, so the payload stays auditable.
 - **One-way dependency** — a child is a clean snapshot that owes nothing back to the kit.
 
+## How archetypes sit inside the CHILD layer
+
+Everything a fork *can become* is also CHILD payload authored under `templates/`. The
+manifest's first question — `archetype` — picks which template tree renders:
+`backend-api`, `fullstack`, and `saas` are the three **deep** archetypes (full
+persistence, API spec, and contract-gate scaffolding), while `monorepo`,
+`library-sdk`, and `infra-iac` render a **minimal core**. None of this lives in the META
+`.claude/` tree; it is all selectable scaffolding under `templates/archetypes/`, which is
+why a new archetype is a CHILD-layer authoring task, not a change to the kit's own
+tooling. Infrastructure-as-code is deliberately **orthogonal**: `features.iac` plus the
+`iac` block let *any* archetype add infra, so IaC is not a sixth archetype except for the
+pure `infra-iac` repo. See [the archetype overview](/archetypes/overview) for the full
+matrix.
+
 ## Where the contracts live
 
 The frozen P3 contracts that span this boundary — the manifest schema, the question
 bank, and the render contract — are documented next in
 [Interview → Manifest → Render](/concepts/manifest-and-interview) and
 [Render engine contract](/concepts/render-engine).
+
+> **See also:** [Archetype overview](/archetypes/overview) ·
+> [Render engine — idempotency](/concepts/render-engine#idempotent-re-renders) ·
+> the contract gate, a CHILD-layer rule, in [Contract gate](/features/contract-gate).

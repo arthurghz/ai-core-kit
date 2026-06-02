@@ -3,7 +3,12 @@ title: Contrato do motor de render
 description: O contrato de render P4 congelado — substituição de ${VAR}, inclusão condicional _when.*, render.map.yaml e idempotência estrutural.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Contrato do motor de render
+
+<TerminalCast src="/demo/ack-render.cast" />
+
 
 Depois que `/ack-init` escreveu e validou o `project.manifest.yaml`, o **motor de render**
 transforma o manifesto mais a árvore `templates/archetypes/<archetype>/` em um projeto
@@ -141,14 +146,14 @@ version: 1
 rules:
   - glob: "**/.mcp.json.tpl"
     archetype: "*"
-    when: features.mcp                 # MCP wiring only when the child opts in
+    when: features.mcp                  # MCP só quando o child opta por isso
   - glob: "**/.claude/hooks/contract-gate"
     archetype: "*"
-    when: features.sdd_gate            # master switch; false => omit the gate hook entirely
+    when: features.sdd_gate             # chave-mestra; false => omite o hook do gate por completo
   - glob: "**/design-system/**"
-    archetype: fullstack
+    archetype: "*"
     when: design_system.install
-    requires_archetype: fullstack      # ASSERTION, not a selector
+    requires_archetype: [fullstack, saas]   # ASSERÇÃO (lista desde o v3), não um seletor
 ```
 
 As regras de combinação (espelhadas de `RENDER-ENGINE.md`):
@@ -159,12 +164,22 @@ As regras de combinação (espelhadas de `RENDER-ENGINE.md`):
    tanto por um segmento de caminho quanto por um `when` do mapa só é incluído se **ambos**
    forem verdadeiros (AND lógico).
 3. **`requires_archetype` é uma asserção, não um seletor.** Se o glob de uma regra casa e
-   seu `when` é verdadeiro mas `managed.archetype` não é igual a `requires_archetype`, o
-   render **aborta ruidosamente** (um bug de autoria). Ele nunca omite silenciosamente.
+   seu `when` é verdadeiro mas `managed.archetype` não está entre `requires_archetype`
+   (uma **lista** desde o v3, por exemplo `[fullstack, saas]`), o render **aborta
+   ruidosamente** (um bug de autoria). Ele nunca omite silenciosamente.
 4. **Uma chave `managed:` ausente referenciada por qualquer `when` avalia como falso →
-   omite.** É assim que *o design system renderiza apenas para fullstack* sai de graça: o
-   schema proíbe `design_system` sob `backend-api`, então a busca está ausente → falso →
-   omitido, sem nenhum tratamento especial.
+   omite.** É assim que *o design system renderiza apenas para fullstack e saas* sai de
+   graça: o schema proíbe `design_system` sob `backend-api`, então a busca está ausente →
+   falso → omitido, sem nenhum tratamento especial.
+
+Algumas subárvores do v3 **não** precisam de regra de glob nenhuma porque uma guarda de
+segmento de caminho as expressa por completo. O scaffold de IaC sob
+`templates/archetypes/{fullstack,saas}/_when.features.iac/` é protegido por
+`_when.features.iac/` para toda a árvore `infra/`, depois dividido por provedor com
+`_when.iac.is_aws/` vs `_when.iac.is_gcp/` (os booleanos *derivados*, exatamente um dos
+quais é verdadeiro). Ele é deliberadamente deixado de fora do `render.map.yaml`: uma guarda
+de segmento de caminho pura é tanto o controle de inclusão quanto a própria documentação,
+então adicionar um glob redundante só criaria um segundo lugar para manter em sincronia.
 
 ## Re-renders idempotentes
 
@@ -241,3 +256,8 @@ contra um arquivo de respostas versionado — é desnecessária aqui, porque a i
 **estrutural** (a divisão `managed:`/`user:` mais um registro de propriedade), não um merge
 de 3 vias. O resultado é um renderizador com **zero dependências npm/pip** que é auditável
 por inspeção.
+
+> **Veja também:** [Entrevista → Manifesto → Render](/concepts/manifest-and-interview) (o
+> produtor que escreve a subárvore `managed:` que este motor consome) ·
+> [A fronteira META vs CHILD](/concepts/two-layer-model) ·
+> a fonte autoritativa, `docs/RENDER-ENGINE.md`.

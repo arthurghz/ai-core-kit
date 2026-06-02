@@ -3,7 +3,11 @@ title: Hooks Reference
 description: Every hook ai-core-kit ships — the contract-gate PreToolUse hook rendered into backend-api and fullstack forks, its matcher, the three modes (block/warn/off), in-script path scoping, and the fail-open contract.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Hooks Reference
+
+<TerminalCast src="/demo/ack-gate.cast" />
 
 A hook is a shell command Claude Code runs at a lifecycle event. ai-core-kit
 ships exactly one hook, the **contract-gate**, as CHILD payload: a `PreToolUse`

@@ -3,7 +3,12 @@ title: Entrevista → Manifesto → Render
 description: O contrato P3 congelado — como a entrevista determinística escreve o manifesto que o renderizador consome.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Entrevista → Manifesto → Render
+
+<TerminalCast src="/demo/ack-manifest.cast" />
+
 
 O coração do `ai-core-kit` é um pipeline pequeno e **congelado**: uma entrevista guiada
 por archetype escreve um `project.manifest.yaml`, que um renderizador consome para gerar
@@ -56,7 +61,7 @@ uma execução.
 
 | Artefato | Arquivo | Papel |
 |---|---|---|
-| Schema do manifesto (humano) | `templates/manifest/project.manifest.schema.yaml` | Contrato autoritativo e anotado (`schema_version: 2`); funciona também como uma instância de exemplo. |
+| Schema do manifesto (humano) | `templates/manifest/project.manifest.schema.yaml` | Contrato autoritativo e anotado (`schema_version: 3`); funciona também como uma instância de exemplo. |
 | Schema do manifesto (máquina) | `templates/manifest/project.manifest.schema.json` | JSON-Schema draft 2020-12 — o validador que a entrevista executa. |
 | Banco de perguntas | `templates/interview/questions.yaml` | As perguntas determinísticas que a entrevista percorre em ordem. |
 | Contrato de render | `docs/RENDER-ENGINE.md` | Sintaxe `${VAR}`, diretórios condicionais `_when.*`, `render.map.yaml`, idempotência. |
@@ -83,8 +88,21 @@ respostas de entrada sempre produzem um manifesto de saída byte-idêntico (inva
 A primeiríssima pergunta é `archetype` (invariante **I3**). Sua resposta restringe cada
 pergunta subsequente através da condição `applies_to` — avaliada **antes** de
 `ask_if`/`skip_if`. É assim que, por exemplo, as perguntas de persistência
-(DB/ORM/migração) só disparam para `backend-api` e `fullstack`, e a pergunta de design
-system só dispara para `fullstack`.
+(DB/ORM/migração) só disparam para os archetypes profundos, e a pergunta de design system
+só dispara para `fullstack` e `saas`.
+
+O banco entrega seis archetypes. Três são **profundos** — `backend-api`, `fullstack` e
+`saas` (a stack opinativa Vercel + Next.js App Router + shadcn/ui + Supabase + Clerk +
+Drizzle + Stripe adicionada no schema v3) — e três são **core mínimo**: `monorepo`,
+`library-sdk` e `infra-iac`. Os archetypes de core mínimo respondem apenas às perguntas
+universais (identidade, features, `contract_gate.mode` + `protected_paths`,
+`telemetry.enabled`, `ci_cd`); as perguntas de DB e design nunca disparam para eles — um
+resultado determinístico de `applies_to`, não um palpite de LLM.
+
+Infraestrutura-como-código é **ortogonal** ao eixo de archetype: o toggle `feat_iac` e as
+perguntas `iac_provider`/`iac_tool` permitem que *qualquer* archetype adicione um bloco
+`iac` (com booleanos derivados `is_aws`/`is_gcp`), então IaC é uma feature, não um sétimo
+ramo.
 
 ### A pequena gramática de expressões
 
@@ -96,14 +114,14 @@ verdadeiro (à prova de falha: pular em vez de perguntar). Exemplo: `migrations_
 carrega `ask_if: "migrations_enabled == true"`, então nunca dispara quando as migrações
 estão desabilitadas.
 
-O banco completo — todas as 39 perguntas e a matriz de ramificação — está enumerado na
+O banco completo — todas as 45 perguntas e a matriz de ramificação — está enumerado na
 documentação de referência; o contrato acima é a parte que você precisa para raciocinar
 sobre o fluxo.
 
 ## O envelope do manifesto
 
 ```yaml
-schema_version: 2          # const 2; a versão maior do FORMATO
+schema_version: 3          # const 3; a versão maior do FORMATO
 generator:                 # apenas proveniência; FORA do hash (re-execuções permanecem byte-estáveis)
   tool: ai-core-kit
   tool_version: "0.4.0"
@@ -112,8 +130,12 @@ managed:                   # PROPRIEDADE DA MÁQUINA. Regenerado por completo a 
   manifest_hash: "sha256:..."   # escrito POR ÚLTIMO, sobre a subárvore canônica managed:
   project: { name, language, ... }
   archetype: backend-api
-  features: { hooks, mcp, agent_teams, sdd_gate }
-  persistence: { ... }
+  features: { hooks, mcp, agent_teams, sdd_gate, iac }  # iac é o toggle ortogonal do v3
+  persistence: { ... }     # db agora inclui supabase (v3)
+  auth: { provider }       # v3; saas tem padrão clerk
+  hosting: { target }      # v3; saas tem padrão vercel
+  billing: { provider }    # v3; saas tem padrão stripe
+  iac: { provider, tool, is_aws, is_gcp }   # v3; presente só quando features.iac
   contract_gate: { mode, protected_paths, scope, exempt }
   contracts: [ ... ]
   telemetry: { ... }
@@ -123,6 +145,16 @@ user:                       # PROPRIEDADE DO HUMANO. Semeado uma vez, depois nun
   notes: ""
   overrides: {}
 ```
+
+O schema v3 é o FORMATO maior atual. Ele adiciona o archetype `saas`, torna
+`design_system` obrigatório tanto para `fullstack` quanto para `saas`, introduz os objetos
+`auth`, `hosting` e `billing`, adiciona `supabase` ao enum `persistence.db`, e adiciona o
+toggle ortogonal `features.iac` mais o bloco `iac` (cujos `is_aws`/`is_gcp` são
+*derivados*, não perguntados). Toda chave nova tem padrão "off", então uma migração v2 →
+v3 é neutra para o render — mas é de sentido único e opcional: `/ack-init --migrate`
+reescreve `managed:` para o formato v3 e recomputa o hash, e um child v2 é recusado (não
+atualizado automaticamente) sem isso. Os consumidores recusam um **maior** incompatível: o
+gate degrada para `off` + stderr, o agregador dá erro.
 
 A divisão é toda a história da idempotência: **`managed:`** é propriedade da máquina e
 regenerado a cada execução; **`user:`** é propriedade do humano e semeado exatamente uma
@@ -161,3 +193,8 @@ A ordem é determinante: **respostas → escrever manifesto → validar → rend
 renderizador pode assumir uma subárvore `managed:` válida pelo schema, porque um manifesto
 inválido aborta antes que qualquer arquivo seja tocado (fail-closed no tempo de autoria). O
 que acontece em seguida é o [Contrato do motor de render](/concepts/render-engine).
+
+> **Veja também:** [Contrato do motor de render](/concepts/render-engine) ·
+> [A fronteira META vs CHILD](/concepts/two-layer-model) ·
+> a referência completa de perguntas e a matriz de ramificação na
+> [documentação de referência](/reference/commands).

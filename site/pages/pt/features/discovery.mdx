@@ -3,7 +3,12 @@ title: Motor de Descoberta (roadmap)
 description: O loop de descoberta propõe-nunca-adota-automaticamente planejado para P7 — fontes semente, uma Action de PR agendada que abre propostas e adoção apenas-humana. Ainda não construído.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Motor de Descoberta (roadmap)
+
+<TerminalCast src="/demo/ack-discovery.cast" />
+
 
 > **Status: ROADMAP (P7 — não construído).** Nada nesta página é entregue hoje. O
 > diretório `discovery/`, o comando `/discover`, o schema de propostas e a Action
@@ -14,12 +19,51 @@ description: O loop de descoberta propõe-nunca-adota-automaticamente planejado 
 > **contrato pretendido**, para que o design não se perca — não trate nada disso
 > como uma feature funcional.
 
+## Por que ter um motor de descoberta
+
+ai-core-kit é um **padrão forkável**, e padrões apodrecem se congelam. Novos skills,
+plugins, hooks e convenções de CLAUDE.md do Claude Code surgem constantemente no
+ecossistema open-source. O motor de descoberta é o mecanismo planejado do kit para
+**manter-se atual sem derivar** — uma varredura curada e agendada que mostra o que o
+kit *poderia* adotar, redigido como propostas revisáveis, para que um mantenedor
+tome uma decisão informada de sim/não em vez de vigiar à mão uma dúzia de repos ou
+puxar cegamente a rotatividade do upstream. Crucialmente, a descoberta é uma
+preocupação **apenas-META**: ajuda a evoluir o próprio kit e nunca faz parte do que
+um fork herda (`discovery.enabled` tem padrão `false`, e o motor META nunca é copiado
+para um filho — invariante de forkabilidade I7).
+
 ## O princípio central: propor, nunca adotar automaticamente
 
 O motor de descoberta é projetado para **propor** skills, plugins e ferramentas
 Claude Code de terceiros — e **nunca** para adotá-los automaticamente. A
 descoberta propõe; **humanos decidem**. A adoção é uma etapa manual e revisada.
-Este é o único invariante sobre o qual todo o design se sustenta.
+Este é o único invariante sobre o qual todo o design se sustenta, e existe por duas
+razões: **segurança de licença** (um mantenedor precisa inspecionar a postura SPDX
+antes de qualquer vendoring — veja o [Registro de licenças](/reference/licensing)) e
+**segurança da cadeia de suprimentos** (um job automatizado que lê repos de terceiros
+arbitrários nunca pode ter um caminho para fazer merge do próprio output).
+
+## O que existe hoje: o prompt do agente de descoberta
+
+O único artefato de descoberta de fato no repositório é um **prompt de agente META**
+em `.claude/agents/discovery.md` (`model: haiku`, tools `Read, Write, Grep, Glob,
+WebFetch, WebSearch`). Ele codifica o comportamento pretendido para que o design não
+se perca:
+
+- **Objetivo único** — escanear as fontes semente curadas e emitir propostas
+  bem-formadas; *propor é o trabalho inteiro*.
+- **Escopo de escrita** — ele pode escrever **apenas** sob `discovery/proposals/`, um
+  arquivo por proposta. É proibido de escrever em `discovery/adopted/`, `.claude/`,
+  `templates/` ou qualquer caminho de produção. A adoção é decisão do humano.
+- **O que cada proposta registra** — a URL da fonte + licença, o que a coisa é, por
+  que poderia caber no kit, a **camada exata** que tocaria (META ou CHILD) e o
+  risco/footgun se adotada. Incompatibilidades de licença (source-available, GPL) são
+  sinalizadas como bloqueadores de adoção de antemão.
+
+O agente está integrado ao roster de build META (`bootstrap/ack.bootstrap.yaml`,
+papel `discovery`, modelo `haiku` — "apenas-propõe; baixo risco"), mas o motor ao
+redor (`sources.yaml`, o comando `/discover`, a Action agendada, o validador de
+propostas) **não está construído**.
 
 ## Peças pretendidas
 
@@ -43,9 +87,16 @@ De `docs/BOOTSTRAP.md`, o conjunto semente `sources.yaml` planejado:
 
 ### Formato pretendido da proposta
 
-Uma proposta deve ser um `slug.yaml` carregando: `source`, um **ref fixado**, uma
-**licença SPDX**, `kind`, `summary`, `rationale`, `kill_after` e `status`. O schema
-exato está **A DEFINIR** nesta fase — está em desenvolvimento, não congelado.
+Uma proposta deve ser um `discovery/proposals/<slug>.yaml` carregando: `source`, um
+**ref fixado** (para que uma proposta seja reproduzível contra um commit exato), uma
+**licença SPDX**, `kind`, `summary`, `rationale`, `kill_after` (uma expiração para que
+propostas obsoletas se limpem sozinhas) e `status`. O schema exato está **A DEFINIR**
+nesta fase — está em desenvolvimento, não congelado — mas dois campos são projetados
+para serem **obrigatórios e validados**: `license` (classificado por SPDX) e
+`vendorable` (booleano). A etapa de adoção deve **recusar** qualquer coisa
+não-vendorável, e deve copiar o `LICENSE.txt` upstream quando de fato vendora. Uma
+"proposta bem-formada" precisa de um validador antes de poder ser um critério de
+aceitação testável.
 
 ## Fluxo de adoção pretendido
 
@@ -60,19 +111,31 @@ exato está **A DEFINIR** nesta fase — está em desenvolvimento, não congelad
 
 ## Endurecimento exigido (antes que isto possa ser entregue)
 
-O design do P7 chama explicitamente o trabalho de segurança/permissão que deve
-chegar primeiro:
+Uma Action agendada que lê repos de terceiros arbitrários e os alimenta em um PR com
+acesso de escrita é uma superfície clássica de **pipeline envenenado**. O design do P7
+portanto exige uma arquitetura de **jobs divididos** e escopo explícito de token antes
+que possa ser entregue:
 
-- **Isolamento** do job de descoberta.
-- **Sem auto-merge** — a Action propõe, ela não pode fazer merge.
-- Um **kill switch**.
+- **Job de leitura não-confiável** — `permissions: contents: read`, **sem segredos**,
+  nunca executa código baixado (ex.: `npm ci --ignore-scripts`). Emite apenas um
+  *artefato sanitizado*.
+- **Job de PR confiável** — consome esse artefato e é o único job com
+  `contents: write` + `pull-requests: write`. Abre o PR da proposta e nada mais.
+- **Sem auto-merge** — proteção de branch com revisões obrigatórias para que o token
+  *não possa* fazer merge; o invariante "humanos decidem" é imposto pelas
+  configurações do repo, não por boas intenções. SHA-pin em todas as actions,
+  `persist-credentials: false`, um grupo de concorrência, timeouts e um **kill
+  switch**.
 
-E vários mecanismos estão explicitamente **adiados**:
+E vários mecanismos estão explicitamente **adiados** para manter o primeiro corte
+entregável:
 
-- Imposição de expiração do `kill_after`.
-- Um ledger de rejeições.
-- Deduplicação de propostas repetidas.
-- Idempotência de PR agendado (um único PR estável por ciclo de cron).
+- Imposição de expiração do `kill_after` (auto-limpeza de propostas obsoletas).
+- Um ledger `rejected/` para que um item já decidido não seja re-proposto.
+- Deduplicação de propostas repetidas contra `proposals/` + `adopted/` + `rejected/`.
+- Idempotência de PR agendado — um único branch **estável** (`discovery/auto`) e um PR
+  update-or-create por ciclo de cron, para que uma varredura diária não gere PRs
+  duplicados.
 
 ## Por que está no roadmap e não entregue
 
@@ -82,4 +145,5 @@ depende de um schema de propostas que ainda está A DEFINIR e do endurecimento d
 segurança acima. Até que isso chegue, o motor é apenas intenção.
 
 Veja também: [Catálogo de skills](/features/skills-catalog),
-[Registro de licenças e referências](/reference/licensing).
+[Registro de licenças e referências](/reference/licensing) e o
+[Roadmap](/roadmap) para onde o P7 se encaixa na sequência de build.

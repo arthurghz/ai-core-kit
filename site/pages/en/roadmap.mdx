@@ -3,7 +3,11 @@ title: Roadmap
 description: Honest phase status for ai-core-kit — what is shipped, what is partial, and what remains roadmap (P4 render engine, P5 gate runtime, P6 wiring, P7 discovery, P8 E2E).
 ---
 
+import TerminalCast from '../../components/TerminalCast'
+
 # Roadmap
+
+<TerminalCast src="/demo/ack-build.cast" />
 
 ai-core-kit builds itself in **eight phases**, driven by `/ack-build` over the data-driven config `bootstrap/ack.bootstrap.yaml`. This page is the honest status of each phase, taken from the `done` and `gate` flags in that config. It tells you exactly what works today versus what is a **contract or roadmap** item.
 
@@ -96,3 +100,12 @@ Tracked so nothing disappears silently. The full deferred / not-ported list is b
 - **Proprietary doc skills permanently excluded:** `docx`, `pdf`, `pptx`, `xlsx` — source-available, never read/copied/derived from. See [Licensing](/reference/licensing).
 
 > Recommendation: propose new sources via the discovery engine rather than pre-emptively porting them.
+
+---
+
+## See also
+
+- [Bootstrap config (ack.bootstrap.yaml)](/build/bootstrap-config) — the source of the `done` and `gate` flags this page reports; the eight-phase DAG.
+- [/ack-build orchestrator](/build/ack-build) — the command that drives these phases and stops at every gate.
+- [The META vs CHILD boundary](/concepts/two-layer-model) — why a frozen *contract* (P3) is not the same as a finished *runtime*.
+- [Discovery Engine (P7)](/features/discovery) — the propose-not-adopt loop tracked in the Roadmap section.

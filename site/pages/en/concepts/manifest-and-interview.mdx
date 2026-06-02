@@ -3,7 +3,11 @@ title: Interview → Manifest → Render
 description: The frozen P3 contract — how the deterministic interview writes the manifest the renderer consumes.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Interview → Manifest → Render
+
+<TerminalCast src="/demo/ack-manifest.cast" />
 
 The heart of `ai-core-kit` is a small, **frozen** pipeline: an archetype-first interview
 writes a `project.manifest.yaml`, which a renderer consumes to stamp out your project.
@@ -55,7 +59,7 @@ no consumer ever writes it back, so it cannot drift mid-run.
 
 | Artifact | File | Role |
 |---|---|---|
-| Manifest schema (human) | `templates/manifest/project.manifest.schema.yaml` | Authoritative, annotated contract (`schema_version: 2`); doubles as a worked instance. |
+| Manifest schema (human) | `templates/manifest/project.manifest.schema.yaml` | Authoritative, annotated contract (`schema_version: 3`); doubles as a worked instance. |
 | Manifest schema (machine) | `templates/manifest/project.manifest.schema.json` | JSON-Schema draft 2020-12 — the validator the interview runs. |
 | Question bank | `templates/interview/questions.yaml` | The deterministic questions the interview walks in order. |
 | Render contract | `docs/RENDER-ENGINE.md` | `${VAR}` syntax, `_when.*` conditional dirs, `render.map.yaml`, idempotency. |
@@ -81,8 +85,20 @@ declares:
 
 The very first question is `archetype` (invariant **I3**). Its answer narrows every
 subsequent question through `applies_to` gating — evaluated **before** `ask_if`/`skip_if`.
-This is how, for example, persistence (DB/ORM/migration) questions fire only for
-`backend-api` and `fullstack`, and the design-system question fires only for `fullstack`.
+This is how, for example, persistence (DB/ORM/migration) questions fire only for the deep
+archetypes, and the design-system question fires only for `fullstack` and `saas`.
+
+The bank ships six archetypes. Three are **deep** — `backend-api`, `fullstack`, and
+`saas` (the opinionated Vercel + Next.js App Router + shadcn/ui + Supabase + Clerk +
+Drizzle + Stripe stack added in schema v3) — and three are **minimal core**: `monorepo`,
+`library-sdk`, and `infra-iac`. The minimal-core archetypes answer only the universal
+questions (identity, features, `contract_gate.mode` + `protected_paths`,
+`telemetry.enabled`, `ci_cd`); the DB and design questions never fire for them — a
+deterministic outcome of `applies_to`, not an LLM judgment call.
+
+Infrastructure-as-code is **orthogonal** to the archetype axis: the `feat_iac` toggle and
+the `iac_provider`/`iac_tool` questions let *any* archetype add an `iac` block (with
+derived `is_aws`/`is_gcp` booleans), so IaC is a feature, not a seventh branch.
 
 ### The tiny expression grammar
 
@@ -93,13 +109,13 @@ sentinel, which makes `==`/`in` false and `!=`/`not_in` true (fail-safe: skip ra
 than ask). Example: `migrations_tool` carries `ask_if: "migrations_enabled == true"`, so
 it never fires when migrations are disabled.
 
-The full bank — all 39 questions and the branch matrix — is enumerated in the reference
+The full bank — all 45 questions and the branch matrix — is enumerated in the reference
 docs; the contract above is the part you need to reason about the flow.
 
 ## The manifest envelope
 
 ```yaml
-schema_version: 2          # const 2; the FORMAT major version
+schema_version: 3          # const 3; the FORMAT major version
 generator:                 # provenance only; OUTSIDE the hash (re-runs stay byte-stable)
   tool: ai-core-kit
   tool_version: "0.4.0"
@@ -108,8 +124,12 @@ managed:                   # MACHINE-OWNED. Regenerated wholesale every run.
   manifest_hash: "sha256:..."   # written LAST, over the canonical managed: subtree
   project: { name, language, ... }
   archetype: backend-api
-  features: { hooks, mcp, agent_teams, sdd_gate }
-  persistence: { ... }
+  features: { hooks, mcp, agent_teams, sdd_gate, iac }  # iac is the v3 orthogonal toggle
+  persistence: { ... }     # db now includes supabase (v3)
+  auth: { provider }       # v3; saas defaults clerk
+  hosting: { target }      # v3; saas defaults vercel
+  billing: { provider }    # v3; saas defaults stripe
+  iac: { provider, tool, is_aws, is_gcp }   # v3; present only when features.iac
   contract_gate: { mode, protected_paths, scope, exempt }
   contracts: [ ... ]
   telemetry: { ... }
@@ -119,6 +139,16 @@ user:                       # HUMAN-OWNED. Seeded once, then never overwritten.
   notes: ""
   overrides: {}
 ```
+
+Schema v3 is the current FORMAT major. It adds the `saas` archetype, makes
+`design_system` required for both `fullstack` and `saas`, introduces the `auth`,
+`hosting`, and `billing` objects, adds `supabase` to the `persistence.db` enum, and adds
+the orthogonal `features.iac` toggle plus the `iac` block (whose `is_aws`/`is_gcp` are
+*derived*, not asked). Every new key defaults to "off", so a v2 → v3 migration is
+render-neutral — but it is one-way and opt-in: `/ack-init --migrate` rewrites `managed:`
+to the v3 shape and recomputes the hash, and a v2 child is refused (not auto-upgraded)
+without it. Consumers refuse a mismatched **major**: the gate degrades to `off` + stderr,
+the aggregator errors.
 
 The split is the whole idempotency story: **`managed:`** is machine-owned and
 regenerated every run; **`user:`** is human-owned and seeded exactly once. No consumer
@@ -155,3 +185,8 @@ The order is load-bearing: **answers → write manifest → validate → render.
 renderer may assume a schema-valid `managed:` subtree because an invalid manifest aborts
 before any file is touched (author-time fail-closed). What happens next is the
 [Render engine contract](/concepts/render-engine).
+
+> **See also:** [Render engine contract](/concepts/render-engine) ·
+> [The META vs CHILD boundary](/concepts/two-layer-model) ·
+> the full question reference and branch matrix in the
+> [reference docs](/reference/commands).

@@ -1,4 +1,9 @@
+import TerminalCast from '../../../components/TerminalCast'
+
 # Orquestrador /ack-build
+
+<TerminalCast src="/demo/ack-build.cast" />
+
 
 O `/ack-build` (`.claude/commands/ack-build.md`) é o comando que conduz o build
 **próprio** do ai-core-kit. Ele lê a config data-driven
@@ -48,6 +53,29 @@ Todos opcionais:
 | `--dry-run` | Imprime o plano resolvido (ordem das fases, equipe por fase, resolução de modelo + orçamento, gates) e PARA. Não autora nada. |
 | `--no-stop` | Não pausa em fases com `gate: true` (varreduras de CI). O default é PARAR em cada gate. |
 | `--rebuild` | Re-autora uma fase mesmo que ela esteja `done: true` (sobrepõe o pulo de retomar-do-checkpoint; ainda roda os testes de aceitação depois). |
+
+### Invocações típicas
+
+```bash
+# Ver o plano resolvido sem autorar nada (primeiro passo seguro):
+/ack-build --dry-run
+
+# Retomar a varredura a partir da próxima fase não construída, parando em cada gate:
+/ack-build --from P4
+
+# Construir exatamente uma fase (seu depends_on já deve estar done):
+/ack-build --phase P5
+
+# Re-autorar uma fase concluída do zero (ex.: após editar seus deliverables):
+/ack-build --phase P3 --rebuild
+
+# Varredura de CI sem supervisão — nunca pausa em um gate (gates com testes falhando ainda param):
+/ack-build --no-stop
+```
+
+As flags compõem: `--from P4 --no-stop` roda da P4 em diante sem pausar,
+`--phase P5 --rebuild` força uma única fase. `--dry-run` sobrepõe todo o resto —
+ele apenas imprime o plano.
 
 ## Como ele roda
 
@@ -174,3 +202,16 @@ O comando orquestrador e sua config + schema estão **entregues**. O que o
 `/ack-build` *conduz* reflete o estado atual do checkpoint: P1 e P3 estão `done`;
 P2, P4–P8 estão `done: false`. O reporte de custo é OFFLINE apenas e lerá
 `unavailable (P6 pending)` até que a fase do agregador P6 esteja completa.
+
+## Veja também
+
+- [Config de bootstrap (ack.bootstrap.yaml)](/build/bootstrap-config) — os dados
+  que este comando lê: o plano de oito fases, o roster, os modelos, os orçamentos
+  e os testes de aceitação.
+- [Telemetria de Custo Offline](/features/cost-telemetry) — como o custo
+  cumulativo do PASSO 5 é computado, e por que é apenas offline.
+- [A fronteira META vs CHILD](/concepts/two-layer-model) — por que o `/ack-build`
+  (constrói o kit) é o inverso do [`/ack-init`](/reference/commands)
+  (renderiza um filho).
+- [Roadmap](/roadmap) — o status honesto entregue / parcial / roadmap de cada
+  fase que este comando conduz.

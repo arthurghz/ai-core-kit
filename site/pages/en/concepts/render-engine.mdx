@@ -3,7 +3,11 @@ title: Render engine contract
 description: The frozen P4 render contract — ${VAR} substitution, _when.* conditional inclusion, render.map.yaml, and structural idempotency.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Render engine contract
+
+<TerminalCast src="/demo/ack-render.cast" />
 
 Once `/ack-init` has written and validated `project.manifest.yaml`, the **render engine**
 turns the manifest plus the `templates/archetypes/<archetype>/` tree into a working child
@@ -137,14 +141,14 @@ version: 1
 rules:
   - glob: "**/.mcp.json.tpl"
     archetype: "*"
-    when: features.mcp                 # MCP wiring only when the child opts in
+    when: features.mcp                  # MCP wiring only when the child opts in
   - glob: "**/.claude/hooks/contract-gate"
     archetype: "*"
-    when: features.sdd_gate            # master switch; false => omit the gate hook entirely
+    when: features.sdd_gate             # master switch; false => omit the gate hook entirely
   - glob: "**/design-system/**"
-    archetype: fullstack
+    archetype: "*"
     when: design_system.install
-    requires_archetype: fullstack      # ASSERTION, not a selector
+    requires_archetype: [fullstack, saas]   # ASSERTION (list since v3), not a selector
 ```
 
 The combination rules (mirrored from `RENDER-ENGINE.md`):
@@ -154,12 +158,21 @@ The combination rules (mirrored from `RENDER-ENGINE.md`):
 2. **The map then applies by glob** against the post-strip path. A file guarded by both a
    path segment and a map `when` is included only if **both** are truthy (logical AND).
 3. **`requires_archetype` is an assertion, not a selector.** If a rule's glob matches and
-   its `when` is truthy but `managed.archetype` does not equal `requires_archetype`, the
-   render **aborts loudly** (an authoring bug). It never silently omits.
+   its `when` is truthy but `managed.archetype` is not among `requires_archetype` (a
+   **list** since v3, e.g. `[fullstack, saas]`), the render **aborts loudly** (an
+   authoring bug). It never silently omits.
 4. **An absent `managed:` key referenced by any `when` evaluates false → omit.** This is
-   how *design-system renders only for fullstack* falls out for free: the schema forbids
-   `design_system` under `backend-api`, so the lookup is absent → false → omitted, with
-   no special-casing.
+   how *design-system renders only for fullstack and saas* falls out for free: the schema
+   forbids `design_system` under `backend-api`, so the lookup is absent → false →
+   omitted, with no special-casing.
+
+Some v3 subtrees need **no** glob rule at all because a path-segment guard fully expresses
+them. The IaC scaffold under `templates/archetypes/{fullstack,saas}/_when.features.iac/`
+is gated by `_when.features.iac/` for the whole `infra/` tree, then provider-split by
+`_when.iac.is_aws/` vs `_when.iac.is_gcp/` (the *derived* booleans, exactly one of which
+is true). It is deliberately left out of `render.map.yaml`: a pure path-segment guard is
+both the inclusion control and its own documentation, so adding a redundant glob would
+only create a second place to keep in sync.
 
 ## Idempotent re-renders
 
@@ -229,3 +242,8 @@ story. The one feature copier gives for free — re-render against a versioned a
 — is unnecessary here, because idempotency is **structural** (the `managed:`/`user:`
 split plus an ownership ledger), not a 3-way merge. The result is a renderer with **zero
 npm/pip dependencies** that is auditable by inspection.
+
+> **See also:** [Interview → Manifest → Render](/concepts/manifest-and-interview) (the
+> producer that writes the `managed:` subtree this engine consumes) ·
+> [The META vs CHILD boundary](/concepts/two-layer-model) ·
+> the authoritative source, `docs/RENDER-ENGINE.md`.

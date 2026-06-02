@@ -3,7 +3,11 @@ title: Discovery Engine (roadmap)
 description: The propose-never-auto-adopt discovery loop planned for P7 — seed sources, a scheduled PR Action that opens proposals, and human-only adoption. Not built yet.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Discovery Engine (roadmap)
+
+<TerminalCast src="/demo/ack-discovery.cast" />
 
 > **Status: ROADMAP (P7 — not built).** Nothing in this page ships today. The
 > `discovery/` directory, the `/discover` command, the proposal schema, and the
@@ -13,12 +17,50 @@ description: The propose-never-auto-adopt discovery loop planned for P7 — seed
 > to `false`. This page documents the **intended contract**, so the design is not
 > lost — do not treat any of it as a working feature.
 
+## Why a discovery engine at all
+
+ai-core-kit is a **forkable standard**, and standards rot if they freeze. New
+Claude Code skills, plugins, hooks, and CLAUDE.md conventions appear constantly in
+the open-source ecosystem. The discovery engine is the kit's planned mechanism for
+**keeping current without drifting** — a curated, scheduled scan that surfaces what
+the kit *might* adopt, written up as reviewable proposals, so a maintainer can make
+an informed yes/no instead of either hand-watching a dozen repos or blindly pulling
+in upstream churn. Crucially, discovery is a **META-only** concern: it helps evolve
+the kit itself, and is never part of what a fork inherits (`discovery.enabled`
+defaults to `false`, and the META engine is never copied into a child — forkability
+invariant I7).
+
 ## The core principle: propose, never auto-adopt
 
 The discovery engine is designed to **propose** third-party Claude Code skills,
 plugins, and tooling — and **never** to adopt them automatically. Discovery
 proposes; **humans dispose**. Adoption is a manual, reviewed step. This is the
-single invariant the whole design hangs on.
+single invariant the whole design hangs on, and it exists for two reasons: **license
+safety** (a maintainer must eyeball SPDX posture before anything is vendored — see
+the [License ledger](/reference/licensing)) and **supply-chain safety** (an
+automated job that reads arbitrary third-party repos must never have a path to merge
+its own output).
+
+## What exists today: the discovery agent prompt
+
+The only discovery artifact actually in the repo is a **META agent prompt** at
+`.claude/agents/discovery.md` (`model: haiku`, tools `Read, Write, Grep, Glob,
+WebFetch, WebSearch`). It encodes the intended behavior so the design is not lost:
+
+- **Single objective** — scan the curated seed sources and emit well-formed
+  proposals; *proposing is the entire job*.
+- **Write scope** — it may write **only** under `discovery/proposals/`, one file per
+  proposal. It is forbidden from writing to `discovery/adopted/`, `.claude/`,
+  `templates/`, or any shipping path. Adoption is the human's call.
+- **What each proposal records** — the source URL + license, what the thing is, why
+  it might fit the kit, the **exact layer** it would touch (META or CHILD), and the
+  risk/footgun if adopted. License incompatibilities (source-available, GPL) are
+  flagged as adopt-blockers up front.
+
+The agent is wired into the META build roster (`bootstrap/ack.bootstrap.yaml`, role
+`discovery`, model `haiku` — "propose-only; low stakes"), but the surrounding engine
+(`sources.yaml`, the `/discover` command, the scheduled Action, the proposal
+validator) is **not built**.
 
 ## Intended pieces
 
@@ -42,9 +84,15 @@ From `docs/BOOTSTRAP.md`, the planned `sources.yaml` seed set:
 
 ### Intended proposal shape
 
-A proposal is intended to be a `slug.yaml` carrying: `source`, a **pinned ref**, an
-**SPDX license**, `kind`, `summary`, `rationale`, `kill_after`, and `status`. The
-exact schema is **TBD** at this phase — it is under development, not frozen.
+A proposal is intended to be a `discovery/proposals/<slug>.yaml` carrying: `source`,
+a **pinned ref** (so a proposal is reproducible against an exact commit), an **SPDX
+license**, `kind`, `summary`, `rationale`, `kill_after` (an expiry so stale
+proposals self-clear), and `status`. The exact schema is **TBD** at this phase — it
+is under development, not frozen — but two fields are designed to be **required and
+validated**: `license` (SPDX-classified) and `vendorable` (boolean). The adopt step
+must **refuse** anything non-vendorable, and must copy the upstream `LICENSE.txt`
+when it does vendor. A "well-formed proposal" needs a validator before it can be a
+testable acceptance criterion.
 
 ## Intended adoption flow
 
@@ -59,18 +107,28 @@ exact schema is **TBD** at this phase — it is under development, not frozen.
 
 ## Required hardening (before this can ship)
 
-The P7 design explicitly calls out security/permission work that must land first:
+A scheduled Action that reads arbitrary third-party repos and feeds them into a
+write-access PR is a textbook **poisoned-pipeline** surface. The P7 design therefore
+mandates a **split-job** architecture and explicit token scoping before it can ship:
 
-- **Isolation** of the discovery job.
-- **No self-merge** — the Action proposes, it cannot merge.
-- A **kill switch**.
+- **Untrusted-read job** — `permissions: contents: read`, **no secrets**, never
+  executes fetched code (e.g. `npm ci --ignore-scripts`). It emits a *sanitized
+  artifact* only.
+- **Trusted PR job** — consumes that artifact and is the only job granted
+  `contents: write` + `pull-requests: write`. It opens the proposal PR and nothing
+  more.
+- **No self-merge** — branch protection with required reviews so the token *cannot*
+  merge; the "humans dispose" invariant is enforced by repo settings, not by good
+  intentions. SHA-pin all actions, set `persist-credentials: false`, add a
+  concurrency group, timeouts, and a **kill switch**.
 
-And several mechanisms are explicitly **deferred**:
+And several mechanisms are explicitly **deferred** to keep the first cut shippable:
 
-- `kill_after` expiry enforcement.
-- A reject ledger.
-- Dedupe of repeat proposals.
-- Scheduled-PR idempotency (a single stable PR per cron cycle).
+- `kill_after` expiry enforcement (auto-clear stale proposals).
+- A `rejected/` ledger so a dispositioned item is not re-proposed.
+- Dedupe of repeat proposals against `proposals/` + `adopted/` + `rejected/`.
+- Scheduled-PR idempotency — a single **stable** branch (`discovery/auto`) and an
+  update-or-create PR per cron cycle, so a daily scan does not spam duplicate PRs.
 
 ## Why it is on the roadmap and not shipped
 
@@ -80,4 +138,5 @@ proposal schema that is still TBD and on the security hardening above. Until tho
 land, the engine is intent only.
 
 See also: [Skills catalog](/features/skills-catalog),
-[License ledger & references](/reference/licensing).
+[License ledger & references](/reference/licensing), and the
+[Roadmap](/roadmap) for where P7 sits in the build sequence.

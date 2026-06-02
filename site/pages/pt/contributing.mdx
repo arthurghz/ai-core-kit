@@ -3,11 +3,18 @@ title: Contribuindo
 description: Como contribuir com o ai-core-kit — as regras da fronteira de duas camadas, as convenções de frontmatter, o linter de frontmatter e como adicionar uma skill com skill-creator e skill-validator.
 ---
 
+import TerminalCast from '../../components/TerminalCast'
+
 # Contribuindo
+
+<TerminalCast src="/demo/ack-two-layer.cast" />
+
 
 O ai-core-kit é um **padrão forkável**, não um projeto. Contribuir significa melhorar o padrão — o ferramental do próprio kit, sua documentação e o payload CHILD que ele renderiza nos forks. Esta página cobre as regras que toda contribuição deve respeitar, as convenções que o linter impõe e o fluxo para adicionar uma skill.
 
 > Antes de contribuir arquivos derivados de outro repositório, leia o [Ledger de Licenças](/reference/licensing). Padrões são livres para aprender; arquivos não são livres para copiar.
+
+O kit é **livre de dependências por design**: o linter de frontmatter e o render engine são Python apenas-stdlib, então o único requisito duro para a maioria das contribuições é Python 3 e `git`. Não há etapa de build para rodar antes de editar um primitivo — uma skill, agent ou comando é apenas markdown com frontmatter YAML. A única verificação local que você sempre deve rodar antes de abrir um PR é o [linter de frontmatter](#3-o-linter-de-frontmatter) (§3), que o CI também impõe.
 
 ---
 
@@ -146,3 +153,12 @@ Se algum arquivo foi copiado de um repositório externo, siga o [checklist de in
 - Rode o linter (`python3 scripts/lint-frontmatter.py`) e garanta que ele saia com código zero antes de abrir um PR.
 - Respeite a fronteira de camada e os invariantes de forkabilidade na §1.
 - Para qualquer coisa derivada de um repositório externo, confirme sua postura de licença contra o [Ledger de Licenças](/reference/licensing) e atualize `THIRD_PARTY_NOTICES.md` se um arquivo foi copiado.
+
+---
+
+## Veja também
+
+- [A fronteira META vs CHILD](/concepts/two-layer-model) — o tratamento completo da regra da §1 que toda contribuição deve respeitar.
+- [Catálogo de Skills](/features/skills-catalog) — onde vivem o `skill-creator` e o `skill-validator`, mais como uma skill de payload CHILD é conectada em um fork.
+- [Referência de Comandos](/reference/commands) e [Referência de Agents](/reference/agents) — as convenções para os outros dois tipos de primitivo.
+- [Ledger de Licenças](/reference/licensing) — o checklist de incorporação e a postura de licença dos quatro repos de referência.

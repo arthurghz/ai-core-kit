@@ -3,7 +3,12 @@ title: A fronteira META vs CHILD
 description: A separação arquitetural entre construir o kit e o que o /ack-init renderiza em um fork.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # A fronteira META vs CHILD
+
+<TerminalCast src="/demo/ack-two-layer.cast" />
+
 
 A ideia mais importante de todas no `ai-core-kit` é que ele vive em **duas camadas que
 nunca devem ser confundidas**. Acerte essa fronteira e todo o resto — idempotência,
@@ -93,6 +98,12 @@ Três regras concretas tornam um child renderizado um repo limpo e autocontido:
    pontilhados em minúsculas, que é precisamente por que a variável de shell em maiúsculas
    `${CLAUDE_PROJECT_DIR}` sobrevive à substituição intocada.
 
+Um quarto padrão de forkabilidade, mais silencioso, vive no próprio manifesto:
+`discovery.enabled` tem como padrão **off** (invariante **I7**), então o motor de
+discovery da META nunca é conectado a um fork a menos que o operador opte deliberadamente
+por isso. O kit pode carregar uma capacidade poderosa de discovery de codebase sem que ela
+se torne uma dependência surpresa de todo child.
+
 ## Segurança de dois lados: fail-closed no tempo de autoria, fail-open no tempo de execução
 
 A fronteira é imposta assimetricamente de propósito (invariante **I6**):
@@ -117,9 +128,27 @@ A fronteira é imposta assimetricamente de propósito (invariante **I6**):
 - **Dependência de sentido único** — um child é um snapshot limpo que não deve nada de
   volta ao kit.
 
+## Como os archetypes se situam dentro da camada CHILD
+
+Tudo o que um fork *pode se tornar* também é payload do CHILD autorado sob `templates/`. A
+primeira pergunta do manifesto — `archetype` — escolhe qual árvore de template é
+renderizada: `backend-api`, `fullstack` e `saas` são os três archetypes **profundos**
+(persistência completa, spec de API e scaffolding do contract gate), enquanto `monorepo`,
+`library-sdk` e `infra-iac` renderizam um **core mínimo**. Nada disso vive na árvore
+`.claude/` da META; é todo scaffolding selecionável sob `templates/archetypes/`, que é por
+que um novo archetype é uma tarefa de autoria na camada CHILD, não uma mudança no
+ferramental do próprio kit. Infraestrutura-como-código é deliberadamente **ortogonal**:
+`features.iac` mais o bloco `iac` permitem que *qualquer* archetype adicione infra, então
+IaC não é um sexto archetype exceto para o repo puro `infra-iac`. Veja
+[a visão geral de archetypes](/archetypes/overview) para a matriz completa.
+
 ## Onde os contratos vivem
 
 Os contratos P3 congelados que cruzam essa fronteira — o schema do manifesto, o banco de
 perguntas e o contrato de render — são documentados a seguir em
 [Entrevista → Manifesto → Render](/concepts/manifest-and-interview) e
 [Contrato do motor de render](/concepts/render-engine).
+
+> **Veja também:** [Visão geral de archetypes](/archetypes/overview) ·
+> [Motor de render — idempotência](/concepts/render-engine#idempotent-re-renders) ·
+> o contract gate, uma regra da camada CHILD, em [Contract gate](/features/contract-gate).

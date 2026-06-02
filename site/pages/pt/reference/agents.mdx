@@ -3,7 +3,12 @@ title: Referência de Agents
 description: Todo subagente que o ai-core-kit oferece — o time de build META em .claude/agents/ e a frota de entrega CHILD sob templates/agents/ renderizada em um fork, com camada, modelo e gatilho.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Referência de Agents
+
+<TerminalCast src="/demo/ack-catalog.cast" />
+
 
 Um *agent* (subagente) é um trabalhador focado, com prompt e ferramentas próprios,
 que o orquestrador invoca para uma tarefa delimitada. Os agents do ai-core-kit se
@@ -42,7 +47,11 @@ proativamente quando uma fase precisar do artefato correspondente autorado.
 ## Agents CHILD (frota de entrega)
 
 Vivem em `templates/agents/` e são renderizados em um fork pelo `/ack-init`. A
-coluna **Modelo** é o modelo padrão fixado no frontmatter do agent.
+coluna **Modelo** é o modelo padrão fixado no frontmatter do agent. A frota se
+divide em duas famílias: os **agents de fluxo RPI** que conduzem o loop
+[Research → Plan → Implement](/reference/commands) (`requirement-parser`,
+`constitutional-validator`) e os **revisores de engenharia** que qualquer comando
+pode delegar.
 
 | Agent | Modelo | Propósito | Gatilho |
 |---|---|---|---|
@@ -62,6 +71,11 @@ coluna **Modelo** é o modelo padrão fixado no frontmatter do agent.
 > `shanraisshan/claude-code-best-practice` (MIT). Veja o
 > [Registro de Licenças](/reference/licensing).
 
+> **Subagentes que não são agents do kit.** Os prompts
+> `skill-creator/agents/{analyzer,comparator,grader}.md` são sub-agentes
+> *internos* da skill `skill-creator` — eles não carregam frontmatter de agent do
+> kit e não são lintados nem renderizados como agents autônomos.
+
 ---
 
 ## Frontmatter de agent
@@ -79,3 +93,7 @@ model: sonnet                                                           # OPTION
 tools: Read, Grep, Glob, Bash                                          # OPTIONAL
 ---
 ```
+
+Veja também: [Referência de Skills](/reference/skills),
+[Referência de Comandos](/reference/commands),
+[Catálogo de Skills](/features/skills-catalog) (proveniência + licença).

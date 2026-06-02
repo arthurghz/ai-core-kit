@@ -3,7 +3,11 @@ title: Observability Reference
 description: Every telemetry and observability primitive ai-core-kit ships — the offline aggregate.py cost aggregator, the versioned pricing.json map, the Prometheus ack-cost-exporter, and the Prometheus + Grafana docker-compose stack that visualizes the offline cost of building the kit.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Observability Reference
+
+<TerminalCast src="/demo/ack-telemetry.cast" />
 
 ai-core-kit measures the USD cost of a Claude Code run **offline** — there is no
 live cost API for Claude Code spend (issue

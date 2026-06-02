@@ -1,4 +1,8 @@
+import TerminalCast from '../../../components/TerminalCast'
+
 # /ack-build orchestrator
+
+<TerminalCast src="/demo/ack-build.cast" />
 
 `/ack-build` (`.claude/commands/ack-build.md`) is the command that drives
 ai-core-kit's **own** build. It reads the data-driven config
@@ -48,6 +52,29 @@ All optional:
 | `--dry-run` | Print the resolved plan (phase order, per-phase team, model + budget resolution, gates) and STOP. Author nothing. |
 | `--no-stop` | Do not pause at `gate: true` phases (CI sweeps). Default is to STOP at every gate. |
 | `--rebuild` | Re-author a phase even if it is `done: true` (overrides the resume-from-checkpoint skip; still runs acceptance tests after). |
+
+### Typical invocations
+
+```bash
+# See the resolved plan without authoring anything (safe first move):
+/ack-build --dry-run
+
+# Resume the sweep from the next unbuilt phase, stopping at every gate:
+/ack-build --from P4
+
+# Build exactly one phase (its depends_on must already be done):
+/ack-build --phase P5
+
+# Re-author a completed phase from scratch (e.g. after editing its deliverables):
+/ack-build --phase P3 --rebuild
+
+# Unattended CI sweep — never pause at a gate (gates with failing tests still stop):
+/ack-build --no-stop
+```
+
+The flags compose: `--from P4 --no-stop` runs P4 onward without pausing,
+`--phase P5 --rebuild` forces a single phase. `--dry-run` overrides everything
+else — it only prints the plan.
 
 ## How it runs
 
@@ -172,3 +199,16 @@ The orchestrator command and its config + schema are **shipped**. What
 `/ack-build` *drives* reflects the current checkpoint state: P1 and P3 are
 `done`; P2, P4–P8 are `done: false`. Cost reporting is OFFLINE only and will read
 `unavailable (P6 pending)` until the P6 aggregator phase is complete.
+
+## See also
+
+- [Bootstrap config (ack.bootstrap.yaml)](/build/bootstrap-config) — the data
+  this command reads: the eight-phase plan, roster, models, budgets, and
+  acceptance tests.
+- [Offline Cost Telemetry](/features/cost-telemetry) — how STEP 5's cumulative
+  cost is computed, and why it is offline-only.
+- [The META vs CHILD boundary](/concepts/two-layer-model) — why `/ack-build`
+  (builds the kit) is the inverse of [`/ack-init`](/reference/commands)
+  (renders a child).
+- [Roadmap](/roadmap) — the honest shipped / partial / roadmap status of each
+  phase this command drives.

@@ -10,9 +10,10 @@ import { useEffect, useRef } from 'react'
 export default function TerminalCast({
   src = '/demo/ack-usage.cast',
   // Show a representative frame before play so the hero is never blank.
-  poster = 'npt:0:03',
-  idleTimeLimit = 2,
-  speed = 1.4,
+  poster = 'npt:0:02',
+  // Play at the cast's authored speed with NO idle cap — the casts are
+  // hand-paced to ~10-15s (make-casts.py), so capping/​speeding would break that.
+  speed = 1,
   autoPlay = true,
   loop = true,
 }) {
@@ -34,7 +35,6 @@ export default function TerminalCast({
           // the container so no text is ever clipped.
           controls: true,
           fit: 'width',
-          idleTimeLimit,
           speed,
           poster,
           theme: 'asciinema',
@@ -49,7 +49,7 @@ export default function TerminalCast({
       cancelled = true
       if (player && typeof player.dispose === 'function') player.dispose()
     }
-  }, [src, poster, idleTimeLimit, speed, autoPlay, loop])
+  }, [src, poster, speed, autoPlay, loop])
 
   return (
     <div className="ack-terminal" aria-label="Terminal recording: npx create-ack bootstrap">

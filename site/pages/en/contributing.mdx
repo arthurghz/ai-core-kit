@@ -3,11 +3,17 @@ title: Contributing
 description: How to contribute to ai-core-kit — the two-layer boundary rules, frontmatter conventions, the frontmatter linter, and how to add a skill with skill-creator and skill-validator.
 ---
 
+import TerminalCast from '../../components/TerminalCast'
+
 # Contributing
+
+<TerminalCast src="/demo/ack-two-layer.cast" />
 
 ai-core-kit is a **forkable standard**, not a project. Contributing means improving the standard — the kit's own tooling, its documentation, and the CHILD payload it renders into forks. This page covers the rules every contribution must respect, the conventions the linter enforces, and the workflow for adding a skill.
 
 > Before contributing files derived from another repository, read the [License Ledger](/reference/licensing). Patterns are free to learn from; files are not free to copy.
+
+The kit is **dependency-free by design**: the frontmatter linter and the render engine are stdlib-only Python, so the only hard requirement for most contributions is Python 3 and `git`. There is no build step to run before editing a primitive — a skill, agent, or command is just markdown with YAML frontmatter. The one local check you should always run before opening a PR is the [frontmatter linter](#3-the-frontmatter-linter) (§3), which CI also enforces.
 
 ---
 
@@ -146,3 +152,12 @@ If any file was copied in from an external repo, follow the [vendoring checklist
 - Run the linter (`python3 scripts/lint-frontmatter.py`) and ensure it exits zero before opening a PR.
 - Respect the layer boundary and the forkability invariants in §1.
 - For anything derived from an external repo, confirm its license posture against the [License Ledger](/reference/licensing) and update `THIRD_PARTY_NOTICES.md` if a file was copied.
+
+---
+
+## See also
+
+- [The META vs CHILD boundary](/concepts/two-layer-model) — the full treatment of the §1 rule every contribution must respect.
+- [Skills Catalog](/features/skills-catalog) — where `skill-creator` and `skill-validator` live, plus how a CHILD-payload skill gets wired into a fork.
+- [Commands Reference](/reference/commands) and [Agents Reference](/reference/agents) — the conventions for the other two primitive types.
+- [License Ledger](/reference/licensing) — the vendoring checklist and the four reference repos' license posture.

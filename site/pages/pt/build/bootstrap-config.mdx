@@ -1,4 +1,9 @@
+import TerminalCast from '../../../components/TerminalCast'
+
 # Config de bootstrap (ack.bootstrap.yaml)
+
+<TerminalCast src="/demo/ack-bootstrap-config.cast" />
+
 
 `bootstrap/ack.bootstrap.yaml` é a **config de build data-driven** do repositório
 META do ai-core-kit — a única fonte da verdade legível por máquina sobre *como o
@@ -219,3 +224,15 @@ referência (o schema rejeita um repo `source-available`/`proprietary` marcado c
 > **Não** adicione conceitos da camada de filho a esta config. O comportamento do
 > filho é configurado pelo `project.manifest.yaml` em um fork (veja o schema do
 > manifest e o render engine), nunca aqui.
+
+## Veja também
+
+- [Orquestrador /ack-build](/build/ack-build) — o comando que lê, valida e
+  conduz esta config fase a fase.
+- [Manifesto e Entrevista](/concepts/manifest-and-interview) — o análogo da
+  camada CHILD deste arquivo: um schema congelado, uma instância validada
+  (`project.manifest.yaml`), um consumidor (`/ack-init`).
+- [Telemetria de Custo Offline](/features/cost-telemetry) — o agregador da P6
+  que esta config agenda, e por que o custo é apenas offline.
+- [Roadmap](/roadmap) — o status entregue / parcial / roadmap que espelha os
+  flags `done` em `phases[]`.

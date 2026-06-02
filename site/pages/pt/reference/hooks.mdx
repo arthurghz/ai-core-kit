@@ -3,7 +3,12 @@ title: Referência de Hooks
 description: Todo hook que o ai-core-kit oferece — o gate de contrato PreToolUse renderizado nos arquétipos backend-api e fullstack, seu matcher, modos e comportamento fail-open.
 ---
 
+import TerminalCast from '../../../components/TerminalCast'
+
 # Referência de Hooks
+
+<TerminalCast src="/demo/ack-gate.cast" />
+
 
 Um *hook* é um comando que o Claude Code dispara em torno de eventos da sessão
 (`PreToolUse`, `PostToolUse`, `SessionStart`, …), registrado em
@@ -51,9 +56,23 @@ caminho de arquivo. Então o hook recebe toda chamada
 stdin e **escopa no próprio script**:
 
 1. **`exempt`** vence tudo — uma edição que corresponde é sempre permitida.
-2. **`protected_paths`** / **`scope`** — edições aqui exigem um contrato `approved`
-   em `contracts[]`.
-3. Qualquer arquivo que não corresponda a nenhum acima é **PERMITIDO**.
+2. **`protected_paths`** (obrigatório, `minItems 1`, para que o gate nunca seja
+   vacuoso) — edições aqui exigem um contrato `approved` em `contracts[]`.
+3. **`scope`** (opcional; por padrão igual a `protected_paths`) — o subconjunto que
+   *também* exige um contrato aprovado.
+4. Qualquer arquivo que não corresponda a nenhum acima é **PERMITIDO**.
+
+O "oráculo de aprovados" é `contracts[]`: uma edição sob um caminho protegido só é
+permitida se alguma entrada de `contracts[]` cujo `scope` o cubra estiver com
+`status: approved` (um `draft` **não** libera seu escopo). Os padrões de
+`protected_paths` por arquétipo são resolvidos pelo `/ack-init` a partir do
+arquétipo escolhido e congelados no manifesto:
+
+| Arquétipo | Caminhos protegidos padrão |
+|---|---|
+| `backend-api` | `src/**`, `migrations/**`, `openapi/**` |
+| `fullstack` | `app/**`, `api/**`, `src/**` |
+| `infra-iac` | fornecidos via o campo do manifesto (sem `src/**` hardcoded, que seria vacuoso para infra) |
 
 Os três modos (`contract_gate.mode`) são mecanismos distintos:
 
@@ -101,3 +120,7 @@ matcher `PreToolUse`, e `contract_gate.mode` torna-se irrelevante.
 O tratamento completo — chave-mestra, padrões de caminho por arquétipo, o oráculo de
 contratos aprovados e o que está entregue vs. roadmap — está em
 [Gate de Contrato de Design](/features/contract-gate).
+
+Veja também: [Gate de Contrato de Design](/features/contract-gate) (spec completa),
+[Manifesto e Entrevista](/concepts/manifest-and-interview) para os campos
+`contract_gate` e `contracts[]` que o hook lê.

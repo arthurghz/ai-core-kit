@@ -3,7 +3,12 @@ title: Roadmap
 description: Status honesto por fase do ai-core-kit — o que está entregue, o que está parcial e o que permanece como roadmap (P4 render engine, P5 runtime do gate, P6 conexão, P7 descoberta, P8 E2E).
 ---
 
+import TerminalCast from '../../components/TerminalCast'
+
 # Roadmap
+
+<TerminalCast src="/demo/ack-build.cast" />
+
 
 O ai-core-kit constrói a si mesmo em **oito fases**, conduzidas pelo `/ack-build` sobre a configuração orientada a dados `bootstrap/ack.bootstrap.yaml`. Esta página é o status honesto de cada fase, extraído das flags `done` e `gate` daquela configuração. Ela diz exatamente o que funciona hoje versus o que é um item de **contrato ou roadmap**.
 
@@ -96,3 +101,12 @@ Rastreado para que nada desapareça silenciosamente. A lista completa de adiados
 - **Doc skills proprietárias permanentemente excluídas:** `docx`, `pdf`, `pptx`, `xlsx` — source-available, nunca lidas/copiadas/derivadas. Veja [Licenciamento](/reference/licensing).
 
 > Recomendação: proponha novas fontes via o discovery engine em vez de portá-las preventivamente.
+
+---
+
+## Veja também
+
+- [Config de bootstrap (ack.bootstrap.yaml)](/build/bootstrap-config) — a fonte das flags `done` e `gate` que esta página reporta; o DAG de oito fases.
+- [Orquestrador /ack-build](/build/ack-build) — o comando que conduz estas fases e para em cada gate.
+- [A fronteira META vs CHILD](/concepts/two-layer-model) — por que um *contrato* congelado (P3) não é o mesmo que um *runtime* acabado.
+- [Discovery Engine (P7)](/features/discovery) — o loop propõe-mas-não-adota rastreado na seção Roadmap.

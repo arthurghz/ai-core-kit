@@ -1,0 +1,196 @@
+import TerminalCast from '../../../components/TerminalCast'
+
+# saas (deep)
+
+<TerminalCast src="/demo/ack-saas.cast" />
+
+`saas` is the third **deep** archetype (added in schema_version 3). Pick it for a
+multi-tenant web product that ships its marketing site, a gated dashboard, auth,
+and billing in one repo. Unlike the generic `fullstack` archetype, `saas` is
+**opinionated**: it renders a concrete, integrated stack rather than a skeleton.
+Like every archetype, it lands **spec-first** — `specs/` is the definition of
+done and the contract gate traces edits back to it.
+
+## The opinionated stack
+
+| Layer | Choice | Manifest key |
+|---|---|---|
+| Hosting | **Vercel** (swappable enum) | `hosting.target` |
+| Framework | **Next.js App Router** + React | `project.framework` (pinned `next`) |
+| UI | **shadcn/ui** + the design-system payload | `design_system.install` |
+| Auth | **Clerk** (swappable enum) | `auth.provider` |
+| Data | **Supabase** (managed Postgres) | `persistence.db` |
+| ORM | **Drizzle** (swappable enum) | `persistence.orm` |
+| Billing | **Stripe** (swappable enum) | `billing.provider` |
+
+Four of these are swappable enums with SaaS-opinionated defaults:
+
+- `auth.provider` — `clerk` (default) · `supabase-auth` · `nextauth` · `none`
+- `persistence.orm` — `drizzle` (saas default) · `prisma` · `sqlalchemy` · `gorm` · `none`
+- `hosting.target` — `vercel` (default) · `netlify` · `fly` · `aws` · `gcp` · `none`
+- `billing.provider` — `stripe` (default) · `lemonsqueezy` · `none`
+
+The always-present integrations the rendered tree is actually written against are
+Clerk (auth), Supabase Postgres (data), Drizzle (ORM), and Stripe (billing); the
+other enum options exist for a fork that wants to deviate from the house stack. A
+SaaS fork accepts the defaults.
+
+> `hosting.target` is **distinct** from `ci_cd.target` (CI/CD only). The framework
+> question (`framework_fullstack`) is shared with `fullstack`, but for `saas` the
+> stack is pinned to Next.js / React App Router — the assembler defaults it and a
+> SaaS fork takes the default.
+
+## Interview subset
+
+Choosing `saas` activates the universal core, the shared persistence cascade
+(`applies_to` widened to include `saas`), and three **saas-only** stack selects.
+
+| Question | Writes to | Notes |
+|---|---|---|
+| `project_name`, `project_description` | `project.name`, `project.description` | universal |
+| `language`, `runtime`, `package_manager` | `project.*` | typescript / node |
+| `framework_fullstack` | `project.framework` | shared with fullstack; saas pins `next` |
+| `architecture` | `project.architecture` | layered / hexagonal / modular-monolith / clean / mvc |
+| `feat_hooks`, `feat_mcp`, `feat_agent_teams`, `feat_sdd_gate`, `feat_iac` | `features.*` | opt-in toggles (incl. orthogonal IaC) |
+| `persistence_enabled` → `persistence_db`, `persistence_orm`, `migrations_*` | `persistence.*` | saas selects `supabase` + `drizzle` |
+| `auth_provider` | `auth.provider` | **saas-only**, default `clerk` |
+| `hosting_target` | `hosting.target` | **saas-only**, default `vercel` |
+| `billing_provider` | `billing.provider` | **saas-only**, default `stripe` |
+| `design_system_install` → `design_system_source` | `design_system.*` | **required** for saas |
+| `gate_*` | `contract_gate.*` | per-archetype defaults (below) |
+| `telemetry_*`, `discovery_enabled`, `ci_cd_target` | `telemetry.*`, `discovery.enabled`, `ci_cd.target` | universal |
+
+The three saas-only selects (`auth_provider`, `hosting_target`, `billing_provider`)
+are gated `applies_to: [saas]` and never fire for any other archetype, so no other
+archetype can ever write the `auth` / `hosting` / `billing` blocks.
+
+## What the tree renders
+
+The `saas` tree is a real, integrated scaffold (88 files):
+
+```
+saas/
+├── CLAUDE.md.tpl                       # spec-first body + stack + gate + IaC pointer
+├── README.md.tpl
+├── package.json.tpl                    # Next 15 / React 19 / Clerk / Stripe / Drizzle / Supabase
+├── next.config.ts.tpl
+├── tsconfig.json.tpl  postcss.config.mjs.tpl  env.example.tpl  .gitignore.tpl
+├── middleware.ts.tpl                   # Clerk middleware; protects the (dashboard) group
+├── app/
+│   ├── layout.tsx.tpl                  # root layout (<ClerkProvider>)
+│   ├── page.tsx.tpl                    # marketing / landing (public)
+│   ├── globals.css.tpl
+│   ├── (dashboard)/                    # PROTECTED route group (Clerk-gated)
+│   │   ├── layout.tsx.tpl
+│   │   └── dashboard/page.tsx.tpl
+│   └── api/
+│       ├── health/route.ts.tpl         # health probe
+│       └── billing/
+│           ├── checkout/route.ts.tpl   # Stripe Checkout session (auth-gated)
+│           └── webhook/route.ts.tpl    # Stripe webhook (signature-verified, public)
+├── lib/
+│   ├── auth.ts.tpl                     # Clerk server helpers (getUserId / requireUserId)
+│   ├── stripe.ts.tpl
+│   └── utils.ts.tpl
+├── docs/contracts/CONTRACT.template.md.tpl
+├── .claude/
+│   ├── settings.json.tpl               # contract-gate hook + agent-teams env (managed keys only)
+│   └── hooks/contract-gate             # rendered only when features.sdd_gate
+├── .mcp.json.tpl                       # rendered only when features.mcp (shadcn + Supabase)
+├── _when.persistence.enabled/          # Drizzle/Supabase data layer (below)
+├── _when.design_system.install/        # the design-system payload (below)
+└── _when.features.iac/                 # the orthogonal IaC subtree (see Overview)
+```
+
+The opinionated integrations under `app/**` and `lib/**` (Clerk auth, Stripe
+billing) are **always present** — they are the archetype, not a toggle, so they
+carry no `_when.` guard and no `render.map.yaml` rule. Auth is centralized in
+`lib/auth.ts` (a thin wrapper over Clerk's server helpers) plus `middleware.ts`,
+which protects `/dashboard(.*)` while the marketing landing stays public and the
+Stripe webhook is excluded (it is verified by signature, not session).
+
+### Persistence layer (when `persistence.enabled`)
+
+Under the `_when.persistence.enabled/` path-segment guard:
+
+```
+db/schema.ts.tpl                # Drizzle schema
+drizzle.config.ts.tpl
+lib/db/index.ts.tpl             # Drizzle client
+lib/supabase.ts.tpl             # Supabase client
+```
+
+The whole DB layer is omitted when `persistence.enabled` is false. Inside
+`.mcp.json`, the shadcn entry is line-gated by `#ack:if design_system.install` and
+the Supabase entry by `#ack:if persistence.enabled`.
+
+## design-system (required for saas)
+
+The manifest schema's per-archetype `if/then` block makes `design_system`
+**required** for `archetype in [fullstack, saas]` (and forbidden for backend-api).
+A saas manifest must carry its own `design_system` block. When
+`design_system.install == true`, `/ack-init` includes the conditional subtree
+under `templates/archetypes/saas/_when.design_system.install/design-system/` — the
+same payload `fullstack` ships, reused verbatim:
+
+```
+design-system/
+├── NOTICE                              # Apache-2.0 attribution (required)
+├── README.md.tpl
+├── mcp/        shadcn.mcp.json + README.md
+├── skills/     shadcn-ui/  brand-guidelines/  frontend-design-guidelines/
+└── theme/      components.json.tpl  globals.css.tpl  theme.tokens.json.tpl  README.md
+```
+
+Inclusion is doubly guarded, exactly as for fullstack: the path-segment guard
+`_when.design_system.install/` is the primary control, and the `render.map.yaml`
+rule `glob: "**/design-system/**"` carries `requires_archetype: [fullstack, saas]`
+(a v3 **list**) as a belt-and-suspenders assertion — if a design-system file is
+ever reached under a non-listed archetype the render **aborts loudly**. The skills
+are Apache-2.0 example skills shipped **with a NOTICE**, never docx/pdf/pptx/xlsx
+content. See the [Design System Integration](/features/design-system) reference.
+
+## Gate defaults (saas)
+
+The saas gate protects the app, lib, and data surfaces:
+
+```yaml
+contract_gate:
+  mode: block                       # default; block | warn | off
+  glob_dialect: fnmatch
+  protected_paths:
+    - "app/**"
+    - "lib/**"
+    - "db/**"
+    - "src/**"
+  scope:
+    - "app/**"
+    - "db/**"
+  exempt:
+    - "**/*.test.*"
+    - "**/*.stories.tsx"
+    - "supabase/migrations/**"
+    - "**/__snapshots__/**"
+```
+
+These are resolved from the saas defaults at `/ack-init` time and frozen into the
+manifest; the hook reads the list, never a hardcoded default (invariant **I4** —
+the gate is never vacuous).
+
+## Spec-first, like every archetype
+
+`saas` lands the spec-first doc set just like the other archetypes. The managed
+block in `CLAUDE.md` `@`-imports `specs/PRD.md`, `specs/ARCHITECTURE.md`,
+`specs/REQUIREMENTS.md`, `specs/PLAN.md`, and — because a design system is
+installed — `specs/DESIGN.md`. Read the specs before writing code; the relevant
+FR/NFR in `specs/REQUIREMENTS.md` and its acceptance criteria are the definition of
+done, and `specs/PLAN.md` carries the build order (land the thinnest end-to-end
+slice first: **auth → data → billing**).
+
+## See also
+
+- [fullstack (deep)](/archetypes/fullstack) — the generic, un-opinionated web +
+  API archetype `saas` specializes; it ships the same design-system payload.
+- [Archetypes overview → Infrastructure as Code (IaC)](/archetypes/overview#infrastructure-as-code-iac)
+  — the orthogonal `features.iac` toggle any deep archetype (including saas) can
+  switch on to add a Terraform subtree, provider-split by `iac.provider` (aws | gcp).

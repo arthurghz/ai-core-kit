@@ -8,7 +8,9 @@ subsequentes da entrevista (via gating `applies_to`) e seleciona qual conjunto d
 templates é renderizado no filho forkado. Uma única chave do manifest —
 `managed.archetype` — conduz toda a árvore de ramificação (invariante **I3**).
 
-Há **cinco archetypes na v1**, divididos em dois níveis de profundidade.
+Há **seis archetypes**, divididos em dois níveis de profundidade: **três
+profundos** (`backend-api`, `fullstack`, `saas`) e **três minimal-core**
+(`monorepo`, `library-sdk`, `infra-iac`).
 
 <TerminalCast src="/demo/ack-saas.cast" />
 
@@ -24,6 +26,7 @@ flowchart TD
 
   DEEP --> BA["backend-api"]
   DEEP --> FS["fullstack"]
+  DEEP --> SA["saas"]
 
   CORE --> MR["monorepo"]
   CORE --> LIB["library-sdk"]
@@ -34,30 +37,33 @@ flowchart TD
   IAC --> SAFE
 ```
 
-<small>Uma única chave do manifest — `managed.archetype` (o eixo de ramificação, invariante I3) — seleciona tanto o subconjunto de perguntas (via `questions.yaml` `applies_to`) quanto o conjunto de templates (`templates/archetypes/&lt;archetype&gt;/`). Archetypes profundos (backend-api, fullstack — este último adiciona design-system) trazem uma árvore dedicada; archetypes minimal-core renderizam apenas o core universal seguro.</small>
+<small>Uma única chave do manifest — `managed.archetype` (o eixo de ramificação, invariante I3) — seleciona tanto o subconjunto de perguntas (via `questions.yaml` `applies_to`) quanto o conjunto de templates (`templates/archetypes/&lt;archetype&gt;/`). Archetypes profundos (backend-api, fullstack, saas — os dois últimos adicionam design-system) trazem uma árvore dedicada; archetypes minimal-core renderizam apenas o core universal seguro. O toggle ortogonal `features.iac` é desenhado à parte mais abaixo — ele não é um archetype.</small>
 
-## Os cinco archetypes da v1
+## Os seis archetypes
 
 | Archetype | Nível | Cobertura da entrevista | Árvore de templates |
 |---|---|---|---|
 | `backend-api` | **profundo** | completa (persistência, spec de API, contract gate, telemetria) | árvore dedicada em `templates/archetypes/backend-api/` |
 | `fullstack` | **profundo** | completa (adiciona design-system; gate duplo app/api) | árvore dedicada em `templates/archetypes/fullstack/` |
+| `saas` | **profundo** | completa (stack opinativo Vercel+Next+Supabase; adiciona auth/hosting/billing + design-system) | árvore dedicada em `templates/archetypes/saas/` |
 | `monorepo` | minimal-core | apenas perguntas do core universal | sem árvore dedicada (renderiza o core seguro) |
 | `library-sdk` | minimal-core | apenas perguntas do core universal | sem árvore dedicada (renderiza o core seguro) |
 | `infra-iac` | minimal-core | apenas perguntas do core universal | sem árvore dedicada (renderiza o core seguro) |
 
-> **Escopo da v1:** apenas `backend-api` e `fullstack` são especificados em
-> profundidade. Os outros três são **conhecidos-pelo-schema**: o schema do
-> manifest os aceita, a entrevista responde a um core universal seguro para eles,
-> mas eles ainda não têm uma árvore de templates de archetype dedicada. Eles
-> renderizam um core mínimo e serão aprofundados na v2. Veja
-> [Archetypes minimal-core](/archetypes/minimal-core).
+> **Profundidade:** `backend-api`, `fullstack` e `saas` são especificados em
+> **profundidade** e trazem uma árvore de templates dedicada. Os outros três são
+> **conhecidos-pelo-schema**: o schema do manifest os aceita e a entrevista
+> responde a um core universal seguro para eles, mas eles não têm uma árvore de
+> templates de archetype dedicada — renderizam um core mínimo. Veja
+> [Archetypes minimal-core](/archetypes/minimal-core). O novo archetype `saas`
+> está documentado em [saas (profundo)](/archetypes/saas).
 
 ## Profundo vs minimal-core
 
 A divisão é deliberada (invariante do manifest **I3** e a recomendação do
-PLAN-REVIEW.md de "reduzir o escopo da v1 a dois archetypes profundos"). Ir fundo
-em um archetype significa que três coisas aterrissam juntas:
+PLAN-REVIEW.md de "reduzir o escopo da v1 a dois archetypes profundos" — `saas`
+foi adicionado depois como o terceiro archetype profundo, no schema_version 3).
+Ir fundo em um archetype significa que três coisas aterrissam juntas:
 
 1. **Um subconjunto de perguntas específico do ramo.** Archetypes profundos
    respondem a perguntas de persistência, framework, arquitetura e perguntas
@@ -66,7 +72,7 @@ em um archetype significa que três coisas aterrissam juntas:
    linguagem, features, gate `mode` + `protected_paths`, telemetria `enabled`,
    CI/CD).
 2. **Uma árvore de templates dedicada.** `templates/archetypes/<archetype>/`
-   existe apenas para os archetypes profundos. Archetypes minimal-core não têm
+   existe apenas para os três archetypes profundos. Archetypes minimal-core não têm
    essa árvore — eles renderizam o core universal (skills, convenções de
    `.claude/`, o manifest e os hooks/MCP/telemetria opt-in) sem scaffolding
    específico de domínio.
@@ -82,22 +88,65 @@ em um archetype significa que três coisas aterrissam juntas:
 | Quais blocos do schema são exigidos/proibidos por archetype | `templates/manifest/project.manifest.schema.yaml` (`if/then` por archetype) |
 | Quais arquivos renderizam por archetype | `templates/archetypes/render.map.yaml` + guardas de segmento de caminho `_when.<path>/` |
 
-Duas regras do manifest tornam a ramificação aplicável em vez de apenas esperada:
+Algumas regras do manifest tornam a ramificação aplicável em vez de apenas
+esperada:
 
-- `archetype == fullstack` ⟹ `design_system` é **obrigatório**.
+- `archetype in [fullstack, saas]` ⟹ `design_system` é **obrigatório**.
 - `archetype == backend-api` ⟹ `design_system` é **proibido**.
+- o ramo de entrevista `saas` é o único que escreve `auth` / `hosting` /
+  `billing` (essas perguntas têm gating `applies_to: [saas]`).
 
-Como as perguntas de `design_system` têm gating `applies_to: [fullstack]`, nenhum
-outro archetype pode jamais escrever esse bloco — o ramo proibido-para-backend do
-schema é satisfeito por construção, não porque um LLM lembrou de pulá-lo.
+Como as perguntas de `design_system` têm gating `applies_to: [fullstack, saas]`,
+nenhum outro archetype pode jamais escrever esse bloco — o ramo
+proibido-para-backend do schema é satisfeito por construção, não porque um LLM
+lembrou de pulá-lo.
+
+## Infraestrutura como Código (IaC)
+
+IaC é **ortogonal** ao eixo de archetype. Não é um archetype (exceto pelo repo
+minimal-core puro `infra-iac`) — é um toggle booleano, `features.iac`, que
+**qualquer archetype profundo** (`backend-api`, `fullstack`, `saas`) pode ligar
+para adicionar um subtree de infraestrutura ao lado de seu scaffold normal. Então
+você pode ter `saas + IaC`, `fullstack + IaC` ou `backend-api + IaC` sem mudar o
+archetype.
+
+Quando `features.iac == true`, o schema **exige** o bloco `iac`:
+
+- `iac.provider` — `aws` | `gcp` | `none`
+- `iac.tool` — `terraform` (default) | `pulumi` | `cloudformation` | `cdk` | `none`
+- `iac.is_aws` / `iac.is_gcp` — booleanos **derivados** emitidos por
+  `lib/manifest.mjs` a partir de `provider` (exatamente um é verdadeiro),
+  declarados no schema para sobreviver a `additionalProperties:false`.
+
+O subtree renderiza sob `_when.features.iac/infra/` e é então dividido por
+provider via **guardas de segmento de caminho** `_when.iac.is_aws/` vs
+`_when.iac.is_gcp/`. Usar os booleanos derivados mantém a seleção de provider
+dentro da camada de inclusão-condicional determinística somente-booleana (decisão
+O6) — sem operador de igualdade no render engine. O subtree IaC deliberadamente
+**não** é mapeado por um glob `**/infra/**` no `render.map.yaml`: esse glob casaria
+falsamente com o caminho de persistência fullstack `src/infra/db/**`, governado por
+`_when.persistence.enabled/`.
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#ecfeff","primaryBorderColor":"#06b6d4","primaryTextColor":"#083344","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":48,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
+flowchart TD
+  IACQ["features.iac == true"]
+  IACQ --> IB["bloco iac (provider + tool)"]
+  IB --> SUB["_when.features.iac/infra/"]
+  SUB --> AWS["_when.iac.is_aws/ (aws/)"]
+  SUB --> GCP["_when.iac.is_gcp/ (gcp/)"]
+```
+
+Para um exemplo trabalhado, veja a instância inline `saas + IaC` no schema do
+manifest v3 (`archetype: saas`, `features.iac: true`, `iac.provider: aws`).
 
 ## Situação hoje
 
 O contrato do archetype (quais perguntas, quais blocos do schema, quais regras de
-render) faz parte do **contrato congelado da P3** e está entregue. O **conteúdo**
-dos templates profundos está sendo aprofundado na **P4** (`done: false` em
-`bootstrap/ack.bootstrap.yaml`): hoje as árvores `backend-api` e `fullstack`
-existem como esqueletos estruturalmente corretos que renderizam e passam no teste
-da matriz de ramos, com seu scaffolding completo no estilo da casa marcado como
-`TODO(P4)`. Leia a página de cada archetype para ver exatamente o que é entregue
-hoje versus o que está adiado.
+render) faz parte do **contrato congelado da P3** e está entregue. O archetype
+`saas` e o toggle ortogonal `features.iac` foram entregues no **schema_version 3**:
+`saas` renderiza um scaffold real e integrado Vercel + Next + Supabase e
+`features.iac` adiciona um subtree Terraform dividido por provider a qualquer
+archetype profundo. As árvores `backend-api` e `fullstack` ainda têm parte do
+scaffolding completo no estilo da casa marcado como `TODO(P4)`. Leia a página de
+cada archetype para ver exatamente o que é entregue hoje versus o que está adiado.

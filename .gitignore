@@ -24,6 +24,15 @@ dist/
 build/
 out/
 target/
+# `build/` above targets compiler OUTPUT. Keep it from swallowing the docs
+# site's "Building the Kit" CONTENT section (site/pages/{en,pt}/build/*.mdx) —
+# those are real source pages and MUST be committed, or Nextra's _meta
+# validation fails the Vercel build ("key 'build' refers to a page that cannot
+# be found").
+!site/pages/en/build/
+!site/pages/en/build/**
+!site/pages/pt/build/
+!site/pages/pt/build/**
 # Next.js / Vercel build output (docs site + every product's /docs)
 .next/
 **/.next/

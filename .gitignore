@@ -19,6 +19,27 @@ __pycache__/
 .venv/
 venv/
 dist/
+/dist
+**/dist/
 build/
+out/
 target/
+# Next.js / Vercel build output (docs site + every product's /docs)
+.next/
+**/.next/
+.vercel/
 .DS_Store
+
+# --- demo recorder (offline Playwright): keep deps/Chromium/intermediate videos out ---
+scripts/demo/node_modules/
+scripts/demo/videos/
+# Final rendered docs-site video — heavy media stays out of git (render locally):
+docs/demo/*.webm
+
+# --- terminal usage screencast (VHS / asciinema) ---
+# Heavy rendered media from usage.tape stays OUT of git; render locally.
+docs/demo/ack-usage.gif
+docs/demo/ack-usage.mp4
+# The lightweight text artifacts (cast + animated SVG) ARE committable and kept:
+#   docs/demo/ack-usage.cast
+#   docs/demo/ack-usage.svg

@@ -1,0 +1,13 @@
+{
+  "name": "ack-demo-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-contained, offline Playwright recorder that captures a video walkthrough of the ai-core-kit docs site.",
+  "scripts": {
+    "record": "node record-demo.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

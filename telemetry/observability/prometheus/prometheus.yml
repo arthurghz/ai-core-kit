@@ -1,0 +1,25 @@
+# =============================================================================
+# Prometheus scrape config -- ai-core-kit cost-observability (META layer)
+# =============================================================================
+# Scrapes the cost exporter every 30s. The exporter recomputes cost from the
+# transcripts on each scrape (TTL-cached), so a 30s interval gives near-real-
+# time spend without hammering disk I/O. Keep the scrape interval >= the
+# exporter's ACK_SCRAPE_TTL.
+# =============================================================================
+
+global:
+  scrape_interval: 30s
+  scrape_timeout: 15s
+  evaluation_interval: 30s
+  external_labels:
+    project: ai-core-kit
+    layer: meta
+
+scrape_configs:
+  - job_name: ack-cost-exporter
+    static_configs:
+      - targets: ["exporter:9418"]
+        labels:
+          service: ack-cost
+    scrape_interval: 30s
+    scrape_timeout: 15s

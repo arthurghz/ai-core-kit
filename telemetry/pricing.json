@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-06-01",
+  "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "currency": "USD",
+  "unit": "per_mtok",
+  "_comment": "USD per 1,000,000 tokens (per MTok). Keys per model: input, output, cache_write_5m, cache_write_1h, cache_read. cache_write_5m/1h price the cache_creation ephemeral_5m/1h sub-buckets; cache_read prices cache_read_input_tokens. aggregate.py keys on the EXACT message.model id and FAILS LOUD on any id absent from this map (unknown_model_policy=error). Update `as_of` and `source` whenever prices change; bump schema_version only on shape changes.",
+  "unknown_model_policy": "error",
+  "models": {
+    "claude-opus-4-8": {
+      "input": 5.00,
+      "output": 25.00,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10.00,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-7": {
+      "input": 5.00,
+      "output": 25.00,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10.00,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-6": {
+      "input": 5.00,
+      "output": 25.00,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10.00,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-5": {
+      "input": 5.00,
+      "output": 25.00,
+      "cache_write_5m": 6.25,
+      "cache_write_1h": 10.00,
+      "cache_read": 0.50
+    },
+    "claude-opus-4-1": {
+      "input": 15.00,
+      "output": 75.00,
+      "cache_write_5m": 18.75,
+      "cache_write_1h": 30.00,
+      "cache_read": 1.50
+    },
+    "claude-sonnet-4-6": {
+      "input": 3.00,
+      "output": 15.00,
+      "cache_write_5m": 3.75,
+      "cache_write_1h": 6.00,
+      "cache_read": 0.30
+    },
+    "claude-sonnet-4-5": {
+      "input": 3.00,
+      "output": 15.00,
+      "cache_write_5m": 3.75,
+      "cache_write_1h": 6.00,
+      "cache_read": 0.30
+    },
+    "claude-haiku-4-5": {
+      "input": 1.00,
+      "output": 5.00,
+      "cache_write_5m": 1.25,
+      "cache_write_1h": 2.00,
+      "cache_read": 0.10
+    }
+  },
+  "//aliases": "Bare/aliased model ids seen in transcripts mapped to a priced id. Dated ids (e.g. claude-haiku-4-5-20251001) need no alias: aggregate.py strips a trailing -YYYYMMDD and matches the base id.",
+  "aliases": {
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-8",
+    "haiku": "claude-haiku-4-5"
+  },
+  "//skip_models": "Non-billable pseudo-models that appear in transcripts but carry no real spend; aggregate.py skips these turns entirely.",
+  "skip_models": ["<synthetic>"]
+}

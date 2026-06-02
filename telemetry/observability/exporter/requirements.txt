@@ -1,0 +1,6 @@
+# ai-core-kit cost exporter -- runtime dependencies
+# The exporter is a THIN Prometheus wrapper around telemetry/aggregate.py.
+# aggregate.py itself is stdlib-only (no PyYAML, no requests), and the manifest
+# budget reader here is stdlib-only too, so prometheus_client is the ONLY pip
+# dependency. Pinned for reproducible image builds.
+prometheus_client==0.21.1

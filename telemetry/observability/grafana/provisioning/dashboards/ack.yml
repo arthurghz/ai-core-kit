@@ -1,0 +1,20 @@
+# =============================================================================
+# Grafana dashboard provider -- ai-core-kit cost-observability (META)
+# =============================================================================
+# Loads every dashboard JSON under /var/lib/grafana/dashboards (bind-mounted
+# from ./grafana/dashboards) into the "ai-core-kit" folder on boot.
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: ai-core-kit
+    orgId: 1
+    folder: ai-core-kit
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

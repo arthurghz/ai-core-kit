@@ -1,0 +1,126 @@
+# =============================================================================
+# ai-core-kit cost-observability stack  (META layer)
+# =============================================================================
+# Watches the OFFLINE cost of building ai-core-kit itself. Three services:
+#
+#   exporter    re-parses ~/.claude/projects transcripts on each scrape (TTL-
+#               cached) and exposes Prometheus gauges. Reuses telemetry/
+#               aggregate.py cost logic -- it does NOT re-implement pricing.
+#   prometheus  scrapes the exporter every 30s and stores the series (30d).
+#   grafana     dashboards on host port 3001 (3000 is the docs site).
+#
+# Cost is OFFLINE-derived (claude-code#11008): the numbers are NEAR-real-time
+# (refreshed every scrape, bounded by ACK_SCRAPE_TTL), not a live per-token
+# meter. See README.md.
+#
+#   docker compose up -d        # start
+#   open http://localhost:3001  # Grafana (anonymous Viewer by default)
+#   docker compose down         # stop (add -v to wipe stored series)
+#
+# Copy .env.example to .env to override defaults (ports, project dir, creds).
+# =============================================================================
+
+name: ack-observability
+
+services:
+  # === Prometheus exporter (reuses telemetry/aggregate.py) ===================
+  # Build context is the telemetry/ dir (one level up) because the exporter
+  # Dockerfile COPYs aggregate.py + pricing.json from the telemetry root next to
+  # the script -- so `import aggregate` resolves with no path gymnastics.
+  exporter:
+    build:
+      context: ..
+      dockerfile: observability/exporter/Dockerfile
+    image: ack-cost-exporter:local
+    container_name: ack-cost-exporter
+    environment:
+      # Transcript root INSIDE the container (the bind mount below).
+      ACK_PROJECT_DIR: /projects
+      # Pricing map. The image bakes a copy at /app/pricing.json; the bind mount
+      # below overlays the live META pricing.json on top of it.
+      ACK_PRICING: /app/pricing.json
+      # Optional: a project manifest to read managed.telemetry.budgets[] from.
+      # To enable the budget gauges, point ACK_MANIFEST at the in-container path
+      # (e.g. /manifest/project.manifest.yaml) AND add the matching read-only
+      # mount under `volumes:` below (a sample line is commented there).
+      ACK_MANIFEST: ${ACK_MANIFEST:-}
+      ACK_BRANCH_PREFIX: ${ACK_BRANCH_PREFIX:-feat/}
+      ACK_PORT: "9418"
+      ACK_SCRAPE_TTL: ${ACK_SCRAPE_TTL:-30}
+    volumes:
+      # Transcripts -- READ-ONLY. The exporter never writes here.
+      - ${ACK_PROJECT_DIR:-${HOME}/.claude/projects}:/projects:ro
+      # Live META cost logic + pricing overlay the baked-in copies -- READ-ONLY,
+      # so edits to aggregate.py / pricing.json take effect on the next scrape
+      # without rebuilding the image.
+      - ../aggregate.py:/app/aggregate.py:ro
+      - ../pricing.json:/app/pricing.json:ro
+      # Optional budgets: uncomment and set ACK_MANIFEST: /manifest/project.manifest.yaml
+      # - ../../project.manifest.yaml:/manifest/project.manifest.yaml:ro
+    expose:
+      - "9418"
+    networks:
+      - ack-observability
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:9418/metrics',timeout=3).status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # === Prometheus (scrapes the exporter every 30s) ==========================
+  prometheus:
+    image: prom/prometheus:v3.5.3
+    container_name: ack-prometheus
+    user: "nobody"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${ACK_PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - ack-observability
+    restart: unless-stopped
+    depends_on:
+      - exporter
+
+  # === Grafana (host port 3001 -> 3000; 3000 is the docs site) ==============
+  grafana:
+    image: grafana/grafana:12.4.3
+    container_name: ack-grafana
+    environment:
+      # Anonymous read-only access so the dashboard opens with no login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_DEFAULT_THEME: dark
+      # Admin login (for editing). Override the password via .env in any
+      # shared/exposed deployment.
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${ACK_GRAFANA_PORT:-3001}:3000"
+    networks:
+      - ack-observability
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+networks:
+  ack-observability:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:

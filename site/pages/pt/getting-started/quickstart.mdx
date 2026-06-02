@@ -62,14 +62,14 @@ manifesto (veja
 **CLI sem fork (recomendado):**
 
 ```bash
-npx create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack my-product --archetype fullstack
 ```
 
 Omita `--archetype` para ser perguntado sobre ele. Adicione `--yes` para aceitar todos os
 padrões de forma não interativa (ótimo para uma olhada rápida ou CI):
 
 ```bash
-npx create-ack my-product --archetype backend-api --yes
+npx @arthurghz/create-ack my-product --archetype backend-api --yes
 ```
 
 **Ou a entrevista dentro do Claude** — dentro de um repositório com fork, execute:
@@ -198,7 +198,7 @@ PRD,DOMAIN` o limita a docs específicos.
 
 ```bash
 # 1. faz o scaffold de um projeto fullstack spec-first
-npx create-ack acme-app --archetype fullstack
+npx @arthurghz/create-ack acme-app --archetype fullstack
 
 # 2. entre e revise o que chegou
 cd acme-app

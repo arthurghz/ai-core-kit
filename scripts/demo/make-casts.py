@@ -2,7 +2,7 @@
 """Generate clean, hand-authored asciinema v2 casts for the site.
 
 Deterministic (no live capture): fixed 92-col terminal, every printable line kept
-<= ~84 chars, clean `npx create-ack` commands, a tasteful typing rhythm, and a hold
+<= ~84 chars, clean `npx @arthurghz/create-ack` commands, a tasteful typing rhythm, and a hold
 before the loop. Each cast tells a fuller story — bootstrap, `cd` into the repo,
 `tree` the structure, `cat CLAUDE.md`, `/ack-spec`, `git commit` — plus one per
 archetype and an install walkthrough. Output goes to BOTH docs/demo/ (committable
@@ -79,7 +79,7 @@ def write_cast(name, title, script):
 
 # ── Cast 1 — HERO: fork-free bootstrap → enter the repo → spec-first → commit ──
 BOOTSTRAP = [
-    ("type", "npx create-ack acme --archetype fullstack"),
+    ("type", "npx @arthurghz/create-ack acme --archetype fullstack"),
     ("out", [dim("◐ validating answers → frozen manifest → deterministic render…")], 0.5),
     ("wait", 0.4),
     ("out", [green("✓") + " scaffolded " + bold("acme") + dim("  (fullstack · zero-LLM render · 32 files)")], 0.2),
@@ -127,7 +127,7 @@ ACK_SPEC = [
 
 # ── Cast 3 — backend-api archetype ──
 BACKEND = [
-    ("type", "npx create-ack orders-api --archetype backend-api --yes"),
+    ("type", "npx @arthurghz/create-ack orders-api --archetype backend-api --yes"),
     ("out", [green("✓") + " scaffolded " + bold("orders-api") + dim("  (backend-api · deep · 21 files)")], 0.3),
     ("wait", 0.4),
     ("type", "tree -L 1 orders-api"),
@@ -144,7 +144,7 @@ BACKEND = [
 
 # ── Cast 4 — fullstack archetype ──
 FULLSTACK = [
-    ("type", "npx create-ack acme --archetype fullstack --yes"),
+    ("type", "npx @arthurghz/create-ack acme --archetype fullstack --yes"),
     ("out", [green("✓") + " scaffolded " + bold("acme") + dim("  (fullstack · deep · 46 files)")], 0.3),
     ("wait", 0.4),
     ("type", "tree -L 1 acme"),
@@ -161,7 +161,7 @@ FULLSTACK = [
 
 # ── Cast 5 — saas archetype ──
 SAAS = [
-    ("type", "npx create-ack orbit --archetype saas --yes"),
+    ("type", "npx @arthurghz/create-ack orbit --archetype saas --yes"),
     ("out", [
         green("✓") + " scaffolded " + bold("orbit") + dim("  (saas · deep)"),
         "  " + cyan("Next.js") + " · " + cyan("React") + " · " + cyan("shadcn") + " · " + cyan("Clerk") + " · " + cyan("Supabase") + " · " + cyan("Drizzle") + " · " + cyan("Stripe") + " · " + cyan("Vercel"),
@@ -182,7 +182,7 @@ SAAS = [
 
 # ── Cast 6 — minimal-core (monorepo / library-sdk / infra-iac) ──
 MINIMAL = [
-    ("type", "npx create-ack toolkit --archetype library-sdk --yes"),
+    ("type", "npx @arthurghz/create-ack toolkit --archetype library-sdk --yes"),
     ("out", [green("✓") + " scaffolded " + bold("toolkit") + dim("  (minimal-core — the always-on safe core)")], 0.3),
     ("wait", 0.4),
     ("type", "tree toolkit"),
@@ -203,10 +203,10 @@ INSTALL = [
     ("type", "node -v"),
     ("out", [dim("v20.11.0") + dim("   # Node >= 18 — that's the only prerequisite")], 0.25),
     ("wait", 0.35),
-    ("type", "npx create-ack --help"),
+    ("type", "npx @arthurghz/create-ack --help"),
     ("out", [
         bold("create-ack") + dim(" — scaffold a spec-first Claude Code project (zero-LLM)"), "",
-        "  " + green("npx create-ack") + " <name> --archetype <type>", "",
+        "  " + green("npx @arthurghz/create-ack") + " <name> --archetype <type>", "",
         "  archetypes  backend-api · fullstack · saas · monorepo · library-sdk · infra-iac",
         "  flags       --yes  --lang  --framework  --here  --no-docs", "",
         dim("  or, inside Claude Code:  ") + cyan("/ack-init") + dim("   (the interactive interview)"),

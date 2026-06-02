@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Node test suite (manifest + render engine)
+        run: npm test
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Frontmatter linter (.claude primitives)
+        run: python3 scripts/lint-frontmatter.py
+
+  render-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Scaffold each archetype to a temp dir (no unbound vars, no crash)
+        run: |
+          set -e
+          BIN="$GITHUB_WORKSPACE/bin/create-ack.mjs"
+          for A in backend-api fullstack saas library-sdk; do
+            DIR="$(mktemp -d)"
+            echo "── rendering $A → $DIR/probe-$A ──"
+            ( cd "$DIR" && node "$BIN" "probe-$A" --archetype "$A" --yes )
+          done
+          echo "all archetypes scaffolded cleanly"

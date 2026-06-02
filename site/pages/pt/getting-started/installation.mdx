@@ -26,7 +26,7 @@ design.
 
 | Você quer… | Você precisa de |
 |---|---|
-| A CLI **`npx create-ack`** (caminho principal) | **Node.js ≥ 18** e um terminal. O `npx` vem com o npm. |
+| A CLI **`npx @arthurghz/create-ack`** (caminho principal) | **Node.js ≥ 18** e um terminal. O `npx` vem com o npm. |
 | A entrevista **`/ack-init`** dentro do Claude (caminho equivalente) | **[Claude Code](https://docs.claude.com/en/docs/claude-code)** (a harness de CLI/IDE que expõe slash commands) |
 | **Escrever specs** com `/ack-spec` após o scaffold | **Claude Code** (a entrevista de specs é guiada pelo modelo) |
 | O **portão de contrato** + a **telemetria offline** (ambos opt-in) | **Python 3** no seu `PATH` — apenas stdlib, sem `pip install` |
@@ -46,14 +46,14 @@ scaffold.
 Ambos rodam a **mesma entrevista que começa pelo arquétipo** e escrevem o **mesmo**
 `project.manifest.yaml`. Diferem apenas em *onde* você responde às perguntas.
 
-### A. `npx create-ack` — CLI sem fork (recomendado)
+### A. `npx @arthurghz/create-ack` — CLI sem fork (recomendado)
 
 O caminho principal. Inicia um projeto filho autônomo a partir dos templates congelados —
 sem fork, sem cópia da árvore `.claude/` da META, sem LLM no loop.
 
 ```bash
 # faz o scaffold de um novo projeto em ./my-product/
-npx create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack my-product --archetype fullstack
 ```
 
 `<product-name>` deve ser kebab-case minúsculo (`^[a-z][a-z0-9-]*$`). Flags úteis (todas
@@ -89,7 +89,7 @@ cd <your-new-project>
 repositório. Depois que ele roda, o scaffold, a ferramenta `.claude/` e o
 `project.manifest.yaml` vivem nesse repositório — você nunca copia arquivos do kit à mão.
 
-> **Qual devo usar?** Prefira **`npx create-ack`** — é sem fork, mais rápido e o caminho
+> **Qual devo usar?** Prefira **`npx @arthurghz/create-ack`** — é sem fork, mais rápido e o caminho
 > canônico. Recorra ao `/ack-init` quando você quiser especificamente que a entrevista
 > rode *dentro* de uma sessão do Claude Code (ou você já fez o fork do kit).
 

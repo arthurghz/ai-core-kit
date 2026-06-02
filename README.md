@@ -38,7 +38,7 @@ day-to-day rules in [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md).
 ## How it works (usage flow)
 
 ```
-npx create-ack <name> --archetype <x>     (fork-free, primary)
+npx @arthurghz/create-ack <name> --archetype <x>     (fork-free, primary)
    │   …or fork ai-core-kit and run /ack-init inside it (in-Claude, interactive)
    └─ archetype-first interview (templates/interview/questions.yaml)
              └─ writes project.manifest.yaml   ← single source of truth
@@ -48,7 +48,7 @@ npx create-ack <name> --archetype <x>     (fork-free, primary)
 ```
 
 1. **Start a new project — two equivalent entry points:**
-   - **`npx create-ack <name> --archetype <x>`** (primary, **fork-free**): spins up a
+   - **`npx @arthurghz/create-ack <name> --archetype <x>`** (primary, **fork-free**): spins up a
      standalone child straight from the frozen templates — no fork, no META `.claude/`
      tree, no LLM in the loop. `--archetype` selects the branch axis; `--yes` falls back
      to the `questions.yaml` defaults for a non-interactive run.

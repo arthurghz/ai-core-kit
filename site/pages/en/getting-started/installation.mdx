@@ -23,7 +23,7 @@ You need very little. The render engine is deterministic and dependency-light by
 
 | You want… | You need |
 |---|---|
-| The **`npx create-ack`** CLI (primary path) | **Node.js ≥ 18** and a terminal. `npx` ships with npm. |
+| The **`npx @arthurghz/create-ack`** CLI (primary path) | **Node.js ≥ 18** and a terminal. `npx` ships with npm. |
 | The **`/ack-init`** in-Claude interview (equivalent path) | **[Claude Code](https://docs.claude.com/en/docs/claude-code)** (the CLI/IDE harness that exposes slash commands) |
 | To **author specs** with `/ack-spec` after scaffolding | **Claude Code** (the spec interview is model-driven) |
 | The **contract gate** + **offline telemetry** (both opt-in) | **Python 3** on your `PATH` — stdlib only, no `pip install` |
@@ -42,14 +42,14 @@ aggregator; you do not need it just to scaffold.
 Both run the **same archetype-first interview** and write the **same**
 `project.manifest.yaml`. They differ only in *where* you answer the questions.
 
-### A. `npx create-ack` — fork-free CLI (recommended)
+### A. `npx @arthurghz/create-ack` — fork-free CLI (recommended)
 
 The primary path. Spins up a standalone child project from the frozen templates — no
 fork, no copy of the META `.claude/` tree, no LLM in the loop.
 
 ```bash
 # scaffold a new project in ./my-product/
-npx create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack my-product --archetype fullstack
 ```
 
 `<product-name>` must be lowercase kebab-case (`^[a-z][a-z0-9-]*$`). Useful flags
@@ -84,7 +84,7 @@ cd <your-new-project>
 repo. After it runs, the scaffold, `.claude/` tooling, and `project.manifest.yaml` live
 in that repo — you never copy files out of the kit by hand.
 
-> **Which should I use?** Prefer **`npx create-ack`** — it is fork-free, faster, and the
+> **Which should I use?** Prefer **`npx @arthurghz/create-ack`** — it is fork-free, faster, and the
 > canonical path. Reach for `/ack-init` when you specifically want the interview to run
 > *inside* a Claude Code session (or you already forked the kit).
 

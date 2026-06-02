@@ -359,7 +359,7 @@ Manifest (the frozen `acme-orders-api` instance, abbreviated to the keys the ren
 touches):
 
 ```yaml
-schema_version: 1
+schema_version: 2
 managed:
   project: { name: acme-orders-api, language: python, runtime: python3.12,
              package_manager: uv, framework: fastapi, architecture: layered }

@@ -156,8 +156,9 @@ them, but **do not copy prose verbatim** into our docs.
 
 ## Discovery seed sources
 
-Tracked for the discovery engine (`discovery/sources.yaml`) — *propose, never
-auto-adopt*; each carries its own license to be checked at adoption time:
+Planned for the discovery engine — these are the intended seed sources for a
+future `discovery/sources.yaml` (not yet on disk) under a *propose, never
+auto-adopt* policy; each carries its own license to be checked at adoption time:
 
 - awesome-claude-code — https://github.com/hesreallyhim/awesome-claude-code
 - claude-plugins-official — https://github.com/anthropics/claude-plugins-official

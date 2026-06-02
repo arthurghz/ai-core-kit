@@ -37,9 +37,9 @@ The frozen schema, `docs/RENDER-ENGINE.md`, and `.claude/commands/ack-init.md` a
 
 ## 2. The frozen schema (path)
 
-**`templates/manifest/project.manifest.schema.yaml`** (schema_version 1), with its generated validator companion **`templates/manifest/project.manifest.schema.json`** (JSON-Schema draft 2020-12, `additionalProperties:false` everywhere).
+**`templates/manifest/project.manifest.schema.yaml`** (schema_version 2), with its generated validator companion **`templates/manifest/project.manifest.schema.json`** (JSON-Schema draft 2020-12, `additionalProperties:false` everywhere).
 
-Top-level envelope: `schema_version` (const 1) · `generator` (provenance, OUTSIDE the hash) · `managed:` (machine-owned, regenerated wholesale) · `user:` (human-owned, seeded once). Governing invariants relied on by this integration:
+Top-level envelope: `schema_version` (const 2) · `generator` (provenance, OUTSIDE the hash) · `managed:` (machine-owned, regenerated wholesale) · `user:` (human-owned, seeded once). Governing invariants relied on by this integration:
 
 - **I1** every `writes_to` must resolve to a declared property (fail-closed at author time);
 - **I2** idempotency is structural (managed/user split, no 3-way merge);
@@ -111,7 +111,7 @@ All 33 distinct targets resolve. The schema properties **not** driven by any que
 - **persistence** is `applies_to:[backend-api,fullstack]`; infra-iac etc. never see a DB question (deterministic-interview guarantee, I4 / finding 4). Good.
 - **protected_paths defaults differ per archetype** (backend `src/** migrations/** openapi/**`; fullstack `app/** api/** src/** prisma/schema.prisma`), each non-empty, satisfying I4 / `minItems:1`. Good.
 
-> **Round-trip gap (see O3):** the schema requires `contracts[]` for backend-api (`backend-api ⟹ required:[contracts]`), but **no question writes `contracts[]`**. An interview-only manifest for backend-api would therefore fail schema validation unless `/ack-init` seeds at least one `contracts[]` entry outside the question bank. The command spec does not currently say it does this.
+> **Round-trip gap (see O3) — RESOLVED in schema_version 2:** schema_version 1 required `contracts[]` for backend-api (`backend-api ⟹ required:[contracts]`) while **no question writes `contracts[]`**, so an interview-only backend-api manifest failed schema validation. In schema_version 2 `contracts[]` is **optional with default `[]` for all archetypes**, so this round-trips cleanly with no seeded stub required.
 
 ---
 
@@ -160,7 +160,7 @@ Three strictly-separated responsibilities:
 ├─ STEP 4  RUN INTERVIEW → ASSEMBLE managed:                ── ONLY WRITER
 │     write each answer to its writes_to ; emit keys in schema order ; no timestamps
 │     apply per-archetype rules:  fullstack⟹design_system required
-│                                 backend-api⟹design_system omitted + contracts required
+│                                 backend-api⟹design_system omitted (contracts optional, default [] in v2)
 │                                 always⟹protected_paths minItems 1
 │     seed user: once (first run) / carry verbatim (re-run)
 │     ┌─ VALIDATE against project.manifest.schema.json     ── I6 author-time fail-closed
@@ -191,7 +191,7 @@ One producer, three consumers; none of the consumers ever writes the manifest.
 
 | Manifest region | Producer | Consumer(s) | Contract / consumption rule | Verified |
 |---|---|---|---|---|
-| `schema_version` | /ack-init | P4, P5, P6 | const 1; major-version mismatch ⟹ gate→off+stderr, aggregator→error | ✓ |
+| `schema_version` | /ack-init | P4, P5, P6 | const 2; major-version mismatch ⟹ gate→off+stderr, aggregator→error | ✓ |
 | `generator.*` | /ack-init | (none, provenance) | EXCLUDED from `manifest_hash`; keeps re-runs byte-stable | ✓ |
 | `managed.manifest_hash` | /ack-init (written LAST) | /ack-init re-run | sha256 of canonical `managed:` minus hash & generator; no-op fast path | ✓ |
 | `managed.project.*` | /ack-init interview | **P4** | `${project.*}` render vars; framework enum archetype-scoped | ✓ |
@@ -201,7 +201,7 @@ One producer, three consumers; none of the consumers ever writes the manifest.
 | `managed.persistence.*` | /ack-init interview | **P4** | `enabled:false` ⟹ persistence scaffold omitted | ✓ |
 | `managed.contract_gate.{mode,glob_dialect,protected_paths,scope,exempt}` | /ack-init interview | **P5** hook | hook reads THIS (never hardcoded defaults); exempt > scope/protected; unmatched ⟹ allow; block=exit2+deny, warn=exit0+stderr, off=exit0 silent; FAIL-OPEN if manifest missing | ✓ |
 | `managed.contract_gate.require_approval_by` | /ack-init interview | review tooling (advisory) | NOT enforced by hook | ✓ |
-| `managed.contracts[]` | **ack (NOT the interview)** | **P5** (approved-oracle), P4 (stub scaffold) | edit under scope allowed iff a covering contract has `status:approved` | ✓ (gap O3) |
+| `managed.contracts[]` | **ack (NOT the interview)** | **P5** (approved-oracle), P4 (stub scaffold) | edit under scope allowed iff a covering contract has `status:approved`; optional (default `[]`) for all archetypes in schema_version 2 | ✓ (O3 resolved in v2) |
 | `managed.design_system.*` | /ack-init interview (fullstack only) | **P4** | required fullstack / forbidden backend-api; `install:true` ⟹ copy Apache-2.0 skills + NOTICE | ✓ |
 | `managed.telemetry.{enabled,attribution.*,pricing_ref,budgets[]}` | /ack-init interview (+ ack seeds `budgets[]`) | **P6** aggregator (OFFLINE) | no live cost; buckets `~/.claude/projects/**/*.jsonl × pricing.json`; budgets advisory (flag, never enforce); fails loud on unknown model | ✓ |
 | `managed.discovery.enabled` | /ack-init interview | child opt-in surface | default OFF; meta engine never copied (I7) | ✓ |
@@ -209,7 +209,7 @@ One producer, three consumers; none of the consumers ever writes the manifest.
 | `managed.rendered_files[]` | **P4** (written back), /ack-init STEP 7 | /ack-init re-run, P4 | ownership ledger; anything absent = user territory, never touched | ✓ |
 | `user.*` | /ack-init (seeded ONCE) | P4 reads `user.overrides.*` only (optional) | never overwritten after first run (I2) | ✓ |
 
-**P5 (gate) consumability:** all inputs the hook contract names — `mode`, `glob_dialect`, `protected_paths`, `scope`, `exempt`, and the `contracts[]` approved-oracle — are present in `managed:` and produced by the flow. Consumable, given O3 (someone must seed `contracts[]` for backend-api).
+**P5 (gate) consumability:** all inputs the hook contract names — `mode`, `glob_dialect`, `protected_paths`, `scope`, `exempt`, and the `contracts[]` approved-oracle — are present in `managed:` and produced by the flow. Consumable; O3 is resolved in schema_version 2 (`contracts[]` is optional with default `[]`, so no backend-api seed is required for the manifest to validate).
 
 **P6 (telemetry) consumability:** `telemetry.enabled/attribution.*/pricing_ref` are all interview-written; `budgets[]` is ack-seeded. The aggregator's only hard external dependency is `telemetry/pricing.json`, which is a path reference, not manifest data. Consumable.
 
@@ -232,7 +232,7 @@ Author-time blockers and round-trip gaps to close before P4/P5/P6 are runnable. 
 
 - [ ] **O1 — Generate the JSON-Schema validator.** `templates/manifest/project.manifest.schema.json` does not exist on disk; neither does the `…schema.yaml`. STEP 4 validation and the I1 `writes_to` cross-check cannot fire until both are authored. The JSON file must mirror the YAML contract exactly (`additionalProperties:false` everywhere, the `allOf`/`if-then` per-archetype blocks, glob/contract/telemetry `$defs`).
 - [ ] **O2 — Decide who seeds the non-interview structures.** `contracts[]`, `telemetry.budgets[]`, `design_system.tokens` have schema properties but **no question**. Document explicitly (in the command spec) that ack seeds these (empty/defaults), or add a structured-entry question type. Currently only implied.
-- [ ] **O3 — Resolve the `contracts[]` required-but-unwritten gap (round-trip break).** Schema requires `contracts[]` for backend-api, but no `writes_to` targets it. An interview-only backend-api manifest fails schema validation. Fix: `/ack-init` must seed at least one `contracts[]` stub for backend-api (state this in STEP 4), OR relax the backend-api `required:[contracts]` to allow an empty list. Pick one and make schema + command agree.
+- [x] **O3 — Resolve the `contracts[]` required-but-unwritten gap (round-trip break). RESOLVED in schema_version 2.** The on-disk schema took the second option: backend-api no longer `required:[contracts]` — `contracts[]` is now **optional with default `[]` for all archetypes**, so an interview-only backend-api manifest validates without a seeded stub. (Original gap: schema_version 1 required `contracts[]` for backend-api, but no `writes_to` targeted it, so an interview-only backend-api manifest failed schema validation.)
 - [ ] **O4 — Fix substitution regex vs hyphenated token keys.** The render regex `[a-z0-9_]` cannot match `${design_system.tokens.color-brand}` used in render spec §4.3 (and the schema's example token keys `color-brand`, `radius-base`). Either widen the regex segment class to include `-`, or constrain token keys to `snake_case`. Decide and make schema example + render spec consistent.
 - [ ] **O5 — Unify managed-block markers for comment-less file types.** The command illustrates `# >>> ack:managed` comment markers, but JSON files (`settings.json`, `.mcp.json`) have no comments. The render spec §5.2 sketches a JSON parse+replace-managed-keys merge instead. Enumerate the exact "managed keys" set per JSON file jointly between the render and gate teams (render-spec open Q3).
 - [ ] **O6 — Pick ONE conditional-inclusion mechanism (or formalize precedence).** Render spec ships BOTH path-segment `_when.*` and `render.map.yaml`. Confirm the stated precedence (path-segment wins) and the `requires_archetype` belt-and-suspenders guard, or drop one to reduce surface area (render-spec open Q1).

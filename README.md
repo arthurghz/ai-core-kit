@@ -17,7 +17,7 @@ optional MCP, and offline cost telemetry — with zero manual file shuffling.
 
 | Layer | What it is | What governs it |
 |---|---|---|
-| **META** — *building the kit itself* | the scaffold repo: this `README`/`CLAUDE.md`, `docs/`, `.claude/` tooling, `templates/`, `telemetry/`, `discovery/` | forkability, idempotency, template hygiene, the discovery engine, offline telemetry |
+| **META** — *building the kit itself* | the scaffold repo: this `README`/`CLAUDE.md`, `docs/`, `.claude/` tooling, `bootstrap/`, `templates/`, `telemetry/` (and the planned `discovery/`) | forkability, idempotency, template hygiene, offline telemetry, the planned discovery engine |
 | **CHILD** — *what `/ack-init` renders into a fork* | the actual new project | design-contract-first, the bootstrap interview, archetype scaffolding, the **contract gate** |
 
 **Design-contract-first / API-first / the contract gate are CHILD-layer rules.** They
@@ -38,20 +38,25 @@ day-to-day rules in [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md).
 ## How it works (usage flow)
 
 ```
-fork ai-core-kit
-   └─ run /ack-init in the child
-        └─ archetype-first interview (templates/interview/questions.yaml)
+npx create-ack <name> --archetype <x>     (fork-free, primary)
+   │   …or fork ai-core-kit and run /ack-init inside it (in-Claude, interactive)
+   └─ archetype-first interview (templates/interview/questions.yaml)
              └─ writes project.manifest.yaml   ← single source of truth
                   └─ renders the archetype template set (docs/RENDER-ENGINE.md)
                        └─ wires the opt-in extras you chose:
-                          hooks · MCP · telemetry · discovery
+                          hooks · MCP · telemetry   (discovery: planned, P4)
 ```
 
-1. **Fork** this repo as the starting point for a new project.
-2. **Run `/ack-init`** in the fork. It runs an **archetype-first interview**: pick your
-   project shape, then answer only the questions that apply to it (an IaC project is
-   never asked database questions; a fullstack project is offered the design-system
-   install).
+1. **Start a new project — two equivalent entry points:**
+   - **`npx create-ack <name> --archetype <x>`** (primary, **fork-free**): spins up a
+     standalone child straight from the frozen templates — no fork, no META `.claude/`
+     tree, no LLM in the loop. `--archetype` selects the branch axis; `--yes` falls back
+     to the `questions.yaml` defaults for a non-interactive run.
+   - **Fork this repo and run `/ack-init`** inside it (the **in-Claude, interactive**
+     equivalent): the same archetype-first interview, driven conversationally.
+2. Either path runs the **archetype-first interview**: pick your project shape, then
+   answer only the questions that apply to it (an IaC project is never asked database
+   questions; a fullstack project is offered the design-system install).
 3. The interview writes a **`project.manifest.yaml`** — the **single source of truth**
    for everything downstream. There is **no LLM in the render loop**: the same answers
    produce a byte-identical manifest, and the manifest is validated against the frozen
@@ -60,8 +65,8 @@ fork ai-core-kit
 4. The render engine stamps out the **archetype template set** from `templates/`,
    substituting `${dotted.path}` variables from the manifest.
 5. **Opt-in extras** you selected are wired: conservative hooks (including the 3-mode
-   contract gate), project-scoped MCP, the offline telemetry aggregator, and the
-   discovery sources.
+   contract gate), project-scoped MCP, and the offline telemetry aggregator. (The
+   discovery sources are **planned for P4** and not yet wired.)
 
 > Forkability invariant: the META `.claude/` tree is **never** copied into a child.
 > Child hooks use the literal `${CLAUDE_PROJECT_DIR}`; child template variables are
@@ -123,14 +128,15 @@ conventions + manifest) and will be deepened in later versions.
 
 ```
 ai-core-kit/
-├── README.md  CLAUDE.md  THIRD_PARTY_NOTICES.md
+├── README.md  CLAUDE.md  LICENSE  THIRD_PARTY_NOTICES.md
 ├── .claude/{agents,commands,skills,hooks}/  settings.json   # META tooling (never forked into a child)
+├── bootstrap/{ack.bootstrap.yaml,schema/}                   # data-driven META self-build config + JSON-Schema
 ├── templates/                                               # the CHILD payload /ack-init renders
 │   ├── manifest/project.manifest.schema.{yaml,json}
 │   ├── interview/questions.yaml
 │   └── archetypes/{backend-api,fullstack,monorepo,library-sdk,infra-iac}/
-├── telemetry/{README.md,pricing.json}                       # offline cost aggregation
-├── discovery/{sources.yaml,proposals/,adopted/}             # propose, never auto-adopt
+├── telemetry/{README.md,pricing.json,aggregate.py,observability/}  # offline cost aggregation
+├── discovery/{sources.yaml,proposals/,adopted/}             # planned (P4) — not yet on disk
 └── docs/
 ```
 
@@ -145,6 +151,10 @@ ai-core-kit/
 - [`docs/CONVENTIONS.md`](./docs/CONVENTIONS.md) — canonical `.claude/` conventions (SKILL.md / agent / command / hook shape).
 
 ## Licensing
+
+The `ai-core-kit` project itself is **MIT-licensed** (see [`./LICENSE`](./LICENSE)); the
+Apache-2.0 note below applies **only** to the vendored Anthropic *example* skills, which
+carry their own `LICENSE.txt` + `NOTICE`.
 
 `ai-core-kit` learns patterns broadly but vendors files conservatively. Anthropic
 **example** skills are Apache-2.0 (vendorable **with** a NOTICE); the Anthropic

@@ -1,5 +1,14 @@
 # ai-core-kit — Bootstrap & Build Handoff
 
+> **Superseded / historical.** This handoff predates the P3 renames and the
+> data-driven build, and is kept for narrative context only. For the **current**
+> state see [`BOOTSTRAP-CONFIG.md`](./BOOTSTRAP-CONFIG.md) (the live, data-driven
+> build config) and [`README.md`](../README.md) (the current repo overview).
+> Notable drift since this was written: the command is **`/ack-init`** (not
+> `/init`); there is **no `/orchestrator` command** (never built); the JS workflow
+> DSL below is **illustrative only (not shipped)**; and cost telemetry ships as an
+> **offline aggregator** (`telemetry/aggregate.py`), not a `telemetry-mcp` server.
+
 > **Purpose of this file:** a self-contained handoff you can paste into a fresh
 > Claude Code chat to bootstrap `ai-core-kit` with **multiple agent teams**. It
 > carries the framing, the verified reference material + licenses, the canonical
@@ -13,13 +22,13 @@
 ## 0. The one thing to never get wrong: two layers
 
 `ai-core-kit` is **not a project — it is the standard every new project forks.**
-It is a meta-repo that, via a single `/init` run, installs a battle-tested Claude
+It is a meta-repo that, via a single `/ack-init` run, installs a battle-tested Claude
 Code configuration + a delivery methodology into a fresh child repo.
 
 | Layer | What it is | Rules that live here |
 |---|---|---|
 | **META** — building `ai-core-kit` itself | the scaffold repo, its templates, its orchestration | forkability, idempotency, discovery engine, telemetry, template hygiene |
-| **CHILD** — what `/init` *generates* into a fork | the actual new project | design-contract-first, the bootstrap interview, archetype scaffolding, the contract gate |
+| **CHILD** — what `/ack-init` *generates* into a fork | the actual new project | design-contract-first, the bootstrap interview, archetype scaffolding, the contract gate |
 
 **Design-contract-first / API-first / the contract gate are CHILD-layer rules.**
 They are authored in `ai-core-kit` as *templates + hooks that ship into the child*,
@@ -103,7 +112,7 @@ HumanLayer "writing a good CLAUDE.md".
 5. **CLAUDE.md bloat = permanent per-turn token tax** → minimal pointer file.
 6. **MCP scope = credential-leak risk** → project `.mcp.json` (committed) for shared servers,
    local `~/.claude.json` for credentialed ones; always fully-qualify `Server:tool` names; set per-server `timeout`.
-7. **`/init` must branch** on hooks / MCP / agent-teams / SDD-gating (opt-in toggles).
+7. **`/ack-init` must branch** on hooks / MCP / agent-teams / SDD-gating (opt-in toggles).
    Always-on safe core = skills + minimal CLAUDE.md + command/agent conventions.
 
 ---
@@ -114,12 +123,12 @@ HumanLayer "writing a good CLAUDE.md".
 |---|---|---|---|
 | **1** | `git init` + repo tree + `docs/REFERENCES.md` (license ledger) + minimal `CLAUDE.md` + `README.md` | Research/Infra | ✋ |
 | **2** | `.claude/` core: `settings.json`, agent/skill/command **conventions** + the team agents in `.claude/agents/` | Infra | — |
-| **3** | `/init` interactive interview + `/orchestrator` + `/discover` commands | Template | ✋ |
+| **3** | `/ack-init` interactive interview + `/discover` commands (~~`/orchestrator`~~ removed — never built) | Template | ✋ |
 | **4** | 5 archetype template sets under `templates/archetypes/*` + branch-aware interview logic | Template | ✋ |
 | **5** | Contract template + **3-mode manifest-driven gate** (block/warn/off; exit-2 + permissionDecision) | Contract | ✋ |
-| **6** | `telemetry-mcp` + offline aggregator + `pricing.json` + `telemetry/README.md`; budgets | Infra | — |
+| **6** | offline aggregator (`telemetry/aggregate.py`) + `pricing.json` + `telemetry/README.md`; budgets (~~`telemetry-mcp`~~ removed — cost is OFFLINE-only, issue #11008) | Infra | — |
 | **7** | `discovery/{sources.yaml,proposals,adopted}` + scheduled-PR Action; `/discover` modes | Discovery | — |
-| **8** | E2E: fork → `/init` per archetype → gate blocks → `/discover` → telemetry per-feature cost | QA | ✋ final |
+| **8** | E2E: fork → `/ack-init` per archetype → gate blocks → `/discover` → telemetry per-feature cost | QA | ✋ final |
 
 **Build method (confirmed):** **workflow per phase** — each phase runs as a multi-agent
 team you can watch live. Every phase: agents **git clone** the reference repos for exact
@@ -129,7 +138,7 @@ extraction and **verify each `.claude/` primitive against docs.claude.com** befo
 ```
 ai-core-kit/
 ├── .claude/{agents,commands,skills,hooks}/   settings.json
-├── .mcp.json                                 # telemetry-mcp
+├── .mcp.json                                 # (telemetry-mcp NOT shipped; cost is offline via telemetry/aggregate.py)
 ├── templates/
 │   ├── archetypes/{backend-api,fullstack,monorepo,library-sdk,infra-iac}/
 │   ├── contract/_template.contract.md
@@ -154,7 +163,7 @@ ai-core-kit/
 | **Contract/methodology** | contract template + 3-mode gate hook | builds child payload |
 | **Design-system** | `frontend-design` + `brand-guidelines`-derived skills, tokens | child fullstack |
 | **Infra/platform** | `.claude/` tree, hooks, `settings.json`, `.mcp.json`, telemetry MCP | meta |
-| **QA/review** | acceptance criteria, runs hooks, **test-forks `/init` per archetype** | meta |
+| **QA/review** | acceptance criteria, runs hooks, **test-forks `/ack-init` per archetype** | meta |
 
 Orchestrator: fan-out in parallel, fan-in at gates, tag every task with `feature/contract_id`,
 surface per-phase status incl. cumulative token cost. **Stop at each ✋ gate for approval.**
@@ -174,6 +183,11 @@ acceptance tests. Never conflate the META and CHILD layers. Start with Phase 1.
 ```
 
 ### 6b. Workflow skeleton (one phase = one team; pattern to reuse per phase)
+
+> **Illustrative only (not shipped).** The JS DSL below sketches the per-phase
+> team pattern; no such `meta`/`phase`/`agent` workflow file ships in the repo. The
+> live, data-driven build is config-first — see [`BOOTSTRAP-CONFIG.md`](./BOOTSTRAP-CONFIG.md).
+
 ```js
 export const meta = {
   name: 'ai-core-kit-phaseN',
@@ -207,11 +221,12 @@ return { facts: facts.length, artifacts, qa };
 
 ## 7. Acceptance tests (definition of done)
 
-1. **Fork → `/init` per archetype** produces a working, project-specific setup (correct
+1. **Fork → `/ack-init` per archetype** produces a working, project-specific setup (correct
    templates, contract template, gate active in chosen mode, MCP wired, tailored
    `CLAUDE.md` + `project.manifest.yaml`), zero manual file shuffling.
 2. **Interview branches** — IaC never asked DB Qs; fullstack triggers design-system install.
 3. **Gate modes** — `block` refuses `src/**` edits w/o approved contract; `warn` allows-with-warning; `off` silent. No hook code change between modes.
 4. **Discovery** — `/discover --scan` emits ≥1 well-formed proposal, adopts nothing.
-5. **Telemetry** — after an orchestrated run, `telemetry-mcp session_summary` returns a
-   non-empty cost breakdown attributed by feature and agent.
+5. **Telemetry** — after an orchestrated run, the offline aggregator
+   (`telemetry/aggregate.py`, NOT a `telemetry-mcp` server) returns a non-empty cost
+   breakdown attributed by feature and agent.

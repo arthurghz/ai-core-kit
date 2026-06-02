@@ -13,7 +13,7 @@ otherwise.
 ## The boundary rule (never conflate)
 
 - **META** = building the kit: this file, `README.md`, `docs/`, `.claude/` tooling,
-  `templates/` authoring, `telemetry/`, `discovery/`. Governed by forkability,
+  `templates/` authoring, `telemetry/`, `discovery/` (planned). Governed by forkability,
   idempotency, template hygiene.
 - **CHILD** = what `/ack-init` renders into a fork — **only** what lives under
   `templates/`. Design-contract-first and the contract gate are **CHILD** rules.

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "//": "META-LAYER settings for BUILDING ai-core-kit itself. This is NOT a child payload — it is never copied into a fork (forkability invariant I7; child settings live under templates/archetypes/*/.claude/settings.json.tpl). Deliberately carries NO contract-gate / PreToolUse-deny wiring: the META repo has no project.manifest.yaml and no contract instance, so a gate here would only ever pass vacuously (finding 12). Agent-teams is NOT enabled here — the build is driven by the Workflow tool, not experimental agent teams.",
+
+  "//permissions": "Conservative allowlist for authoring the kit: read/inspect freely, run the kit's own checks, clone reference repos into the scratch dir, and use git read commands without a prompt. Mutating git (commit/push) and destructive shell stay un-allowlisted so they still prompt.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(python3 scripts/lint-frontmatter.py:*)",
+      "Bash(python3 scripts/*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git clone:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(rg:*)",
+      "Bash(jq:*)",
+      "Bash(yq:*)",
+      "Bash(test:*)",
+      "Bash(shasum:*)",
+      "Bash(sha256sum:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.pem)",
+      "Read(./**/secrets/**)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(rm:*)"
+    ]
+  },
+
+  "//env": "No CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS here — the build uses the Workflow tool. Keep the per-turn context lean while authoring docs/templates.",
+  "env": {
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "32000"
+  }
+}

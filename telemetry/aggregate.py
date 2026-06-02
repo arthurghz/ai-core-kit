@@ -48,6 +48,14 @@ from pathlib import Path
 VALID_AXES = ("model", "feature", "agent", "session")
 DEFAULT_AXES = ("feature", "model", "agent", "session")
 
+# --- accepted manifest MAJOR (lockstep with the frozen contract) -------------
+# The CHILD manifest schema_version this aggregator understands. A mismatched
+# MAJOR means the manifest shape may have moved; we IGNORE its telemetry.*
+# defaults (with a stderr notice) rather than read keys that may have shifted.
+# CLI flags still work, so aggregation never wedges. Bump in lockstep with
+# templates/manifest/project.manifest.schema.{yaml,json}.
+ACCEPTED_MANIFEST_MAJOR = 3
+
 # --- token field -> pricing key map (the materially-correct cost model) -----
 # message.usage carries: input_tokens, output_tokens, cache_read_input_tokens,
 # cache_creation_input_tokens, and (when present) a cache_creation object that
@@ -421,11 +429,21 @@ def manifest_defaults(manifest_path):
     if not p.is_file():
         return {}
     vals, in_tel, in_attr = {}, False, False
+    manifest_major = None
     for line in p.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         indent = len(line) - len(line.lstrip())
+        # Capture the top-level schema_version (a MAJOR-version guard). A manifest
+        # whose MAJOR != ACCEPTED_MANIFEST_MAJOR may have a shifted shape, so we
+        # refuse to read its telemetry.* defaults (see the post-scan check).
+        if indent == 0 and stripped.startswith("schema_version:"):
+            sv = stripped.split(":", 1)[1].split("#", 1)[0].strip()
+            try:
+                manifest_major = int(sv)
+            except ValueError:
+                manifest_major = None
         if stripped.startswith("telemetry:"):
             in_tel, in_attr = True, False
             continue
@@ -451,6 +469,17 @@ def manifest_defaults(manifest_path):
             vals["branch_prefix"] = val
         elif in_attr and key == "default_bucket":
             vals["default_bucket"] = val
+    # MAJOR-version guard: a recognized-but-mismatched major => ignore the
+    # manifest's defaults (stderr notice). CLI flags still apply, so aggregation
+    # never wedges. An ABSENT schema_version is tolerated (pre-version manifests).
+    if manifest_major is not None and manifest_major != ACCEPTED_MANIFEST_MAJOR:
+        print(
+            f"manifest schema_version {manifest_major} != accepted major "
+            f"{ACCEPTED_MANIFEST_MAJOR}; ignoring its telemetry.* defaults "
+            f"(re-run /ack-init --migrate to upgrade the manifest).",
+            file=sys.stderr,
+        )
+        return {}
     return vals
 
 

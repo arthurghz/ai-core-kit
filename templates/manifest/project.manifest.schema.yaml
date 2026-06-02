@@ -1,6 +1,6 @@
 # =============================================================================
 # project.manifest.schema.yaml  --  ai-core-kit CHILD manifest CONTRACT (FROZEN)
-# schema_version: 2
+# schema_version: 3
 # =============================================================================
 # This file is the FROZEN, AUTHORITATIVE contract for a forked CHILD project's
 # `project.manifest.yaml`. It is the SINGLE SOURCE OF TRUTH shared by four teams:
@@ -32,8 +32,11 @@
 #   I2. The manifest is split into `managed:` (machine-owned, regenerated every run)
 #       and `user:` (human-owned, never overwritten). No 3-way merge engine exists;
 #       idempotency is STRUCTURAL, not procedural.
-#   I3. `archetype` is the BRANCH AXIS. v1 ships backend-api + fullstack DEEPLY.
+#   I3. `archetype` is the BRANCH AXIS. v1 ships backend-api + fullstack DEEPLY;
+#       saas (Vercel+Next+shadcn+Supabase) is the v3-added deep web archetype.
 #       monorepo | library-sdk | infra-iac are schema-known but render a minimal core.
+#       IaC is ORTHOGONAL: features.iac + the `iac` block let ANY archetype add
+#       infrastructure (it is NOT an archetype except for the pure infra-iac repo).
 #   I4. contract_gate.{scope,exempt,protected_paths} are PER-ARCHETYPE BY
 #       CONSTRUCTION. /ack-init writes archetype-appropriate defaults; the schema's
 #       if/then blocks REQUIRE protected_paths to be present and non-empty so that
@@ -55,11 +58,18 @@
 # required: [schema_version, managed]
 # additionalProperties: false
 
-schema_version: 2
-# int, required, const 2. Major-version axis for the manifest FORMAT.
+schema_version: 3
+# int, required, const 3. Major-version axis for the manifest FORMAT.
 # (v1 -> v2: backend-api no longer REQUIRES contracts[]; contracts is optional
 #  with default [] for ALL archetypes -- see PER-ARCHETYPE RULES + O3.)
+# (v2 -> v3: + `saas` archetype; design_system REQUIRED for [fullstack, saas];
+#  + auth/hosting/billing objects; persistence.db += supabase; + features.iac
+#  toggle + the orthogonal `iac` block with DERIVED is_aws/is_gcp booleans.
+#  All new keys default to "off", so a v2->v3 migration is render-neutral.)
 # Consumers refuse a mismatched MAJOR: gate -> mode off + stderr; aggregator -> error.
+# Migration for existing v2 forks is ONE-WAY + OPT-IN: `/ack-init --migrate` rewrites
+# managed: to v3 shape (features.iac=false, no iac block, design_system unchanged)
+# and recomputes the hash. Without --migrate a v2 child is refused, not auto-upgraded.
 
 generator:
   # object, optional. Provenance only. NONE of these fields are behavioral and
@@ -128,8 +138,8 @@ managed:
   # ---------------------------------------------------------------------------
   archetype: backend-api
   # enum, required:
-  #   backend-api | fullstack            (v1: rendered DEEP)
-  #   monorepo | library-sdk | infra-iac (v1: schema-known, minimal-core render)
+  #   backend-api | fullstack | saas     (rendered DEEP)
+  #   monorepo | library-sdk | infra-iac (schema-known, minimal-core render)
 
   # ---------------------------------------------------------------------------
   # features  -- stage-B opt-in toggles. Default OFF. Booleans only.
@@ -143,6 +153,12 @@ managed:
     sdd_gate: true                      # bool. MASTER SWITCH for the contract gate.
                                         #   false => P4 omits the gate hook entirely
                                         #   (contract_gate.mode is then moot).
+    iac: false                          # bool, OPTIONAL (default false). ORTHOGONAL
+                                        #   Infrastructure-as-Code toggle. true => the
+                                        #   managed `iac` block is REQUIRED (allOf) and
+                                        #   the _when.features.iac/ subtree renders.
+                                        #   ANY archetype may opt in (backend-api+IaC,
+                                        #   fullstack+IaC, saas+IaC); not an archetype.
 
   # ---------------------------------------------------------------------------
   # api_first  -- READ by P4. backend-api defaults true; fullstack ties to whether
@@ -159,12 +175,42 @@ managed:
   # ---------------------------------------------------------------------------
   persistence:
     enabled: true                       # bool. false => block omitted from render
-    db: postgres                        # enum: postgres|mysql|sqlite|mongodb|none
+    db: postgres                        # enum: postgres|mysql|sqlite|mongodb|supabase|none
+                                        #   supabase implies a managed Postgres (saas).
     orm: sqlalchemy                     # enum: sqlalchemy|prisma|drizzle|gorm|none
+                                        #   saas default is drizzle (Node).
     migrations:
       enabled: true                     # bool
       tool: alembic                     # enum: alembic|prisma-migrate|flyway|goose|none
       dir: migrations/                  # path. Rendered into scaffold; usually exempt.
+
+  # ---------------------------------------------------------------------------
+  # auth / hosting / billing  -- SaaS stack fields (v3). Optional everywhere; the
+  # saas interview branch writes them. NOT present in this backend-api instance
+  # (the worked SaaS instance is embedded near the end). Defaults baked by the
+  # interview: auth.provider=clerk, hosting.target=vercel, billing.provider=stripe.
+  # ---------------------------------------------------------------------------
+  # auth:
+  #   provider: clerk                    # enum: clerk|supabase-auth|nextauth|none
+  # hosting:
+  #   target: vercel                     # enum: vercel|netlify|fly|aws|gcp|none
+  #                                      #   distinct from ci_cd.target (CI only).
+  # billing:
+  #   provider: stripe                   # enum: stripe|lemonsqueezy|none
+
+  # ---------------------------------------------------------------------------
+  # iac  -- ORTHOGONAL Infrastructure-as-Code block (v3). PRESENT iff
+  # features.iac == true (schema allOf). provider/tool are REQUIRED then.
+  # is_aws/is_gcp are DERIVED booleans emitted by lib/manifest.mjs from provider
+  # so the boolean-only path-segment guards (_when.iac.is_aws/) can select the
+  # per-provider subtree WITHOUT an equality operator in the render engine.
+  # ---------------------------------------------------------------------------
+  # iac:
+  #   provider: aws                      # enum: aws|gcp|none
+  #   tool: terraform                    # enum: terraform|pulumi|cloudformation|cdk|none
+  #   is_aws: true                       # bool, DERIVED (provider == aws). Schema-declared
+  #   is_gcp: false                      # bool, DERIVED (provider == gcp). so it is not
+  #                                      #   rejected by additionalProperties:false.
 
   # ---------------------------------------------------------------------------
   # contract_gate  -- CONSUMED by P5 hook (.claude/hooks/contract-gate), read-only.
@@ -246,13 +292,13 @@ managed:
       path: docs/contracts/C-002-fulfillment.contract.md
 
   # ---------------------------------------------------------------------------
-  # design_system  -- REQUIRED iff archetype == fullstack (schema-enforced).
+  # design_system  -- REQUIRED iff archetype in [fullstack, saas] (schema-enforced).
   # FORBIDDEN for backend-api (schema-enforced) -- hence ABSENT in this backend
-  # instance. When present & install:true, P4 copies
-  #   templates/archetypes/fullstack/design-system/
-  # which contains ONLY Apache-2.0 example skills WITH NOTICE (finding 21/45);
-  # NEVER docx/pdf/pptx/xlsx-derived (proprietary source-available) content.
-  # Shape (fullstack only):
+  # instance. When present & install:true, P4 copies the design-system payload
+  # (the fullstack payload is reused verbatim for saas), which contains ONLY
+  # Apache-2.0 example skills WITH NOTICE (finding 21/45); NEVER
+  # docx/pdf/pptx/xlsx-derived (proprietary source-available) content.
+  # Shape (fullstack / saas):
   #   design_system:
   #     install: true                   # bool, required
   #     source: templates/archetypes/fullstack/design-system   # string
@@ -326,13 +372,15 @@ managed:
   # ---------------------------------------------------------------------------
   # PER-ARCHETYPE RULES  (enforced in the JSON-Schema via managed.allOf if/then)
   # ---------------------------------------------------------------------------
-  #   if archetype == fullstack:
+  #   if archetype in [fullstack, saas]:
   #       then required: [design_system]            # must ship its own design system
   #   if archetype == backend-api:
   #       then properties.design_system: false      # design_system FORBIDDEN
   #       (v2/O3: contracts is NO LONGER required for backend-api; it is optional
   #        with default [] for ALL archetypes. /ack-init seeds one stub contract
   #        entry for backend-api as a quality default, not a schema requirement.)
+  #   if features.iac == true:
+  #       then required: [iac]                       # the iac block is mandatory then
   #   (always) contract_gate.protected_paths: minItems 1   # gate can never be vacuous
   # ---------------------------------------------------------------------------
 
@@ -357,7 +405,7 @@ user:
 #   - protected_paths/scope/exempt cover app/** + api/** + src/** (not just src/**)
 #   - framework drawn from the fullstack enum (next)
 #
-#   schema_version: 2
+#   schema_version: 3
 #   managed:
 #     manifest_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 #     project:
@@ -434,6 +482,102 @@ user:
 #       - path: .claude/settings.json
 #         managed_block: "ack:managed"
 #       - path: .mcp.json
+#         managed_block: "ack:managed"
+#       - path: CLAUDE.md
+#         managed_block: "ack:managed"
+#       - path: .claude/hooks/contract-gate
+#         managed_block: null
+#   user:
+#     notes: ""
+#     overrides: {}
+# =============================================================================
+
+
+# =============================================================================
+# WORKED SAAS + IaC INSTANCE (inline reference -- valid against this schema, v3)
+# =============================================================================
+# Demonstrates the v3-added deep archetype + the orthogonal IaC toggle:
+#   - archetype: saas (Vercel + Next + shadcn + Supabase)
+#   - design_system block PRESENT and REQUIRED (same rule as fullstack)
+#   - auth/hosting/billing populated with the opinionated defaults
+#   - persistence.db: supabase + orm: drizzle
+#   - features.iac: true => the `iac` block is REQUIRED, with DERIVED is_aws/is_gcp
+#
+#   schema_version: 3
+#   managed:
+#     manifest_hash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+#     project:
+#       name: acme-saas
+#       description: Multi-tenant SaaS dashboard with billing
+#       language: typescript
+#       runtime: node20
+#       package_manager: pnpm
+#       framework: next
+#       architecture: modular-monolith
+#     archetype: saas
+#     features:
+#       hooks: true
+#       mcp: true
+#       agent_teams: false
+#       sdd_gate: true
+#       iac: true
+#     api_first: true
+#     persistence:
+#       enabled: true
+#       db: supabase                     # managed Postgres
+#       orm: drizzle
+#       migrations:
+#         enabled: true
+#         tool: prisma-migrate           # drizzle-kit recorded as the closest enum is n/a; tool is advisory
+#         dir: db/migrations/
+#     auth:
+#       provider: clerk
+#     hosting:
+#       target: vercel
+#     billing:
+#       provider: stripe
+#     iac:
+#       provider: aws
+#       tool: terraform
+#       is_aws: true                     # DERIVED from provider
+#       is_gcp: false                    # DERIVED from provider
+#     contract_gate:
+#       mode: block
+#       glob_dialect: fnmatch
+#       protected_paths:
+#         - "app/**"
+#         - "lib/**"
+#         - "db/**"
+#         - "src/**"
+#       scope:
+#         - "app/**"
+#         - "db/**"
+#       exempt:
+#         - "**/*.test.*"
+#         - "**/*.stories.tsx"
+#         - "supabase/migrations/**"
+#         - "**/__snapshots__/**"
+#       require_approval_by:
+#         - "@acme/web-owners"
+#     contracts: []
+#     design_system:                     # REQUIRED for saas (same rule as fullstack)
+#       install: true
+#       source: design-system
+#       tokens:
+#         color_brand: "#0b5fff"
+#     telemetry:
+#       enabled: true
+#       attribution:
+#         mode: branch_prefix
+#         branch_prefix: "feat/"
+#         default_bucket: unattributed
+#       pricing_ref: telemetry/pricing.json
+#     discovery:
+#       enabled: false
+#     ci_cd:
+#       target: github-actions
+#     rendered_files:
+#       - path: .claude/settings.json
 #         managed_block: "ack:managed"
 #       - path: CLAUDE.md
 #         managed_block: "ack:managed"

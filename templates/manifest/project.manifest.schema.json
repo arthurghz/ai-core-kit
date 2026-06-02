@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://stallae.dev/ai-core-kit/project.manifest.schema.json",
   "title": "ai-core-kit child project manifest",
-  "description": "FROZEN authoritative contract for a forked CHILD project's project.manifest.yaml. Generated from project.manifest.schema.yaml. schema_version 2 (O3: backend-api no longer requires contracts; contracts optional with default [] for all archetypes).",
+  "description": "FROZEN authoritative contract for a forked CHILD project's project.manifest.yaml. Generated from project.manifest.schema.yaml. schema_version 3 (v3: + saas archetype; design_system REQUIRED for [fullstack, saas]; + auth/hosting/billing objects; persistence.db += supabase; + features.iac toggle + orthogonal iac block with derived is_aws/is_gcp).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "managed"],
   "properties": {
     "schema_version": {
-      "description": "Major-version axis for the manifest FORMAT. const 2 in this revision.",
-      "const": 2
+      "description": "Major-version axis for the manifest FORMAT. const 3 in this revision. Consumers refuse a mismatched MAJOR. v2->v3 migration is one-way + opt-in (/ack-init --migrate); all new keys default off so the migration is render-neutral.",
+      "const": 3
     },
     "generator": {
       "description": "Provenance only. NONE of these fields are behavioral and NONE participate in manifest_hash.",
@@ -59,9 +59,9 @@
           }
         },
         "archetype": {
-          "description": "THE BRANCH AXIS. backend-api|fullstack render deep; monorepo|library-sdk|infra-iac are schema-known minimal-core.",
+          "description": "THE BRANCH AXIS. backend-api|fullstack|saas render deep; monorepo|library-sdk|infra-iac are schema-known minimal-core. IaC is orthogonal (features.iac), not an archetype except the pure infra-iac repo.",
           "type": "string",
-          "enum": ["backend-api", "fullstack", "monorepo", "library-sdk", "infra-iac"]
+          "enum": ["backend-api", "fullstack", "saas", "monorepo", "library-sdk", "infra-iac"]
         },
         "features": {
           "type": "object",
@@ -71,7 +71,11 @@
             "hooks": { "type": "boolean" },
             "mcp": { "type": "boolean" },
             "agent_teams": { "type": "boolean" },
-            "sdd_gate": { "type": "boolean" }
+            "sdd_gate": { "type": "boolean" },
+            "iac": {
+              "description": "ORTHOGONAL Infrastructure-as-Code toggle. Optional, default false. true => the managed iac block is REQUIRED (managed.allOf). ANY archetype may opt in.",
+              "type": "boolean"
+            }
           }
         },
         "api_first": { "type": "boolean" },
@@ -82,10 +86,12 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "db": {
+              "description": "supabase implies a managed Postgres (saas default).",
               "type": "string",
-              "enum": ["postgres", "mysql", "sqlite", "mongodb", "none"]
+              "enum": ["postgres", "mysql", "sqlite", "mongodb", "supabase", "none"]
             },
             "orm": {
+              "description": "saas default is drizzle (Node).",
               "type": "string",
               "enum": ["sqlalchemy", "prisma", "drizzle", "gorm", "none"]
             },
@@ -101,6 +107,57 @@
                 "dir": { "type": "string" }
               }
             }
+          }
+        },
+        "auth": {
+          "description": "SaaS auth stack field (v3). Optional everywhere; the saas interview branch writes it (default clerk).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": ["clerk", "supabase-auth", "nextauth", "none"]
+            }
+          }
+        },
+        "hosting": {
+          "description": "SaaS hosting target (v3). Distinct from ci_cd.target (which is CI only). Optional; the saas interview branch writes it (default vercel).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string",
+              "enum": ["vercel", "netlify", "fly", "aws", "gcp", "none"]
+            }
+          }
+        },
+        "billing": {
+          "description": "SaaS billing stack field (v3). Optional; the saas interview branch writes it (default stripe).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": ["stripe", "lemonsqueezy", "none"]
+            }
+          }
+        },
+        "iac": {
+          "description": "ORTHOGONAL Infrastructure-as-Code block (v3). PRESENT iff features.iac == true (managed.allOf). is_aws/is_gcp are DERIVED booleans (from provider) emitted by lib/manifest.mjs so the boolean-only path-segment guards (_when.iac.is_aws/) work WITHOUT an equality operator in the render engine; they are schema-declared so additionalProperties:false does not reject them.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "tool"],
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": ["aws", "gcp", "none"]
+            },
+            "tool": {
+              "type": "string",
+              "enum": ["terraform", "pulumi", "cloudformation", "cdk", "none"]
+            },
+            "is_aws": { "type": "boolean" },
+            "is_gcp": { "type": "boolean" }
           }
         },
         "contract_gate": {
@@ -140,7 +197,7 @@
           "items": { "$ref": "#/$defs/contract" }
         },
         "design_system": {
-          "description": "REQUIRED iff archetype == fullstack; FORBIDDEN for backend-api (both enforced via managed.allOf).",
+          "description": "REQUIRED iff archetype in [fullstack, saas]; FORBIDDEN for backend-api (both enforced via managed.allOf).",
           "type": "object",
           "additionalProperties": false,
           "required": ["install"],
@@ -218,7 +275,7 @@
       "allOf": [
         {
           "if": {
-            "properties": { "archetype": { "const": "fullstack" } },
+            "properties": { "archetype": { "enum": ["fullstack", "saas"] } },
             "required": ["archetype"]
           },
           "then": {
@@ -234,6 +291,15 @@
             "properties": {
               "design_system": false
             }
+          }
+        },
+        {
+          "if": {
+            "properties": { "features": { "properties": { "iac": { "const": true } }, "required": ["iac"] } },
+            "required": ["features"]
+          },
+          "then": {
+            "required": ["iac"]
           }
         }
       ]

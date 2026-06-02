@@ -17,9 +17,13 @@
 #   MODES: block -> exit 2 + permissionDecision deny; warn -> exit 0 + stderr;
 #          off  -> exit 0, no output, early-return before parsing manifest body.
 #   FAIL-OPEN: missing/unparseable manifest => behave as off + stderr notice.
+#   ACCEPTED MAJOR: schema_version == 3 (v3). A mismatched MAJOR is treated like a
+#     fail-open condition: behave as `off` + stderr notice, never exit 2. The P4
+#     deep implementation reads managed.schema_version and degrades on != 3.
 #
 # Fullstack note: protected_paths/scope cover app/** + api/** + src/** by the
-# time this runs (/ack-init wrote archetype defaults).
+# time this runs (/ack-init wrote archetype defaults). saas reuses the same gate
+# (app/** lib/** db/** src/**) — the hook itself is archetype-agnostic.
 #
 # TODO(P4): DEEP gate implementation deferred to P4. This skeleton is a coherent
 # fail-open stub that exits 0 so the render + branch-matrix test has a real,

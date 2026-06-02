@@ -1,6 +1,6 @@
 ---
 description: Scaffold (or safely re-scaffold) an ai-core-kit CHILD project from this kit. Asks the archetype first, runs an archetype-scoped interview, writes project.manifest.yaml (the single source of truth), renders the template set, and wires opt-in hooks/MCP/telemetry/discovery. Re-entrant and idempotent via managed-block merge. Run this in a forked CHILD repo, never in the ai-core-kit META repo.
-argument-hint: "[--non-interactive] [--answers <answers-file.yaml>] [--archetype <name>] [--force|--skip]"
+argument-hint: "[--non-interactive] [--answers <answers-file.yaml>] [--archetype <name>] [--migrate] [--force|--skip]"
 allowed-tools: Read, Write, Edit, Bash(yq *), Bash(jq *), Bash(git rev-parse *), Bash(git config *), Bash(test *), Bash(ls *), Bash(cat project.manifest.yaml), Bash(sha256sum *), Bash(shasum *), AskUserQuestion
 disable-model-invocation: true
 ---
@@ -19,6 +19,10 @@ Arguments (parsed from `$ARGUMENTS`, all optional):
 - `--non-interactive` — QA / CI mode. No AskUserQuestion calls. Requires `--answers`.
 - `--answers <path>` — answers file (YAML) that fully specifies the interview.
 - `--archetype <name>` — pre-select the branch axis, skipping the first question.
+- `--migrate` — opt in to upgrading an EXISTING child manifest whose
+  `schema_version` MAJOR is older than the current contract (e.g. v2 → v3). Without
+  this flag a major-mismatched manifest is REFUSED, not silently rewritten. See
+  STEP 1.5.
 - `--force` — re-render conflict policy: overwrite ack-owned regions even if
   hand-edited inside the managed block (still never touches unmanaged files/regions).
 - `--skip` — re-render conflict policy: keep existing on any conflict (CI default).
@@ -80,12 +84,44 @@ Then end the turn. This guard is non-negotiable and has no override flag.
 
 ---
 
+## STEP 1.5 — MAJOR-VERSION GUARD + OPT-IN MIGRATION (`--migrate`)
+
+The current contract is `schema_version: 3`. On a RE-RUN, read the existing
+manifest's top-level `schema_version`:
+
+- **Match (== 3):** proceed normally (STEP 2 onward).
+- **Older MAJOR (e.g. 2) and `--migrate` NOT passed:** **REFUSE, write nothing.**
+  Print exactly:
+  > `manifest schema_version <N> is older than the current contract (3). This is a
+  > one-way migration; re-run with --migrate to upgrade. Without it, /ack-init will
+  > not silently rewrite your manifest.`
+  Then end the turn. (Consumers also degrade safely: the gate falls back to `off` +
+  stderr; the telemetry aggregator ignores the manifest's defaults + warns.)
+- **Older MAJOR and `--migrate` passed:** perform the **one-way, opt-in migration**:
+  1. Carry the existing `user:` subtree verbatim (never overwritten).
+  2. Reuse the existing `managed:` answers as the migration inputs, then DEFAULT all
+     v3-new keys to "off" so the migration is render-neutral:
+     - `features.iac` → omitted (treated as `false`); NO `iac` block is added.
+     - `auth` / `hosting` / `billing` → added ONLY if the archetype is `saas`
+       (with the opinionated defaults: clerk / vercel / stripe); otherwise omitted.
+     - `persistence.db` → unchanged (no auto-switch to `supabase`).
+     - `design_system` → unchanged.
+  3. Set `schema_version: 3`, re-validate against the frozen JSON-Schema, recompute
+     `manifest_hash` LAST, and write. The new keys defaulting to "off" means the
+     deterministic render is unchanged — only the version + any saas stack defaults
+     differ. This is a **one-way** migration (no v3 → v2 downgrade path).
+
+A fresh first run (no manifest present) is always authored at `schema_version: 3`;
+`--migrate` is a no-op there.
+
+---
+
 ## STEP 2 — FREEZE THE CONTRACT, THEN ASK ARCHETYPE FIRST
 
 The manifest schema is FROZEN at `templates/manifest/project.manifest.schema.json`
 (JSON-Schema draft 2020-12, `additionalProperties:false` everywhere). It is the
 single source of truth: the interview WRITES it, the renderer/gate/telemetry READ
-it. You do not invent keys. Treat `schema_version: 2` as a hard constant.
+it. You do not invent keys. Treat `schema_version: 3` as a hard constant.
 
 **Author-time integrity check (invariant I1):** every entry in
 `templates/interview/questions.yaml` carries a `writes_to` JSON-pointer that MUST
@@ -165,7 +201,7 @@ Apply the PER-ARCHETYPE schema rules while assembling (enforced by the schema's
   seeded with one stub entry (quality default, NOT schema-required). Seed exactly:
   `{id: "C-001-<project-slug>", scope: ["src/**"], status: draft}`. `contracts` is
   an optional property (`default: []`) for all archetypes; it is no longer
-  schema-required for backend-api (schema_version 2).
+  schema-required for backend-api (schema_version 3).
 - ALWAYS: `contract_gate.protected_paths` has `minItems: 1` — the gate can never
   be vacuous (invariant I4 / finding 44). Write archetype-appropriate defaults:
   - backend-api: protected `src/** migrations/** openapi/**`, scope `src/**`.

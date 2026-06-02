@@ -51,15 +51,17 @@ rules:
     when: features.sdd_gate
 
   # ---------------------------------------------------------------------------
-  # Fullstack-only design system subtree.
-  # The path-segment guard `_when.design_system.install/` (in the fullstack tree)
+  # Design-bearing design system subtree (fullstack + saas; v3).
+  # The path-segment guard `_when.design_system.install/` (in the archetype tree)
   # is the PRIMARY inclusion control and is evaluated first. This rule is the
   # belt-and-suspenders ASSERTION (rule 3 above): if a design-system file is ever
-  # reached, the archetype MUST be fullstack or the render aborts. Under
-  # backend-api, design_system.* is absent => when=false => omitted before this
-  # assertion can fire (rule 4); the assertion only catches authoring mistakes.
+  # reached, the archetype MUST be one of requires_archetype or the render aborts.
+  # Under backend-api, design_system.* is absent => when=false => omitted before
+  # this assertion can fire (rule 4); the assertion only catches authoring mistakes.
+  # requires_archetype is a LIST here (v3): the assertion passes if the archetype
+  # is ANY listed value (evalRenderMap accepts a scalar OR an array).
   # ---------------------------------------------------------------------------
   - glob: "**/design-system/**"
-    archetype: fullstack
+    archetype: "*"
     when: design_system.install
-    requires_archetype: fullstack
+    requires_archetype: [fullstack, saas]

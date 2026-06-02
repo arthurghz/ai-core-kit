@@ -366,7 +366,9 @@ export function evalPathSegments(relTemplatePath, managed) {
  *  - For every rule whose `archetype` is `*` or === managed.archetype AND whose
  *    glob matches the path:
  *      * if rule has `requires_archetype` AND when is truthy AND
- *        managed.archetype !== requires_archetype => ABORT (RenderError).
+ *        managed.archetype is not among requires_archetype => ABORT (RenderError).
+ *        requires_archetype may be a SCALAR (single archetype) OR an ARRAY of
+ *        allowed archetypes (v3: design-system is shared by [fullstack, saas]).
  *      * the file is included iff EVERY matching rule's `when` is truthy.
  *  - Rules whose archetype scope does not apply are ignored.
  * Returns { included: boolean }.
@@ -381,12 +383,17 @@ export function evalRenderMap(renderMap, postStripWithTpl, archetype, managed) {
 
     const whenTruthy = rule.when ? lookupBool(rule.when, managed) : true;
 
-    if (rule.requires_archetype && whenTruthy && archetype !== rule.requires_archetype) {
-      throw new RenderError(
-        `render.map.yaml assertion failed: rule glob "${rule.glob}" matched "${postStripWithTpl}" with when=${rule.when} truthy, ` +
-          `but managed.archetype="${archetype}" != requires_archetype="${rule.requires_archetype}"`,
-        { path: postStripWithTpl },
-      );
+    if (rule.requires_archetype && whenTruthy) {
+      const allowed = Array.isArray(rule.requires_archetype)
+        ? rule.requires_archetype
+        : [rule.requires_archetype];
+      if (!allowed.includes(archetype)) {
+        throw new RenderError(
+          `render.map.yaml assertion failed: rule glob "${rule.glob}" matched "${postStripWithTpl}" with when=${rule.when} truthy, ` +
+            `but managed.archetype="${archetype}" is not in requires_archetype=${JSON.stringify(rule.requires_archetype)}`,
+          { path: postStripWithTpl },
+        );
+      }
     }
     if (!whenTruthy) included = false;
   }

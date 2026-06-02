@@ -17,6 +17,9 @@
 #   MODES: block -> exit 2 + permissionDecision deny; warn -> exit 0 + stderr;
 #          off  -> exit 0, no output, early-return before parsing manifest body.
 #   FAIL-OPEN: missing/unparseable manifest => behave as off + stderr notice.
+#   ACCEPTED MAJOR: schema_version == 3 (v3). A mismatched MAJOR is treated like a
+#     fail-open condition: behave as `off` + stderr notice, never exit 2. The P4
+#     deep implementation reads managed.schema_version and degrades on != 3.
 #
 # TODO(P4): DEEP gate implementation (fnmatch scoping, approved-oracle walk over
 # contracts[], the three distinct mode mechanisms, fail-open manifest read) is

@@ -230,3 +230,21 @@ In short: `BOOTSTRAP-CONFIG.md` + `ack.bootstrap.yaml` + `bootstrap.schema.json`
 schema, `RENDER-ENGINE.md`, and `/ack-init` are the **CHILD payload** that harness
 assembles. Keeping those two stacks distinct is the one thing never to get wrong
 (BOOTSTRAP.md §0).
+
+## 7. CHILD manifest version migration (v2 → v3, opt-in)
+
+The CHILD manifest contract is versioned by `schema_version`
+(`templates/manifest/project.manifest.schema.{yaml,json}`). The current major is
+**3** (v3 added the `saas` archetype, `auth`/`hosting`/`billing`, `persistence.db
++= supabase`, and the orthogonal `features.iac` + `iac` block with derived
+`is_aws`/`is_gcp`). All consumers refuse a mismatched MAJOR: the contract-gate hook
+degrades to `off` + stderr, and the telemetry aggregator
+(`telemetry/aggregate.py`, `ACCEPTED_MANIFEST_MAJOR`) ignores the manifest's
+defaults with a stderr notice.
+
+Migration of an existing **v2** child is **one-way and OPT-IN**: re-run
+`/ack-init --migrate` in the child. It carries `user:` verbatim, defaults every
+v3-new key to "off" (so the deterministic render is unchanged), sets
+`schema_version: 3`, re-validates, and recomputes the hash. Without `--migrate`,
+`/ack-init` REFUSES rather than silently rewriting (see `.claude/commands/ack-init.md`
+STEP 1.5). This note is CHILD payload; `/ack-init` is its authoritative home.

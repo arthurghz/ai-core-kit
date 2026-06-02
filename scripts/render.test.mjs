@@ -284,6 +284,25 @@ test('evalRenderMap: requires_archetype does NOT fire when when is falsy (silent
   assert.equal(r.included, false);
 });
 
+test('v3 evalRenderMap: requires_archetype as an ARRAY accepts every listed archetype', () => {
+  // The real render.map.yaml widens design-system to requires_archetype: [fullstack, saas].
+  const map = { rules: [{ glob: '**/design-system/**', archetype: '*', when: 'design_system.install', requires_archetype: ['fullstack', 'saas'] }] };
+  for (const arch of ['fullstack', 'saas']) {
+    const managed = { archetype: arch, design_system: { install: true } };
+    const r = evalRenderMap(map, 'design-system/theme/globals.css', arch, managed);
+    assert.equal(r.included, true, `${arch} should be allowed by the [fullstack, saas] assertion`);
+  }
+});
+
+test('v3 evalRenderMap: an array requires_archetype STILL aborts for an archetype not in the list', () => {
+  const map = { rules: [{ glob: '**/design-system/**', archetype: '*', when: 'design_system.install', requires_archetype: ['fullstack', 'saas'] }] };
+  const managed = { archetype: 'monorepo', design_system: { install: true } };
+  assert.throws(
+    () => evalRenderMap(map, 'design-system/theme/globals.css', 'monorepo', managed),
+    (e) => e instanceof RenderError && /requires_archetype/.test(e.message),
+  );
+});
+
 // -----------------------------------------------------------------------------
 // §2.3 JSON render: sorted keys + 2-space indent
 // -----------------------------------------------------------------------------

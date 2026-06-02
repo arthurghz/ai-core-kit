@@ -170,6 +170,172 @@ test("Phase B: design_system NOT seeded when install=false (var has no .tpl to b
   assert.ok(!("tokens" in m.design_system));
 });
 
+// -----------------------------------------------------------------------------
+// v3: saas archetype (Vercel+Next+shadcn+Supabase) + the orthogonal IaC toggle.
+// -----------------------------------------------------------------------------
+test("v3: schema_version is 3 on every assembled manifest", () => {
+  assert.equal(mk({ archetype: "backend-api", project_name: "v" }).schema_version, 3);
+  assert.equal(mk({ archetype: "saas", project_name: "v" }).schema_version, 3);
+});
+
+test("v3 saas: design_system REQUIRED (seeded) + auth/hosting/billing defaults", () => {
+  const m = mk({ archetype: "saas", project_name: "acme-saas" }).managed;
+  assert.equal(m.archetype, "saas");
+  // design_system is schema-REQUIRED for saas (same rule as fullstack); seeded.
+  assert.equal(m.design_system.install, true);
+  assert.equal(m.design_system.tokens.color_brand, "#0066CC");
+  // opinionated SaaS stack defaults (USER DECISIONS): clerk + vercel + stripe.
+  assert.deepEqual(m.auth, { provider: "clerk" });
+  assert.deepEqual(m.hosting, { target: "vercel" });
+  assert.deepEqual(m.billing, { provider: "stripe" });
+});
+
+test("v3 saas: alternative auth/hosting/billing via the answers sidecar", () => {
+  // Phase C wires the schema + assembler; the saas persistence interview branch
+  // lands in Phase D. The auth/hosting/billing values arrive via the raw answers
+  // map (sidecar pattern), so the alternatives are exercisable now.
+  const m = mk({
+    archetype: "saas",
+    project_name: "acme-saas",
+    auth_provider: "supabase-auth",
+    hosting_target: "netlify",
+    billing_provider: "lemonsqueezy",
+  }).managed;
+  assert.equal(m.auth.provider, "supabase-auth");
+  assert.equal(m.hosting.target, "netlify");
+  assert.equal(m.billing.provider, "lemonsqueezy");
+});
+
+test("v3: persistence.db=supabase is a first-class enum value (schema accepts it)", () => {
+  // Drive the backend-api persistence cascade (which exists today) to prove the
+  // schema's widened db enum accepts supabase; the saas persistence branch is D.
+  const m = mk({
+    archetype: "fullstack",
+    project_name: "web",
+    persistence_enabled: true,
+    persistence_db: "supabase",
+    persistence_orm: "drizzle",
+  });
+  assert.equal(m.managed.persistence.db, "supabase");
+  assert.equal(m.managed.persistence.orm, "drizzle");
+  const { valid, errors } = validateManifest(schema, m);
+  assert.ok(valid, `supabase db invalid: ${JSON.stringify(errors)}`);
+});
+
+test("v3 saas: brand seed guard widened — saas fork gets a bound color_brand", () => {
+  const m = mk({ archetype: "saas", project_name: "branded", design_brand_color: "#0B5FFF" }).managed;
+  assert.equal(m.design_system.tokens.color_brand, "#0B5FFF");
+});
+
+test("v3 saas: a bare --archetype saas (no deep tree) is schema-valid, not a crash", () => {
+  const m = mk({ archetype: "saas", project_name: "bare-saas" });
+  const { valid, errors } = validateManifest(schema, m);
+  assert.ok(valid, `bare saas invalid: ${JSON.stringify(errors)}`);
+});
+
+test("v3 backend-api: NO auth/hosting/billing/iac blocks (saas-only fields)", () => {
+  const m = mk({ archetype: "backend-api", project_name: "svc" }).managed;
+  assert.ok(!("auth" in m));
+  assert.ok(!("hosting" in m));
+  assert.ok(!("billing" in m));
+  assert.ok(!("iac" in m));
+  assert.ok(!("iac" in m.features)); // features.iac omitted when feat_iac never fired
+});
+
+test("v3 iac (aws): features.iac + iac.{provider,tool} + DERIVED is_aws/is_gcp", () => {
+  const m = mk({
+    archetype: "backend-api",
+    project_name: "svc",
+    feat_iac: true,
+    iac_provider: "aws",
+    iac_tool: "terraform",
+  }).managed;
+  assert.equal(m.features.iac, true);
+  assert.deepEqual(m.iac, {
+    provider: "aws",
+    tool: "terraform",
+    is_aws: true,
+    is_gcp: false,
+  });
+});
+
+test("v3 iac (gcp): derived booleans flip with provider", () => {
+  const m = mk({
+    archetype: "fullstack",
+    project_name: "web",
+    feat_iac: true,
+    iac_provider: "gcp",
+    iac_tool: "pulumi",
+  }).managed;
+  assert.equal(m.iac.provider, "gcp");
+  assert.equal(m.iac.is_aws, false);
+  assert.equal(m.iac.is_gcp, true);
+});
+
+test("v3 iac: orthogonal across archetypes — saas+IaC is valid", () => {
+  const m = mk({
+    archetype: "saas",
+    project_name: "saas-iac",
+    feat_iac: true,
+    iac_provider: "aws",
+    iac_tool: "cdk",
+  });
+  assert.equal(m.managed.features.iac, true);
+  assert.equal(m.managed.iac.tool, "cdk");
+  const { valid, errors } = validateManifest(schema, m);
+  assert.ok(valid, `saas+iac invalid: ${JSON.stringify(errors)}`);
+});
+
+test("v3 iac: features.iac=true with no iac block is schema-INVALID (allOf if/then)", () => {
+  // Direct schema probe: the contract requires the iac block when features.iac.
+  const probe = {
+    schema_version: 3,
+    managed: {
+      manifest_hash: "sha256:" + "0".repeat(64),
+      project: { name: "p", language: "typescript" },
+      archetype: "backend-api",
+      features: { hooks: true, mcp: false, agent_teams: false, sdd_gate: true, iac: true },
+      contract_gate: { mode: "off", protected_paths: ["src/**"] },
+    },
+    user: { notes: "", overrides: {} },
+  };
+  const { valid } = validateManifest(schema, probe);
+  assert.equal(valid, false);
+});
+
+test("v3 determinism: identical saas+iac answers => identical hash (I2)", () => {
+  const args = {
+    archetype: "saas",
+    project_name: "det",
+    feat_iac: true,
+    iac_provider: "aws",
+    iac_tool: "terraform",
+  };
+  const a = mk({ ...args }).managed;
+  const b = mk({ ...args }).managed;
+  assert.equal(a.manifest_hash, b.manifest_hash);
+  assert.deepEqual(a, b);
+  // recompute is byte-stable
+  assert.equal(computeManifestHash(a), a.manifest_hash);
+});
+
+test("v3 key order: auth/hosting/billing/iac follow persistence, precede contract_gate", () => {
+  const m = mk({
+    archetype: "saas",
+    project_name: "ord",
+    feat_iac: true,
+    iac_provider: "aws",
+    iac_tool: "terraform",
+  }).managed;
+  const keys = Object.keys(m);
+  const idx = (k) => keys.indexOf(k);
+  assert.ok(idx("persistence") < idx("auth"));
+  assert.ok(idx("auth") < idx("hosting"));
+  assert.ok(idx("hosting") < idx("billing"));
+  assert.ok(idx("billing") < idx("iac"));
+  assert.ok(idx("iac") < idx("contract_gate"));
+});
+
 test("minimal-core (library-sdk): no persistence/api_first/design_system; protected_paths defaulted", () => {
   const m = mk({ archetype: "library-sdk", project_name: "lib-thing" }).managed;
   assert.ok(!("persistence" in m));
@@ -240,7 +406,7 @@ test("user: existing block carried verbatim (never overwritten)", () => {
 // I6: schema validation of the assembled manifest.
 // -----------------------------------------------------------------------------
 test("I6: every archetype produces a schema-valid manifest", () => {
-  for (const arch of ["backend-api", "fullstack", "monorepo", "library-sdk", "infra-iac"]) {
+  for (const arch of ["backend-api", "fullstack", "saas", "monorepo", "library-sdk", "infra-iac"]) {
     const m = mk({ archetype: arch, project_name: `proj-${arch}` });
     const { valid, errors } = validateManifest(schema, m);
     assert.ok(valid, `${arch} invalid: ${JSON.stringify(errors)}`);

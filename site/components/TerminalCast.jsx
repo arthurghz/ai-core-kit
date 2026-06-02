@@ -29,9 +29,11 @@ export default function TerminalCast({
           autoPlay,
           loop,
           preload: true,
-          controls: 'auto',
+          // Always-visible controls (play/pause/scrubber) so the demo reads as a
+          // player, not a static block; `fit: 'width'` scales the 92-col cast to
+          // the container so no text is ever clipped.
+          controls: true,
           fit: 'width',
-          terminalFontSize: 'small',
           idleTimeLimit,
           speed,
           poster,

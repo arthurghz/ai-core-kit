@@ -1,0 +1,57 @@
+# Commands — the cheat sheet
+
+Everything you run, in one page. Slash commands work in Claude Code; every one has a
+`create-ack` CLI twin so you can drive the whole kit from a terminal too.
+
+## The 60-second flow
+
+```bash
+# 1. scaffold
+npx @arthurghz/create-ack@latest my-app --archetype saas
+cd my-app
+```
+
+```text
+2. /ack-spec        author the specs (the moment-0 interview) — specs lead, code follows
+3. review specs  →  approve docs/contracts/C-001-*.contract.md  (status: draft → approved)
+4. /ack-build       build the first slice from specs (multi-agent, contract-gated)
+5. /ack-review      review the change with a team of agents before you open the PR
+6. /ack-tooling     lint / types / tests / CI guardrails for your stack
+7. /ack-cost        what did it cost? (offline, per feature) · /ack-reports for the full report
+8. /ack-sync        pull new kit features into your fork over time
+```
+
+> **Drive by teams.** Before you launch, enable real parallel agents:
+> ```bash
+> export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+> ```
+> The build commands always fan work out — teams make it concurrent.
+
+## Slash commands
+
+| Command | What it does | When |
+|---|---|---|
+| `/ack-spec` | Author the specs (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, PLAN, …) + a lean `CLAUDE.md` | Once, right after scaffolding |
+| `/ack-build` | Build the next slice from `specs/PLAN.md` — contract-first, fanned out to parallel agents | Per feature/slice |
+| `/ack-agents` | Fan **any** work out to parallel agents (the primitive the others use) | Anytime you want parallelism |
+| `/ack-review` | Multi-agent review of your current diff (code + security + silent-failure) before a PR | Before every PR/merge |
+| `/ack-tooling` | Stand up lint / format / types / tests / pre-commit / CI for your stack | After the first slice |
+| `/ack-cost` | AI spend per **feature** + overall, plus DORA — offline | Anytime |
+| `/ack-reports` | The full delivery + cost report (DORA four keys + cost by feature) | Weekly / before a review |
+| `/ack-features` | List build slices + their contract/status, and open/close per-feature cost windows | To see/manage features |
+| `/ack-list` | Inventory: contracts, slices, features, skills, agents, commands, gate posture | To get oriented fast |
+| `/ack-update` | Check whether a newer kit version is published | Periodically |
+| `/ack-sync` | Pull the latest kit commands / agents / skills into your fork | When `/ack-update` says you're behind |
+
+## CLI (`create-ack` / `npx @arthurghz/create-ack@latest`)
+
+| Command | What it does |
+|---|---|
+| `create-ack <name> --archetype <x>` | Scaffold a new project (`backend-api` · `fullstack` · `saas` · `monorepo` · `library-sdk` · `infra-iac`) |
+| `create-ack spec\|build\|agents\|tooling\|review\|list` | Run the matching slash command via Claude Code |
+| `create-ack cost\|dora\|report\|dashboard\|watch` | Offline cost / DORA / report / dashboard / live TUI |
+| `create-ack feature <name> [--end]` | Open/close a branch-free per-feature cost window |
+| `create-ack sync` | Pull the latest kit payload into an existing fork |
+| `create-ack update` | Check for a newer `@arthurghz/create-ack` |
+
+<sub>Cost is **offline** — computed from local Claude Code transcripts × a versioned `pricing.json` (Claude Code has no live cost API). Every `/ack-*` command refuses to run inside the ai-core-kit repo itself; they are fork commands.</sub>

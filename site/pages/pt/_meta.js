@@ -9,6 +9,7 @@ export default {
     theme: { layout: 'raw', sidebar: false, toc: false, breadcrumb: false, pagination: false }
   },
   'getting-started': 'Primeiros passos',
+  commands: 'Comandos',
   concepts: 'Conceitos',
   archetypes: 'Arquétipos',
   features: 'Recursos',

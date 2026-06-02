@@ -1452,6 +1452,8 @@ const CLAUDE_COMMAND_SUBCOMMANDS = {
   build: { slash: "/ack-build", blurb: "build the next slice from the specs (multi-agent, gated)" },
   agents: { slash: "/ack-agents", blurb: "fan a unit of work out to parallel agents" },
   tooling: { slash: "/ack-tooling", blurb: "stand up the project's engineering tooling" },
+  review: { slash: "/ack-review", blurb: "review the current change with a team of agents" },
+  list: { slash: "/ack-list", blurb: "list contracts, slices, features, skills, agents, commands" },
 };
 
 // All recognized subcommands (telemetry + the kit-native ones). `new` aliases the
@@ -1484,6 +1486,8 @@ ${c.bold("Subcommands:")}
   ${c.cyan("build")} [<slice>]        build the next slice from the specs (runs /ack-build)
   ${c.cyan("agents")} [<work>]        fan work out to parallel agents (runs /ack-agents)
   ${c.cyan("tooling")} [...]          stand up engineering tooling (runs /ack-tooling)
+  ${c.cyan("review")} [...]           review the current change with a team (runs /ack-review)
+  ${c.cyan("list")} [<subject>]       inventory contracts/slices/features/skills/… (runs /ack-list)
   ${c.cyan("sync")}                   pull the latest kit commands/agents/skills into this fork
   ${c.cyan("feature")} <name> [--end] branch-free per-feature cost window (sidecar map)
   ${c.cyan("update")}                 check for a newer @arthurghz/create-ack

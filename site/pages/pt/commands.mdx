@@ -1,0 +1,57 @@
+# Comandos — o guia rápido
+
+Tudo o que você executa, em uma página. Os slash commands rodam no Claude Code; cada um
+tem um gêmeo na CLI `create-ack`, então dá para dirigir o kit inteiro pelo terminal também.
+
+## O fluxo em 60 segundos
+
+```bash
+# 1. scaffold
+npx @arthurghz/create-ack@latest meu-app --archetype saas
+cd meu-app
+```
+
+```text
+2. /ack-spec        escreva as specs (a entrevista do momento 0) — specs guiam, o código segue
+3. revise as specs → aprove docs/contracts/C-001-*.contract.md  (status: draft → approved)
+4. /ack-build       construa a primeira fatia a partir das specs (multi-agente, com gate)
+5. /ack-review      revise a mudança com um time de agentes antes de abrir o PR
+6. /ack-tooling     guardrails de lint / tipos / testes / CI para a sua stack
+7. /ack-cost        quanto custou? (offline, por feature) · /ack-reports para o relatório completo
+8. /ack-sync        puxe novos recursos do kit para o seu fork ao longo do tempo
+```
+
+> **Dirija por times.** Antes de iniciar, habilite agentes paralelos de verdade:
+> ```bash
+> export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+> ```
+> Os comandos de build sempre distribuem o trabalho — os times tornam isso concorrente.
+
+## Slash commands
+
+| Comando | O que faz | Quando |
+|---|---|---|
+| `/ack-spec` | Escreve as specs (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, PLAN, …) + um `CLAUDE.md` enxuto | Uma vez, logo após o scaffold |
+| `/ack-build` | Constrói a próxima fatia do `specs/PLAN.md` — contrato primeiro, distribuído entre agentes | Por feature/fatia |
+| `/ack-agents` | Distribui **qualquer** trabalho entre agentes paralelos (a primitiva que os outros usam) | Quando quiser paralelismo |
+| `/ack-review` | Revisão multi-agente do seu diff atual (código + segurança + falhas silenciosas) antes do PR | Antes de cada PR/merge |
+| `/ack-tooling` | Sobe lint / format / tipos / testes / pre-commit / CI para a sua stack | Após a primeira fatia |
+| `/ack-cost` | Gasto de IA por **feature** + total, mais DORA — offline | Quando quiser |
+| `/ack-reports` | O relatório completo de entrega + custo (quatro chaves DORA + custo por feature) | Semanal / antes de uma review |
+| `/ack-features` | Lista as fatias + contrato/status, e abre/fecha janelas de custo por feature | Para ver/gerir features |
+| `/ack-list` | Inventário: contratos, fatias, features, skills, agentes, comandos, gate | Para se orientar rápido |
+| `/ack-update` | Verifica se há uma versão mais nova do kit | Periodicamente |
+| `/ack-sync` | Puxa os comandos / agentes / skills mais novos do kit para o seu fork | Quando `/ack-update` disser que está atrás |
+
+## CLI (`create-ack` / `npx @arthurghz/create-ack@latest`)
+
+| Comando | O que faz |
+|---|---|
+| `create-ack <nome> --archetype <x>` | Cria um novo projeto (`backend-api` · `fullstack` · `saas` · `monorepo` · `library-sdk` · `infra-iac`) |
+| `create-ack spec\|build\|agents\|tooling\|review\|list` | Roda o slash command correspondente via Claude Code |
+| `create-ack cost\|dora\|report\|dashboard\|watch` | Custo offline / DORA / relatório / dashboard / TUI ao vivo |
+| `create-ack feature <nome> [--end]` | Abre/fecha uma janela de custo por feature (sem depender de branch) |
+| `create-ack sync` | Puxa o payload mais novo do kit para um fork existente |
+| `create-ack update` | Verifica se há um `@arthurghz/create-ack` mais novo |
+
+<sub>O custo é **offline** — calculado a partir dos transcripts locais do Claude Code × um `pricing.json` versionado (o Claude Code não tem API de custo ao vivo). Todo comando `/ack-*` se recusa a rodar dentro do próprio repo do ai-core-kit; eles são comandos de fork.</sub>

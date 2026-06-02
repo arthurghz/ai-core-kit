@@ -149,6 +149,7 @@ test("scaffold ships /ack-spec (+ shared commands) into the child .claude/comman
     for (const f of [
       "prd.md", "rice.md",
       "ack-build.md", "ack-agents.md", "ack-tooling.md", "ack-cost.md", "ack-sync.md",
+      "ack-update.md", "ack-review.md", "ack-features.md", "ack-reports.md", "ack-list.md",
       join("rpi", "research.md"), join("rpi", "plan.md"), join("rpi", "implement.md"),
     ]) {
       assert.ok(existsSync(join(cmds, f)), `child must include .claude/commands/${f}`);

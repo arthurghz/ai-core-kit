@@ -15,6 +15,24 @@ against it, wire the opted-in integrations, and emit a minimal child
 > Command name: this is `/ack-init`, NOT `/init`. The built-in `init` skill owns
 > `/init`; do not collide with it. Never delegate to the built-in init.
 
+> **Where `/ack-init` sits in the spec-first bootstrap (the ordered flow).** The kit
+> is docs-first: a fork authors its complete intent BEFORE writing code. The order is:
+>
+> 1. **interview + scaffold** — `create-ack` (a fresh fork) or `/ack-init` (this
+>    command) writes `project.manifest.yaml` and renders the deterministic structural
+>    scaffold + spec SKELETONS + a `specs/.spec-status.md` "Specs: DRAFT" marker. The
+>    design system, if installed, shows the DEFAULT brand until a brand is confirmed.
+> 2. **author** — `/ack-spec` runs the narrative interview and authors the filled
+>    specs + PLAN + a best-in-class `CLAUDE.md`, and (for design-bearing archetypes)
+>    CONFIRMS the product's brand color, recording it in `specs/DESIGN.md#Brand Palette`.
+> 3. **FINALIZE** — re-run `/ack-init` (or `create-ack --here` on a fresh tree): it
+>    merges the confirmed `design_system.tokens.color_brand` into `managed:`,
+>    recomputes the hash LAST, and re-renders the design system from the confirmed
+>    token — idempotently and byte-deterministically (invariant I2). See STEP 7.
+>
+> `/ack-init` is the deterministic bookend on BOTH ends (scaffold + finalize); the LLM
+> island is `/ack-spec` in the middle. This command never authors prose.
+
 Arguments (parsed from `$ARGUMENTS`, all optional):
 - `--non-interactive` — QA / CI mode. No AskUserQuestion calls. Requires `--answers`.
 - `--answers <path>` — answers file (YAML) that fully specifies the interview.
@@ -218,9 +236,23 @@ itself when assembling `managed:`:
   rule above); fullstack and minimal-core seed `[]` (empty list allowed).
 - `telemetry.budgets[]`: seed `[]` (empty) unless the answers-file supplies entries;
   budgets are advisory and optional.
-- `design_system.tokens`: fullstack only, seed `{}` (empty object) unless the
-  answers-file supplies tokens. Omitted entirely for non-fullstack (block
-  forbidden/absent).
+- `design_system.tokens`: design-bearing archetypes only (`fullstack`, `saas`).
+  The renderer materialises `${design_system.tokens.color_brand}` into
+  `design-system/theme/` (`globals.css`, `theme.tokens.json`); the render engine
+  has NO default syntax, so this token MUST always be bound. Resolution order
+  (FINALIZE-aware — never regress a confirmed brand):
+  1. **Carry the EXISTING manifest's `design_system.tokens` forward verbatim** on a
+     re-run — this is what preserves the brand `/ack-spec` confirmed on a previous
+     pass. Do NOT re-seed `{}` over a populated tokens map.
+  2. If a confirmed `design_brand_color` is recorded in
+     `specs/DESIGN.md#Brand Palette` and the carried token is still the default
+     (or absent), set `tokens.color_brand` to that confirmed hex (the FINALIZE
+     merge — see STEP 7).
+  3. The answers-file `design_system_tokens` / `design_brand_color`, if supplied,
+     override (QA / scripted finalize).
+  4. If none of the above bind `color_brand`, default it to `#0066CC`.
+  Omitted entirely for non-design-bearing archetypes (the block is schema-absent
+  for backend-api and the minimal-core archetypes).
 These seeds are part of the wholesale `managed:` regeneration and therefore
 participate in `manifest_hash`.
 
@@ -325,6 +357,44 @@ write into a FOREIGN file (one ack does not wholly own) happens inside a delimit
   the NEXT run authoritative and second-run-safe.
 - Print a concise summary: archetype, files written/merged/skipped, gate mode, and
   whether this was a first run or an idempotent re-run.
+
+---
+
+## STEP 7.5 — THE FINALIZE RE-RENDER (after `/ack-spec` confirms the brand)
+
+This is the deterministic close of the spec-first loop (stage 3 of the ordered flow
+above). It runs whenever `/ack-spec` has confirmed the product's brand color (or any
+`design_system.tokens`) and the design system needs to be re-materialised from the
+confirmed value rather than the default `#0066CC`.
+
+How a FINALIZE re-render works (it is just an idempotent re-run of STEPS 2-7, with
+the brand merge in STEP 4):
+
+1. **Detect the confirmed brand.** Read `specs/DESIGN.md` (specifically the
+   `## Brand Palette` section) for the hex `/ack-spec` confirmed and recorded there,
+   AND/OR read the answers-file `design_brand_color` / `design_system_tokens` in QA
+   mode. If neither is present, the existing manifest token is carried forward and a
+   FINALIZE is a no-op for the brand.
+2. **Merge it into `managed:` deterministically** (STEP 4 resolution order): set
+   `design_system.tokens.color_brand` to the confirmed hex, carrying any other
+   existing tokens forward verbatim. The confirmed value is the ONE design input that
+   crosses from model-authored prose (Class A) into the deterministic scaffold
+   (Class B) — it enters `managed:` ONLY here, through the normal deterministic path.
+   `/ack-spec` itself NEVER writes `project.manifest.yaml`.
+3. **Recompute the hash LAST** over the merged `managed:`, then re-render. Because the
+   brand flows through `managed:` and the render is zero-LLM, identical confirmed
+   answers ⟹ identical `managed:` ⟹ identical `design-system/theme/` bytes
+   (`globals.css` `--brand`, `theme.tokens.json` `color_brand` / `color_primary`).
+   This preserves invariant I2 across the finalize.
+4. **Idempotency holds.** If the confirmed brand equals the token already in the
+   manifest, the recomputed hash is unchanged and the STEP 4 short-circuit prints
+   `nothing to do`. Re-running the finalize any number of times is safe.
+
+The same merge applies to `create-ack --here` on a fresh (un-scaffolded) tree that
+supplies `design_brand_color`; both routes feed the identical deterministic assembler
+(`lib/manifest.mjs buildManifest`, which reads `answers.design_brand_color` /
+`answers.design_system_tokens`). Re-running `/ack-init` on an ALREADY-scaffolded
+child is the normal finalize route (`create-ack` refuses an existing manifest).
 
 ---
 

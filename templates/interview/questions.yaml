@@ -357,28 +357,26 @@ questions:
 
   # ===========================================================================
   # 4c. INFRASTRUCTURE-AS-CODE  -- ORTHOGONAL feature toggle (NOT an archetype).
-  #     feat_iac is asked for fullstack / saas / monorepo / infra-iac; when true it
-  #     requires the managed iac block (schema allOf) and the provider+tool selects
-  #     fire (ask_if). The assembler DERIVES iac.is_aws / iac.is_gcp from iac.provider
-  #     so the boolean-only path-segment guards (_when.iac.is_aws/) pick the
-  #     per-provider subtree WITHOUT an equality operator in the render engine.
+  #     feat_iac is asked for EVERY deep/minimal archetype (incl. backend-api);
+  #     when true it requires the managed iac block (schema allOf) and the
+  #     provider+tool selects fire (ask_if). The assembler DERIVES iac.is_aws /
+  #     iac.is_gcp from iac.provider so the boolean-only path-segment guards
+  #     (_when.iac.is_aws/) pick the per-provider subtree WITHOUT an equality
+  #     operator in the render engine.
   #
-  #     backend-api is DELIBERATELY excluded from the auto-firing question: the
-  #     frozen Phase C contract test asserts a default backend-api manifest carries
-  #     NO features.iac key (byte-stability), and a plain bool question with
-  #     default:false would always emit features.iac:false once fired. backend-api
-  #     forks still opt into IaC through the documented raw-answer / sidecar path
-  #     (the assembler's else-if branch reads answers.feat_iac / iac_provider /
-  #     iac_tool directly) — interview parity for backend-api needs the assembler to
-  #     emit features.iac only when TRUE (see followups), which is out of this
-  #     file's scope. The SaaS-centric archetypes (saas, fullstack) get full
-  #     interview support here.
+  #     Phase E byte-stability invariant: the assembler emits managed.features.iac
+  #     ONLY when it carries real signal — the resolved value is TRUE, or the human
+  #     EXPLICITLY supplied feat_iac (an explicit `false` is meaningful). A merely-
+  #     fired default:false question writes NOTHING. That is what lets backend-api
+  #     rejoin applies_to here while the frozen Phase C test (a default backend-api
+  #     manifest carries NO features.iac key) stays green — and it keeps fullstack /
+  #     saas / monorepo / infra-iac default manifests byte-stable too.
   # ===========================================================================
   - id: feat_iac
     prompt: "Provision infrastructure-as-code (Terraform/Pulumi/...) in this repo?"
     type: bool
     default: false
-    applies_to: [fullstack, saas, monorepo, infra-iac]
+    applies_to: [backend-api, fullstack, saas, monorepo, infra-iac]
     writes_to: features.iac
 
   - id: iac_provider
@@ -388,7 +386,7 @@ questions:
       - { value: aws, label: "AWS" }
       - { value: gcp, label: "GCP" }
     default: aws
-    applies_to: [fullstack, saas, monorepo, infra-iac]
+    applies_to: [backend-api, fullstack, saas, monorepo, infra-iac]
     ask_if: "feat_iac == true"
     writes_to: iac.provider
 
@@ -401,7 +399,7 @@ questions:
       - { value: cloudformation, label: "CloudFormation (AWS)" }
       - { value: cdk,            label: "AWS CDK" }
     default: terraform
-    applies_to: [fullstack, saas, monorepo, infra-iac]
+    applies_to: [backend-api, fullstack, saas, monorepo, infra-iac]
     ask_if: "feat_iac == true"
     writes_to: iac.tool
 

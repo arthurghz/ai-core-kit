@@ -50,8 +50,8 @@
 | `agent-eval` | author-new | MIT | Original to the kit | Render when `features.agent_eval == true` (or maintainer opts in). |
 | `frontend-a11y` | author-new | MIT | Original; `references/components.md` | Render for `fullstack` with a React/Next UI (`framework in [next, remix]`). |
 | `ui-design-system` | alirezarezvani/claude-skills | MIT | **Re-authored**; ships `scripts/`, `references/`, `assets/` | Render for `fullstack` / UI archetypes; or `features.design_system == true`. |
-| `saas-scaffolder` | alirezarezvani/claude-skills | MIT | **Re-authored**; ships `scripts/`, `references/` | Render for archetype `saas` / `fullstack` with auth+billing. |
-| `spec-to-repo` | alirezarezvani/claude-skills | MIT | **Re-authored**; ships `scripts/`, `references/` | Greenfield scaffolding; render for archetype `scaffold` / new-project flows. |
+| `saas-scaffolder` | alirezarezvani/claude-skills | MIT | **Re-authored**; ships `scripts/`, `references/` | Render for archetype `saas` (the kit's opinionated Next+shadcn+Clerk+Supabase+Drizzle+Stripe stack), or `fullstack` once auth+billing are added. |
+| `spec-to-repo` | alirezarezvani/claude-skills | MIT | **Re-authored**; ships `scripts/`, `references/` | Greenfield scaffolding from a free-form spec. NOT archetype-gated (there is no `scaffold` archetype enum value); render in a new-project / greenfield flow or when `features.greenfield_scaffold == true`. |
 
 ---
 

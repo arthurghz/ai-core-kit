@@ -4,59 +4,59 @@
 > Alireza Rezvani). Companion to the `saas-scaffolder` skill, Phases 2–4.
 
 Concrete code for the auth + Drizzle + Stripe path, plus the security rules that
-make it safe. Examples target Next.js App Router, NextAuth, Drizzle (Postgres),
-and Stripe. Pin the exact package versions in `package.json`.
+make it safe. Examples target the kit's opinionated `saas` stack — Next.js App
+Router, **Clerk** auth, **Drizzle on Supabase Postgres**, and **Stripe**. (Swap
+to `supabase-auth` / `nextauth` via `CUSTOMIZATION.md`; the alternatives live in
+the manifest `auth.provider` select.) Pin the exact package versions in
+`package.json`.
 
-## NextAuth config (`lib/auth.ts`)
+## Clerk setup (`<ClerkProvider>` + `lib/auth.ts`)
 
-```ts
-import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
-import { db } from "./db";
+`@clerk/nextjs` is the identity provider; the Supabase `users` row is the
+app-owned mirror of the Clerk user, keyed by the Clerk user id. Wrap the root
+layout and expose a small server helper that resolves the DB user from the Clerk
+session (subscription status is read from the DB, never trusted from the client).
 
-export const authOptions: NextAuthOptions = {
-  adapter: DrizzleAdapter(db),
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
-  callbacks: {
-    session: async ({ session, user }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: user.id,
-        subscriptionStatus: (user as { subscriptionStatus?: string }).subscriptionStatus,
-      },
-    }),
-  },
-  pages: { signIn: "/login" },
-};
+```tsx
+// app/layout.tsx
+import { ClerkProvider } from "@clerk/nextjs";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ClerkProvider>
+      <html lang="en"><body>{children}</body></html>
+    </ClerkProvider>
+  );
+}
 ```
 
-Extend the session type so TypeScript knows about `id` / `subscriptionStatus`:
-
 ```ts
-// types/next-auth.d.ts
-import "next-auth";
-declare module "next-auth" {
-  interface Session { user: { id: string; subscriptionStatus?: string } & DefaultSession["user"]; }
+// lib/auth.ts — resolve the app's DB user from the Clerk session (server-only)
+import { auth } from "@clerk/nextjs/server";
+import { db } from "./db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+export async function requireUser() {
+  const { userId } = await auth();              // Clerk user id, or null
+  if (!userId) return null;
+  const [user] = await db.select().from(users).where(eq(users.clerkId, userId));
+  return user ?? null;                          // subscription status lives here
 }
 ```
 
 ## Drizzle schema (`db/schema.ts`)
 
 ```ts
-import { pgTable, text, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
+// The app-owned mirror of the Clerk user. `clerkId` is the join key the Clerk
+// webhook (api/webhooks/clerk) syncs on user.created / user.updated.
 export const users = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  name: text("name"),
+  clerkId: text("clerk_id").notNull().unique(),
   email: text("email").notNull().unique(),
-  emailVerified: timestamp("email_verified"),
+  name: text("name"),
   image: text("image"),
   stripeCustomerId: text("stripe_customer_id").unique(),
   stripeSubscriptionId: text("stripe_subscription_id"),
@@ -64,38 +64,58 @@ export const users = pgTable("users", {
   stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
-export const accounts = pgTable("accounts", {
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  type: text("type").notNull(),
-  provider: text("provider").notNull(),
-  providerAccountId: text("provider_account_id").notNull(),
-  refresh_token: text("refresh_token"),
-  access_token: text("access_token"),
-  expires_at: integer("expires_at"),
-});
 ```
 
-Also model `sessions` and `verification_tokens` per the adapter's schema.
+Clerk owns the credential/session tables, so there is no `accounts` / `sessions`
+table to model — the `users` row is the only identity record your app stores.
+
+## Clerk webhook — sync Clerk users into Supabase (`app/api/webhooks/clerk/route.ts`)
+
+```ts
+import { Webhook } from "svix";
+import { db } from "@/lib/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+export async function POST(req: Request) {
+  const body = await req.text();                              // raw body required
+  const wh = new Webhook(process.env.CLERK_WEBHOOK_SIGNING_SECRET!);
+  let evt: { type: string; data: any };
+  try {
+    evt = wh.verify(body, {                                   // Svix headers first
+      "svix-id": req.headers.get("svix-id")!,
+      "svix-timestamp": req.headers.get("svix-timestamp")!,
+      "svix-signature": req.headers.get("svix-signature")!,
+    }) as typeof evt;
+  } catch {
+    return new Response("Invalid signature", { status: 400 });
+  }
+
+  if (evt.type === "user.created" || evt.type === "user.updated") {
+    const { id, email_addresses, first_name, image_url } = evt.data;
+    const email = email_addresses?.[0]?.email_address;
+    // Idempotent upsert keyed by clerk_id — safe to replay.
+    await db.insert(users)
+      .values({ clerkId: id, email, name: first_name, image: image_url })
+      .onConflictDoUpdate({ target: users.clerkId, set: { email, name: first_name, image: image_url } });
+  }
+  return new Response(null, { status: 200 });
+}
+```
 
 ## Middleware route protection (`middleware.ts`)
 
 ```ts
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    if (req.nextUrl.pathname.startsWith("/dashboard") && !token) {
-      return NextResponse.redirect(new URL("/login", req.url));
-    }
-  },
-  { callbacks: { authorized: ({ token }) => !!token } },
-);
+const isProtected = createRouteMatcher(["/dashboard(.*)", "/settings(.*)", "/billing(.*)"]);
+
+export default clerkMiddleware(async (auth, req) => {
+  if (isProtected(req)) await auth.protect();   // redirects signed-out users to sign-in
+});
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/settings/:path*", "/billing/:path*"],
+  matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
 };
 ```
 
@@ -103,23 +123,21 @@ export const config = {
 
 ```ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireUser } from "@/lib/auth";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await requireUser();             // resolves the DB user from Clerk
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { priceId } = await req.json();
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id));
 
   let customerId = user.stripeCustomerId;
   if (!customerId) {
-    const customer = await stripe.customers.create({ email: session.user.email! });
+    const customer = await stripe.customers.create({ email: user.email });
     customerId = customer.id;
     await db.update(users).set({ stripeCustomerId: customerId }).where(eq(users.id, user.id));
   }
@@ -181,11 +199,14 @@ export async function POST(req: Request) {
 
 ```bash
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-DATABASE_URL=postgresql://user:pass@host/db?sslmode=require
-NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
-NEXTAUTH_URL=http://localhost:3000
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
+# Supabase Postgres — pooled string (port 6543, pgbouncer) for the app runtime,
+# the direct string for drizzle-kit migrations. See PITFALLS.md.
+DATABASE_URL=postgresql://user:pass@host:6543/postgres?pgbouncer=true&sslmode=require
+# Clerk (auth)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SIGNING_SECRET=whsec_...
+# Stripe (billing)
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...

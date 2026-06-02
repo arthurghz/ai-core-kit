@@ -761,6 +761,99 @@ async function renderStarterClaude({ kitRoot, targetDir, manifest, mod }) {
 }
 
 // -----------------------------------------------------------------------------
+// SPEC-STATUS MARKER — the spec-first contract made visible in the child.
+//
+// create-ack is zero-LLM: it renders the full structural scaffold + spec
+// SKELETONS, but it CANNOT author the prose or confirm the brand color (that is
+// the /ack-spec LLM island). So it lays a small, deterministic marker file that
+// states, in the child itself, that the specs are DRAFT skeletons pending the
+// /ack-spec authoring pass, and that the design system currently shows the
+// DEFAULT brand until /ack-spec confirms one (and a finalize re-render
+// materializes it). The marker is the in-repo banner the printed "Next steps"
+// echo points at; it survives `cd`-ing into the project and re-finding context.
+//
+// It is written ONLY when spec skeletons were actually laid (deep archetypes);
+// minimal-core scaffolds skip it (the printed note already tells the user that
+// /ack-spec authors the specs from scratch). The marker is human/model territory
+// after /ack-spec runs — it is NOT recorded in the managed ledger and /ack-init
+// never re-renders it.
+// -----------------------------------------------------------------------------
+function writeSpecStatusMarker({ targetDir, manifest }) {
+  const m = manifest.managed || {};
+  const archetype = m.archetype || "?";
+  const designBearing = Boolean(m.design_system && m.design_system.install);
+  const brand =
+    (m.design_system &&
+      m.design_system.tokens &&
+      m.design_system.tokens.color_brand) ||
+    null;
+
+  const lines = [
+    "# Specs: DRAFT — run `/ack-spec`",
+    "",
+    "> This file is a deterministic marker laid by `create-ack`. It is safe to",
+    "> delete once the specs are authored; `/ack-init` never re-renders it.",
+    "",
+    "The structural scaffold for this **" + archetype + "** project is rendered, but",
+    "the specs under `specs/` are **SKELETONS** — each section still holds only its",
+    "inline author prompt. They are NOT yet the project's source of intent.",
+    "",
+    "## Required next step",
+    "",
+    "Open this project in Claude Code and run **`/ack-spec`**. It runs the deep,",
+    "narrative discovery interview and authors the complete intent set BEFORE any",
+    "code is written:",
+    "",
+    "- `specs/PRD.md`, `specs/ARCHITECTURE.md`, `specs/DOMAIN.md`,",
+    "  `specs/REQUIREMENTS.md`, `specs/PLAN.md`, `specs/ROADMAP.md`,",
+    "  `specs/NON-GOALS.md`" +
+      (designBearing ? " + `specs/DESIGN.md`" : "") +
+      " — filled prose, not skeletons.",
+    "- a refreshed, lean spec-first `CLAUDE.md`.",
+    "- a draft first contract `docs/contracts/C-001-*.contract.md` (left `status: draft`).",
+    "",
+    "**Specs lead; code follows.** Do not start writing application code until the",
+    "specs are authored and the first contract is reviewed.",
+    "",
+  ];
+
+  if (designBearing) {
+    lines.push(
+      "## Design system: DEFAULT brand until confirmed",
+      "",
+      "A design system is installed and currently materialized from the **default**",
+      "brand color `" + (brand || "#0066CC") + "` " +
+        "(`design_system.tokens.color_brand`). During `/ack-spec` you confirm THIS",
+      "product's brand color; that single value is the one design input that crosses",
+      "into the deterministic scaffold. After you confirm it, **finalize** by",
+      "re-running `/ack-init` (or `create-ack --here` on a fresh tree) — the renderer",
+      "re-materializes `design-system/theme/` (`globals.css`, `theme.tokens.json`)",
+      "from the confirmed token, idempotently and byte-deterministically.",
+      "",
+    );
+  }
+
+  lines.push(
+    "## The ordered bootstrap flow",
+    "",
+    "1. **interview + scaffold** — `create-ack` (done): manifest + structural",
+    "   scaffold + spec SKELETONS + this marker.",
+    "2. **author** — `/ack-spec`: the narrative interview authors the filled specs +",
+    "   PLAN + best `CLAUDE.md`" +
+      (designBearing ? " and confirms the brand color." : "."),
+    "3. **finalize** — re-run `/ack-init`: re-render the manifest-derived scaffold" +
+      (designBearing ? " with the confirmed design tokens." : "."),
+    "",
+  );
+
+  const specsDir = join(targetDir, "specs");
+  mkdirSync(specsDir, { recursive: true });
+  const markerPath = join(specsDir, ".spec-status.md");
+  writeFileSync(markerPath, lines.join("\n") + "\n", "utf8");
+  return join("specs", ".spec-status.md");
+}
+
+// -----------------------------------------------------------------------------
 // Telemetry payload copy — when telemetry.enabled, drop the offline aggregator +
 // pricing map into the child's telemetry/ dir. Only ships concrete payload files
 // (aggregate.py, pricing.json); the README.md.tpl is left to the render engine if
@@ -953,6 +1046,15 @@ async function main() {
     manifest: finalManifest,
   });
 
+  // SPEC-STATUS MARKER: lay the in-repo "Specs: DRAFT — run /ack-spec" banner
+  // whenever spec skeletons were actually written (deep archetypes). It makes the
+  // spec-first contract visible inside the child and is the anchor the printed
+  // headline next-step points at. Minimal-core scaffolds (no skeletons) skip it.
+  let specStatusMarker = null;
+  if (specsResult && !specsResult.noop && Array.isArray(specsResult.written) && specsResult.written.length) {
+    specStatusMarker = writeSpecStatusMarker({ targetDir, manifest: finalManifest });
+  }
+
   // Record the spec/CLAUDE files in the manifest ledger so /ack-init re-runs see
   // them. CLAUDE.md may already be in the ledger from the archetype tree; keep one
   // entry, preferring the ack:managed ownership (the starter overwrote the stub).
@@ -1006,6 +1108,7 @@ async function main() {
     specsSkippedReason:
       specsResult && specsResult.noop ? specsResult.skippedReason || null : null,
     claudeWritten: Boolean(claudeResult && claudeResult.written),
+    specStatusMarker,
   });
 }
 
@@ -1023,6 +1126,7 @@ function printNextSteps({
   specsWritten = 0,
   specsSkippedReason = null,
   claudeWritten = false,
+  specStatusMarker = null,
 }) {
   const m = manifest.managed || {};
   const rel = here ? "." : basename(targetDir);
@@ -1049,9 +1153,10 @@ function printNextSteps({
   out.write(`  contract gate ${m.contract_gate?.mode || "?"}\n`);
   if (renderedCount) out.write(`  files written ${renderedCount}\n`);
   if (specsWritten)
-    out.write(`  specs         ${specsWritten} skeleton(s) -> specs/  (fill via /ack-spec)\n`);
+    out.write(`  specs         ${specsWritten} DRAFT skeleton(s) -> specs/  (author via /ack-spec)\n`);
   else if (specsSkippedReason)
     out.write(`  specs         skipped (${specsSkippedReason})\n`);
+  if (specStatusMarker) out.write(`  status        ${specStatusMarker}  (the spec-first banner)\n`);
   if (claudeWritten) out.write(`  CLAUDE.md     spec-first pointer written\n`);
   if (telemetryCopied.length) out.write(`  telemetry     ${telemetryCopied.length} file(s)\n`);
   if (docsWritten) out.write(`  docs scaffolded: ${docsWritten} files -> docs/\n`);
@@ -1068,34 +1173,90 @@ function printNextSteps({
     );
   }
 
-  out.write("\n" + c.bold("Next steps:\n"));
-  if (!here) out.write(`  cd ${rel}\n`);
-  out.write("  # review project.manifest.yaml (managed: is machine-owned)\n");
-  // The headline next step: author the SPECS. The kit emits CONTEXT, not code —
-  // the scaffold above is skeletons + a lean CLAUDE.md; /ack-spec fills the intent.
+  // THE HEADLINE: spec-first is the default. create-ack rendered the structural
+  // scaffold + DRAFT spec skeletons; the REQUIRED next step is to AUTHOR the
+  // complete specs + PLAN + best CLAUDE.md + clear design/requirements via
+  // /ack-spec, BEFORE any code is written. This is framed as a required step,
+  // not a footnote.
+  const designBearing = Boolean(m.design_system && m.design_system.install);
+  out.write("\n" + c.bold("REQUIRED NEXT STEP — author your specs first:\n"));
+  if (!here) out.write(c.dim("  $ ") + `cd ${rel}\n`);
+  out.write(
+    "  " +
+      c.bold("Open the project in Claude Code and run ") +
+      c.cyan(c.bold("/ack-spec")) +
+      c.bold(".\n"),
+  );
+  out.write(
+    c.dim(
+      "  It runs the deep narrative interview and AUTHORS the complete intent set\n" +
+        "  BEFORE you write any code: the filled PRD / ARCHITECTURE / DOMAIN /\n" +
+        "  REQUIREMENTS / PLAN / ROADMAP / NON-GOALS" +
+        (designBearing ? " / DESIGN" : "") +
+        " specs, a refreshed best-in-class\n" +
+        "  CLAUDE.md, and a draft first contract. " +
+        c.bold("Specs lead; code follows.\n"),
+    ),
+  );
   if (specsWritten || claudeWritten) {
     out.write(
-      "  # open the project in Claude Code and run " +
-        c.cyan("/ack-spec") +
-        " to author the specs/\n" +
-        "  #   (deep, narrative interview -> filled PRD/ARCHITECTURE/DOMAIN/REQUIREMENTS/\n" +
-        "  #    ROADMAP/NON-GOALS + a refreshed CLAUDE.md). Specs lead; code follows.\n",
+      c.dim(
+        "  The specs/ above are DRAFT skeletons (inline author prompts only) — see\n" +
+          "  specs/.spec-status.md. They are NOT yet your source of intent.\n",
+      ),
     );
   } else if (treeAbsent || specsSkippedReason) {
     out.write(
-      "  # open the project in Claude Code and run " +
-        c.cyan("/ack-spec") +
-        " to author the specs/ + CLAUDE.md\n" +
-        "  #   from scratch (no skeletons were laid for this minimal-core archetype).\n",
+      c.dim(
+        "  No skeletons were laid for this minimal-core archetype; /ack-spec authors\n" +
+          "  the specs/ + CLAUDE.md from scratch.\n",
+      ),
     );
   }
-  if (m.features?.sdd_gate && !treeAbsent) {
-    out.write("  # the contract gate is wired in .claude/settings.json (gate on an approved contract)\n");
+  if (designBearing) {
+    out.write(
+      c.dim(
+        "  Design system: installed and showing the DEFAULT brand " +
+          ((m.design_system.tokens && m.design_system.tokens.color_brand) || "#0066CC") +
+          ".\n" +
+          "  /ack-spec confirms THIS product's brand color (the one design value that\n" +
+          "  crosses into the deterministic scaffold).\n",
+      ),
+    );
   }
-  out.write("  # run /ack-init to re-render the manifest-derived scaffold after stack edits\n");
+
+  // The ordered three-stage flow, made explicit. The finalize re-render is the
+  // deterministic close of the loop after /ack-spec confirms intent + brand.
+  out.write("\n" + c.bold("Then, in order:\n"));
+  out.write(
+    c.dim("  1. ") +
+      c.cyan("/ack-spec") +
+      "   author the filled specs + PLAN + best CLAUDE.md" +
+      (designBearing ? " and confirm the brand color\n" : "\n"),
+  );
+  out.write(
+    c.dim("  2. ") +
+      "review specs + get docs/contracts/C-001-*.contract.md approved (status: draft -> approved)\n",
+  );
+  out.write(
+    c.dim("  3. ") +
+      c.cyan("/ack-init") +
+      "   FINALIZE: re-render the manifest-derived scaffold" +
+      (designBearing
+        ? " (re-materializes design-system/theme/ from the confirmed token, idempotently)\n"
+        : " after any stack edits (idempotent)\n"),
+  );
+  if (m.features?.sdd_gate && !treeAbsent) {
+    out.write(
+      c.dim(
+        "  The contract gate is wired in .claude/settings.json — it permits edits under\n" +
+          "  the protected paths only once C-001 is approved.\n",
+      ),
+    );
+  }
   if (docsWritten) {
     const docsPath = here ? "docs" : `${rel}/docs`;
-    out.write(`  cd ${docsPath} && npm install && npm run dev   # product docs site\n`);
+    out.write(c.dim(`  Product docs site: cd ${docsPath} && npm install && npm run dev\n`));
   }
   out.write("\n");
 }

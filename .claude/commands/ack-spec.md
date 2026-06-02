@@ -24,6 +24,24 @@ exists, before the first contract is approved).
 > intent (`specs/`). They are complementary: the manifest is the *stack*, the specs
 > are the *why/what*. Never write or mutate `project.manifest.yaml` here.
 
+> **Where `/ack-spec` sits in the spec-first bootstrap (the ordered flow).** This is
+> the **REQUIRED, headline** step of the docs-first bootstrap — the LLM island between
+> two deterministic bookends. The order is:
+>
+> 1. **interview + scaffold** — `create-ack` / `/ack-init` wrote the manifest + the
+>    structural scaffold + spec SKELETONS + a `specs/.spec-status.md` "Specs: DRAFT"
+>    marker. The design system, if installed, shows the DEFAULT brand for now.
+> 2. **author (you are here)** — run the narrative interview and AUTHOR the complete
+>    intent set BEFORE any code: the filled specs + PLAN + a best-in-class `CLAUDE.md`,
+>    and — for design-bearing archetypes — CONFIRM the product's brand color (STEP 5.4),
+>    recording it in `specs/DESIGN.md#Brand Palette`.
+> 3. **finalize** — the user re-runs `/ack-init`, which merges the confirmed brand
+>    token into `managed:` and re-renders the design system from it, deterministically
+>    (ack-init STEP 7.5). You do NOT perform that merge or re-render here.
+>
+> Specs lead; code follows. Nothing downstream should write application code until the
+> specs are authored and the first contract is reviewed.
+
 Arguments (parsed from `$ARGUMENTS`, all optional):
 - `--from <path>` — seed the interview from an existing PRD / requirements doc.
   Read it FIRST and pre-fill every answer you can; only ask about real gaps.
@@ -239,10 +257,13 @@ child template `templates/CLAUDE.child.md.tmpl`, which has two regions split by 
    > give a different hex.
 
    Use `#0066CC` as the default if the human skipped or declined the question. Record
-   the confirmed value in `specs/DESIGN.md#Brand Palette`. Do NOT write
-   `project.manifest.yaml` yourself in this command (STEP 1's read-only rule stands):
-   the confirmed token is merged into `managed:` by the deterministic finalize /
-   `/ack-init` re-render, not here. Your job is to elicit and CONFIRM the value.
+   the confirmed value in `specs/DESIGN.md#Brand Palette` — that is where the FINALIZE
+   re-render reads it from. Do NOT write `project.manifest.yaml` yourself in this
+   command (STEP 1's read-only rule stands): the confirmed token is merged into
+   `managed:` by the deterministic FINALIZE re-render (`/ack-init` STEP 7.5), which
+   recomputes the hash and re-materialises `design-system/theme/` from the confirmed
+   hex. Your job here is only to elicit and CONFIRM the value and record it in
+   DESIGN.md; then tell the user (STEP 7) to re-run `/ack-init` to finalize.
 
 If `CLAUDE.md` does not exist (e.g. a minimal-core scaffold that skipped the
 lay-down), author it fresh in this same lean, spec-first shape.
@@ -275,10 +296,17 @@ Print a concise summary:
 - which spec docs you authored vs. enriched vs. left as skeleton (and why),
 - whether `CLAUDE.md` was created or its managed block refreshed,
 - whether an ADR and/or `C-001` contract was seeded,
-- the **next steps**: review the specs, get `C-001` approved, then implement against
-  the spec (specs lead, code follows). If the stack later changes, re-run `/ack-init`
-  to re-render the manifest-derived scaffold; re-run `/ack-spec` to keep the specs
-  current. Both are idempotent.
+- the **next steps**, in order:
+  1. **FINALIZE the design system** — for design-bearing archetypes where you
+     confirmed a brand color, tell the user to re-run **`/ack-init`** now: it merges
+     the confirmed `design_system.tokens.color_brand` (from `specs/DESIGN.md#Brand
+     Palette`) into `managed:` and re-materialises `design-system/theme/` from it,
+     idempotently (`/ack-init` STEP 7.5). This is the deterministic close of the loop.
+  2. **review the specs** and get `C-001` approved (`status: draft -> approved`) so the
+     contract gate will permit edits under the protected paths.
+  3. **implement against the spec** (specs lead, code follows).
+  If the stack later changes, re-run `/ack-init` to re-render the manifest-derived
+  scaffold; re-run `/ack-spec` to keep the specs current. Both are idempotent.
 
 ---
 

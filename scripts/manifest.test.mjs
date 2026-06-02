@@ -386,6 +386,96 @@ test("hash: generator.* never participates (full manifest has provenance, hash s
 });
 
 // -----------------------------------------------------------------------------
+// Phase E — features.iac byte-stability fix + backend-api interview parity.
+// The assembler emits managed.features.iac ONLY when it carries real signal
+// (resolved TRUE, or explicitly present in the raw answers). A merely-fired
+// default:false question writes nothing, so default manifests stay byte-stable
+// even though feat_iac's applies_to now includes EVERY archetype.
+// -----------------------------------------------------------------------------
+test("Phase E: default deep/minimal manifests carry NO features.iac key (byte-stable)", () => {
+  for (const arch of ["backend-api", "fullstack", "saas", "monorepo", "infra-iac"]) {
+    const m = mk({ archetype: arch, project_name: "p" }).managed;
+    assert.ok(!("iac" in m.features), `${arch} default should omit features.iac`);
+    assert.ok(!("iac" in m), `${arch} default should omit the iac block`);
+  }
+});
+
+test("Phase E: feat_iac is now in backend-api's interview applies_to (interview parity)", () => {
+  const fired = new Set(
+    filterQuestions(questions, "backend-api", { archetype: "backend-api", feat_iac: true }).map(
+      (q) => q.id,
+    ),
+  );
+  assert.ok(fired.has("feat_iac"));
+  assert.ok(fired.has("iac_provider")); // ask_if feat_iac == true
+  assert.ok(fired.has("iac_tool"));
+});
+
+test("Phase E: backend-api + feat_iac=true via the interview emits features.iac + iac block", () => {
+  const m = mk({
+    archetype: "backend-api",
+    project_name: "svc",
+    feat_iac: true,
+    iac_provider: "gcp",
+    iac_tool: "pulumi",
+  }).managed;
+  assert.equal(m.features.iac, true);
+  assert.deepEqual(m.iac, { provider: "gcp", tool: "pulumi", is_aws: false, is_gcp: true });
+});
+
+test("Phase E: an EXPLICIT feat_iac=false is meaningful — emits the key (false), no iac block", () => {
+  const m = mk({ archetype: "fullstack", project_name: "web", feat_iac: false }).managed;
+  assert.equal(m.features.iac, false);
+  assert.ok(!("iac" in m)); // false never adds the iac block
+  const { valid } = validateManifest(schema, {
+    schema_version: 3,
+    managed: m,
+    user: { notes: "", overrides: {} },
+  });
+  assert.ok(valid); // features.iac:false with no iac block is schema-valid (allOf only requires it when true)
+});
+
+test("Phase E: the iac fix does not change the default fullstack hash from its iac-free body", () => {
+  // A default fullstack manifest and the SAME answers must hash-match a body that
+  // never carried features.iac (the byte-stability guarantee Phase D depended on).
+  const a = mk({ archetype: "fullstack", project_name: "stable" }).managed;
+  const b = mk({ archetype: "fullstack", project_name: "stable" }).managed;
+  assert.equal(a.manifest_hash, b.manifest_hash);
+  assert.equal(computeManifestHash(a), a.manifest_hash);
+});
+
+// -----------------------------------------------------------------------------
+// Phase E — the FINALIZE re-render merges the confirmed brand into managed:.
+// This is the deterministic close of the spec-first loop: /ack-spec confirms a
+// brand color; the finalize feeds it through buildManifest as a raw answer; the
+// result is byte-deterministic and idempotent across re-runs.
+// -----------------------------------------------------------------------------
+test("Phase E finalize: confirmed design_brand_color materializes into tokens.color_brand", () => {
+  const m = mk({ archetype: "fullstack", project_name: "web", design_brand_color: "#0B5FFF" }).managed;
+  assert.equal(m.design_system.tokens.color_brand, "#0B5FFF");
+});
+
+test("Phase E finalize: identical confirmed brand => identical hash (I2 across finalize)", () => {
+  const args = { archetype: "saas", project_name: "fin", design_brand_color: "#123456" };
+  const a = mk({ ...args }).managed;
+  const b = mk({ ...args }).managed;
+  assert.equal(a.manifest_hash, b.manifest_hash);
+  assert.deepEqual(a, b);
+});
+
+test("Phase E finalize: re-run carrying the existing tokens forward preserves the brand", () => {
+  // Simulate the /ack-init finalize-then-re-run: a prior pass confirmed #112233;
+  // the re-run carries design_system_tokens forward verbatim (no regression to
+  // the #0066CC default), and is a no-op for the hash vs. the same carried map.
+  const carried = { color_brand: "#112233", radius_base: "0.5rem" };
+  const first = mk({ archetype: "fullstack", project_name: "web", design_system_tokens: carried }).managed;
+  assert.equal(first.design_system.tokens.color_brand, "#112233");
+  assert.equal(first.design_system.tokens.radius_base, "0.5rem");
+  const second = mk({ archetype: "fullstack", project_name: "web", design_system_tokens: carried }).managed;
+  assert.equal(second.manifest_hash, first.manifest_hash); // idempotent finalize
+});
+
+// -----------------------------------------------------------------------------
 // user: seed + carry.
 // -----------------------------------------------------------------------------
 test("user: seeded once with {notes, overrides}", () => {

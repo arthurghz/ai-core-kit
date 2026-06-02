@@ -1,5 +1,5 @@
 ---
-description: Author (or refresh) the moment-0 SPECS of an ai-core-kit CHILD project. Runs the deep, narrative discovery interview from templates/interview/spec-questions.yaml, then WRITES the filled Markdown specs into specs/ (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, ROADMAP, NON-GOALS) and refreshes the lean child CLAUDE.md — all model-authored prose, idempotent via managed blocks. This emits CONTEXT, not code. Run it in a forked CHILD repo after create-ack/ack-init, before the first contract gate. Never run in the ai-core-kit META repo.
+description: Author (or refresh) the moment-0 SPECS of an ai-core-kit CHILD project. Runs the deep, narrative discovery interview from templates/interview/spec-questions.yaml, then WRITES the filled Markdown specs into specs/ (PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, PLAN, ROADMAP, NON-GOALS — plus DESIGN for design-bearing archetypes) and refreshes the lean child CLAUDE.md — all model-authored prose, idempotent via managed blocks. This emits CONTEXT, not code. Run it in a forked CHILD repo after create-ack/ack-init, before the first contract gate. Never run in the ai-core-kit META repo.
 argument-hint: "[--from <prd-or-spec-path>] [--only <doc[,doc...]>] [--review] [--non-interactive --answers <file.yaml>]"
 allowed-tools: Read, Write, Edit, Bash(test *), Bash(ls *), Bash(cat project.manifest.yaml), AskUserQuestion
 disable-model-invocation: true
@@ -86,8 +86,9 @@ never mutate it.
 
 If `specs/` does not exist yet (e.g. a minimal-core scaffold that skipped the spec
 lay-down, or a hand-made repo), create the doc set yourself from the kit's intent:
-the six docs are `PRD.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `REQUIREMENTS.md`,
-`ROADMAP.md`, `NON-GOALS.md` (+ an `adr/` dir for decision records).
+the universal docs are `PRD.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `REQUIREMENTS.md`,
+`PLAN.md`, `ROADMAP.md`, `NON-GOALS.md` (+ an `adr/` dir for decision records), plus
+`DESIGN.md` for the design-bearing archetypes (`fullstack`, `saas`) only.
 
 ---
 
@@ -120,7 +121,9 @@ optional `options`, a `feeds` pointer (`<DOC>.tpl#<Section>`), and `guidance`.
 Conduct the interview like a thoughtful product+architecture partner:
 
 1. Walk the bank in order (vision → users → use-cases → non-goals → domain →
-   architecture → constraints/NFRs → integrations → metrics → milestones → risks).
+   architecture → constraints/NFRs → integrations → metrics → milestones → risks →
+   **DESIGN & UX** → **PLAN & SEQUENCING**). The `DESIGN & UX` section feeds
+   `specs/DESIGN.md` and the `PLAN & SEQUENCING` section feeds `specs/PLAN.md`.
 2. For `select`/`multiselect` questions, prefer **AskUserQuestion** (the enumerated
    `options` are the choices; always allow a free-text `Other`). For `text`/
    `longtext`/`list`, ask open-ended — batch related questions so the human is not
@@ -130,7 +133,12 @@ Conduct the interview like a thoughtful product+architecture partner:
    integrating developers; IaC's "domain entities" are resources/modules; a
    library has consumers, not personas. The questions are universal; the emphasis
    is yours to set. Skip a line of questioning only when it is genuinely N/A for the
-   archetype — and say so, rather than fabricating an answer.
+   archetype — and say so, rather than fabricating an answer. **The `DESIGN & UX`
+   section is the one with hard archetype gating**: fire it fully only for the
+   design-bearing archetypes (`fullstack`, `saas`); for `backend-api`,
+   `library-sdk`, `infra-iac` (and a `monorepo` with no UI surface), skip it and
+   record `N/A — no UI surface` instead of authoring `specs/DESIGN.md`. The
+   `PLAN & SEQUENCING` section fires for every archetype.
 4. You are the **synthesiser**: terse human answers become well-formed spec prose.
    Never paste raw answers; turn them into the document each `feeds` names.
 
@@ -156,6 +164,21 @@ Doc set and what each holds (see each file's own header comment for the contract
 - **`specs/REQUIREMENTS.md`** — numbered functional requirements (FR-NN), numbered
   non-functional requirements (NFR-NN, each with a measurable target + verification),
   constraints, and the testable acceptance criteria.
+- **`specs/DESIGN.md`** — the product's visual + UX intent (from the DESIGN & UX
+  interview): platform/density/tone, the brand palette + its rationale, key screens
+  & flows, the component inventory, the a11y target, and **design-acceptance
+  criteria (DA-NN)** the gate can trace. Points at the materialised
+  `design-system/` tokens. **GATED**: author it ONLY for the design-bearing
+  archetypes (`managed.archetype` ∈ {`fullstack`, `saas`}). For a no-UI archetype
+  (`backend-api`, `library-sdk`, `infra-iac`, or a `monorepo` with no UI surface),
+  do NOT fabricate a design — write a single line, `N/A — no UI surface`, or omit
+  the doc entirely. Never invent screens or a palette where there is no product UI.
+- **`specs/PLAN.md`** — the build plan (from the PLAN & SEQUENCING interview):
+  phase-by-phase deliverables tracing to FR/NFR + the ROADMAP phases, the thinnest
+  first vertical slice, the validation gate per phase, the explicit "specs lead,
+  code follows" sequencing, and the first-contract proposal (scope globs +
+  acceptance) that STEP 6 turns into `C-001-<slug>`. Authored for **every**
+  archetype — a plan is universal.
 - **`specs/ROADMAP.md`** — phases/milestones (MVP → … → GA), the MVP definition,
   risks & mitigations, assumptions, and technical open questions.
 - **`specs/NON-GOALS.md`** — what is explicitly OUT of scope and WHY (deferred vs.
@@ -203,6 +226,23 @@ child template `templates/CLAUDE.child.md.tmpl`, which has two regions split by 
    short; deep material lives in `specs/` and `.claude/skills/`. Never bloat it.
 3. Do NOT inline spec content into CLAUDE.md. Token economy is the point: CLAUDE.md
    is a few hundred tokens of pointers; the @-imports pull the specs in on demand.
+4. **Surface the brand-colour token for approval** (design-bearing archetypes only —
+   `managed.archetype` ∈ {`fullstack`, `saas`}). `design_brand_color` is the ONE
+   discovery answer with a deterministic destination: its confirmed hex becomes the
+   manifest token `design_system.tokens.color_brand`, from which the renderer
+   materialises the theme. Because it is the only design value that crosses from
+   model-authored prose (Class A) into the deterministic scaffold (Class B), you
+   MUST surface it back to the human verbatim and get an explicit confirmation, e.g.:
+
+   > I'll set `design_system.tokens.color_brand: #0B5FFF`; the renderer materialises
+   > your theme (`design-system/theme/`, `globals.css` `:root`) from it. Confirm or
+   > give a different hex.
+
+   Use `#0066CC` as the default if the human skipped or declined the question. Record
+   the confirmed value in `specs/DESIGN.md#Brand Palette`. Do NOT write
+   `project.manifest.yaml` yourself in this command (STEP 1's read-only rule stands):
+   the confirmed token is merged into `managed:` by the deterministic finalize /
+   `/ack-init` re-render, not here. Your job is to elicit and CONFIRM the value.
 
 If `CLAUDE.md` does not exist (e.g. a minimal-core scaffold that skipped the
 lay-down), author it fresh in this same lean, spec-first shape.
@@ -219,8 +259,10 @@ contract gate (`managed.features.sdd_gate: true`) and no approved contract yet:
 
 - Read `docs/contracts/CONTRACT.template.md` for the contract shape.
 - Draft `docs/contracts/C-001-<project-slug>.contract.md` with `status: draft`:
-  a scope (globs the first slice touches, tracing to REQUIREMENTS.md), the interface
-  + invariants (from DOMAIN.md), and acceptance (from REQUIREMENTS.md acceptance).
+  a scope (the globs the first slice touches — anchored on `specs/PLAN.md#First
+  Contract` and tracing to REQUIREMENTS.md), the interface + invariants (from
+  DOMAIN.md), and acceptance (from REQUIREMENTS.md acceptance + PLAN.md validation
+  gates).
 - Leave it at `status: draft`. Tell the user that a human must review and set it to
   `approved` before the gate will permit edits under the protected paths. Do NOT
   flip a contract to `approved` yourself, and do NOT edit `project.manifest.yaml`.

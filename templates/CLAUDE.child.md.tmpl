@@ -17,13 +17,20 @@ before you write code — in this project, **specs lead and code follows**.
 1. **Read the spec first.** The `specs/` documents below are the source of intent.
    Before implementing anything, read the relevant spec section; if it is empty or
    stale, fill it (or run `/ack-spec`) *before* writing code — never the reverse.
-2. **Least code.** Prefer the smallest change that satisfies the spec. Do not add
+2. **Requirements are your definition of done.** Before writing code, the relevant
+   FR/NFR in `specs/REQUIREMENTS.md` and its acceptance criteria — plus the DA-NN in
+   `specs/DESIGN.md` for any UI — are the bar the change must meet; the contract gate
+   traces edits back to them. Build to the requirement, not to taste.
+3. **Follow the plan's order.** `specs/PLAN.md` sets the build sequence and the first
+   slice. **Specs lead, code follows:** do not start a phase before its slice of the
+   specs and its acceptance exist.
+4. **Least code.** Prefer the smallest change that satisfies the spec. Do not add
    speculative abstractions, frameworks, or files the spec does not call for.
-3. **Keep specs and code in lockstep.** When behavior changes, update the spec in
+5. **Keep specs and code in lockstep.** When behavior changes, update the spec in
    the same change. A diff that alters behavior without touching `specs/` is incomplete.
-4. **Respect the contract gate** (see below). Edits under protected paths are
+6. **Respect the contract gate** (see below). Edits under protected paths are
    gated on an *approved* contract; do not work around the gate.
-5. **Follow the conventions.** House style, naming, and review checklist live in
+7. **Follow the conventions.** House style, naming, and review checklist live in
    `.claude/conventions.md` and the project skills under `.claude/skills/`.
 
 ## Specs — the source of intent (read these first)
@@ -32,6 +39,10 @@ before you write code — in this project, **specs lead and code follows**.
 @specs/ARCHITECTURE.md
 @specs/DOMAIN.md
 @specs/REQUIREMENTS.md
+#ack:if design_system.install
+@specs/DESIGN.md
+#ack:endif
+@specs/PLAN.md
 @specs/ROADMAP.md
 @specs/NON-GOALS.md
 
@@ -39,6 +50,10 @@ before you write code — in this project, **specs lead and code follows**.
 - **ARCHITECTURE.md** — the shape of the system: components, boundaries, data flow.
 - **DOMAIN.md** — entities, relationships, and the **invariants that must never break**.
 - **REQUIREMENTS.md** — functional + non-functional requirements; the testable "done".
+- **DESIGN.md** — *(UI products)* visual + UX intent: brand, key screens, density,
+  a11y, and the **design acceptance (DA-NN)** that says a screen is on-brand and done.
+- **PLAN.md** — the build sequence: phases, the first slice, validation gates, and the
+  first-contract proposal. **Specs lead, code follows** is the rule it operationalises.
 - **ROADMAP.md** — sequence and milestones; what is in this slice vs. deferred.
 - **NON-GOALS.md** — explicitly out of scope; read this to *stop* scope creep.
 
@@ -72,13 +87,20 @@ contract from the specs above.
 - `.claude/settings.json` — hooks (including the contract gate) and permissions.
 
 #ack:if design_system.install
-## Design system
+## Design system & UX
 
+@specs/DESIGN.md
 @design-system/
 
-Brand, tokens, and component taxonomy live under `design-system/`. Honor the
-tokens and the `brand-guidelines` / `frontend-design-guidelines` skills there;
-do not introduce ad-hoc colors, spacing, or components outside the system.
+This product's visual + UX intent lives in `specs/DESIGN.md` — brand, key screens,
+density, the a11y target, and the design acceptance criteria (**DA-NN**). The tokens
+are materialized in `design-system/theme/` from `design_system.tokens`; **never**
+introduce ad-hoc colors, spacing, radii, or components outside the system. For HOW to
+apply them, honor the `brand-guidelines` / `frontend-design-guidelines` skills.
+
+Design "done" = the DA-NN in `specs/DESIGN.md` hold: visible focus on every
+interactive element, tokens-not-magic-numbers, WCAG AA verified, and empty/loading/
+error states present. Where a UI path is protected, that DA traces to a contract.
 #ack:endif
 
 #ack:if features.mcp

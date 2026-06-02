@@ -293,3 +293,134 @@ questions:
     type: list
     feeds: "ROADMAP.md.tpl#Open Questions"
     guidance: "Honest list of unresolved decisions. Each should name an owner and a 'decide-by' moment so it does not silently linger."
+
+  # ===========================================================================
+  # DESIGN & UX  -- the product's visual + interaction intent.
+  #   Feeds specs/DESIGN.md. This whole section fully fires only for the
+  #   design-bearing archetypes (fullstack / saas); for backend-api / SDK / IaC
+  #   it is skipped or reduced to "N/A — no UI surface" and DESIGN.md is omitted.
+  #   Conversation scaffolding only (no writes_to, no schema) — WITH ONE
+  #   EXCEPTION: `design_brand_color`. Its CONFIRMED hex value is the single
+  #   design input that crosses into the deterministic layer; `/ack-spec` writes
+  #   it to the manifest as `design_system.tokens.color_brand`, from which the
+  #   renderer materialises the theme (globals.css :root). It is NOT a manifest
+  #   key here — it stays a discovery question; the command surfaces the value for
+  #   the human to approve before it enters managed:.
+  # ===========================================================================
+  - id: design_platform
+    prompt: "Which surfaces does v1 ship on? Select every platform the first release must support."
+    type: multiselect
+    options:
+      - { value: web,            label: "Web (desktop-first)" }
+      - { value: responsive-web, label: "Responsive web (desktop + mobile)" }
+      - { value: mobile-web,     label: "Mobile web / small-screen primary" }
+      - { value: pwa,            label: "Native-ish PWA (installable, offline)" }
+    feeds: "DESIGN.md.tpl#Platform & Targets"
+    guidance: "Which surfaces ship in v1; drives breakpoint and density emphasis. Unselected surfaces are an explicit non-target, not an oversight."
+
+  - id: design_product_kind
+    prompt: "What KIND of product is this, design-wise? Pick the one that best sets the visual defaults."
+    type: select
+    options:
+      - { value: marketing-site,           label: "Marketing / landing site" }
+      - { value: data-dense-app,           label: "Data-dense application" }
+      - { value: dashboard,                label: "Dashboard / analytics" }
+      - { value: content-editorial,        label: "Content / editorial" }
+      - { value: design-system-as-product, label: "Design system as the product" }
+      - { value: mixed,                    label: "Mixed (e.g. marketing + app)" }
+    feeds: "DESIGN.md.tpl#Design Maturity"
+    guidance: "Captures intent, not a yes/no install. A marketing site and a data-dense app want different defaults (whitespace vs information density)."
+
+  - id: design_tone
+    prompt: "What is the brand voice / visual tone? Pick the register that the UI should feel like."
+    type: select
+    options:
+      - { value: minimal-neutral,    label: "Minimal / neutral" }
+      - { value: bold-expressive,    label: "Bold / expressive" }
+      - { value: warm-friendly,      label: "Warm / friendly" }
+      - { value: technical-precise,  label: "Technical / precise" }
+      - { value: playful,            label: "Playful" }
+    feeds: "DESIGN.md.tpl#Voice & Tone"
+    guidance: "Maps to the design-system style preset (modern / classic / playful) AND the brand-guidelines voice. The synthesiser turns it into concrete type/spacing/motion choices."
+
+  - id: design_brand_color
+    prompt: "What is the primary brand colour, as a hex value (#RRGGBB)? This is the ONE design input that becomes a deterministic theme token."
+    type: text
+    # DETERMINISTIC DESTINATION (the only one in this bank): the confirmed hex
+    # becomes the manifest token `design_system.tokens.color_brand`, from which
+    # the renderer derives globals.css :root. `/ack-spec` MUST surface the
+    # confirmed value back to the human before writing it. Default `#0066CC` if
+    # skipped. This is conversation scaffolding here, NOT a manifest key.
+    feeds: "DESIGN.md.tpl#Brand Palette"
+    guidance: "A single hex (e.g. #0B5FFF). Confirm it explicitly — it is the one design value that crosses into the deterministic (Class B) layer. If the human declines, note the default #0066CC."
+
+  - id: design_density
+    prompt: "What information density should the UI default to?"
+    type: select
+    options:
+      - { value: comfortable, label: "Comfortable (generous spacing, 8pt base)" }
+      - { value: compact,     label: "Compact (tighter spacing)" }
+      - { value: dense,       label: "Dense (4pt base, maximum information)" }
+    feeds: "DESIGN.md.tpl#Density"
+    guidance: "8pt vs 4pt base-grid emphasis. A dashboard usually wants dense; a marketing site comfortable. Reconciles the two design-stack spacing scales."
+
+  - id: design_key_screens
+    prompt: "What are the handful of screens / views that DEFINE the product? List each as a name + the job it does."
+    type: list
+    feeds: "DESIGN.md.tpl#Key Screens & Flows"
+    guidance: "One entry per screen: name + the job the user does there ('Dashboard — see account health at a glance'). 3-7 load-bearing screens, not an exhaustive sitemap."
+
+  - id: design_components
+    prompt: "What UI components does v1 need? List the building blocks the key screens are made of (table, form, chart, nav, modal, …)."
+    type: list
+    feeds: "DESIGN.md.tpl#Component Inventory"
+    guidance: "Seeds the shadcn copy-in list and a definition-of-done per component (states, a11y). Name the real components the key screens require, not a generic catalogue."
+
+  - id: design_references
+    prompt: "Are there competitor or aspirational products whose design you admire? List each + the specific thing to borrow."
+    type: list
+    feeds: "DESIGN.md.tpl#References"
+    guidance: "Per reference: product + the ONE thing to borrow ('Linear — keyboard-first speed'). Keeps the visual intent concrete instead of abstract adjectives."
+
+  - id: design_a11y_target
+    prompt: "What accessibility bar must the product meet?"
+    type: select
+    options:
+      - { value: wcag22-aa,           label: "WCAG 2.2 AA (the floor)" }
+      - { value: wcag22-aaa,          label: "WCAG 2.2 AAA" }
+      - { value: aa-plus-motion,      label: "WCAG 2.2 AA + reduced-motion / contrast preferences honoured" }
+    feeds: "DESIGN.md.tpl#Accessibility"
+    guidance: "Becomes the DA-NN design-acceptance criteria. Defaults to the WCAG 2.2 AA floor already baked into frontend-design-guidelines; only raise it deliberately."
+
+  # ===========================================================================
+  # PLAN & SEQUENCING  -- the build order the specs are delivered in.
+  #   Feeds specs/PLAN.md. Fires for EVERY archetype (a plan is universal). Most
+  #   of the plan reuses earlier discovery answers (milestones, mvp_definition,
+  #   primary_acceptance); these questions add only the sequencing + first-slice
+  #   framing the plan needs. Conversation scaffolding only — no writes_to, no
+  #   schema. `plan_contract_scope` also seeds the first-contract proposal the
+  #   command drafts in STEP 6 (C-001-<slug>), but the manifest is untouched here.
+  # ===========================================================================
+  - id: plan_first_slice
+    prompt: "What is the THINNEST vertical slice that proves the core thesis end-to-end? Describe the one path that, working, validates the bet."
+    type: longtext
+    feeds: "PLAN.md.tpl#First Slice"
+    guidance: "A single end-to-end path, not a layer. Becomes phase 1 of the plan and anchors the first contract's scope. Distinct from the MVP (which may be broader)."
+
+  - id: plan_sequencing
+    prompt: "In what ORDER should the build proceed? List the phases/steps in sequence, each with the dependency reason that fixes its place."
+    type: list
+    feeds: "PLAN.md.tpl#Build Order"
+    guidance: "Per step: the deliverable + why it comes when it does ('auth before billing, because billing webhooks need an authenticated tenant'). The dependency reason is the point."
+
+  - id: plan_validation_per_phase
+    prompt: "How is each phase PROVEN done? Describe the test/observe gate that closes a phase before the next begins."
+    type: longtext
+    feeds: "PLAN.md.tpl#Validation Gates"
+    guidance: "The validate-at-each-gate discipline: what test passes, what is observed, what is demoed. Each gate maps to the phase's acceptance and, where it guards a protected path, to a contract."
+
+  - id: plan_contract_scope
+    prompt: "Which files/areas (as path globs) does the first slice touch? List the globs the first contract should govern."
+    type: list
+    feeds: "PLAN.md.tpl#First Contract"
+    guidance: "Path globs the first slice edits (e.g. 'app/** lib/auth/**'). The command proposes C-001-<slug> scope from these; they should sit inside the manifest's protected paths."

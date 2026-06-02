@@ -1,0 +1,183 @@
+name: Telemetry monitor (DORA)
+
+# Tier-1 "scheduled monitor" for ai-core-kit telemetry.
+#
+# WHAT RUNS HERE (and what does NOT):
+#   - DORA keys are computed from git history, which IS present in the runner
+#     (we check out full history with fetch-depth: 0), so this job can compute
+#     them honestly on a schedule and raise an issue on regression.
+#   - AI token-COST / budget monitoring is deliberately NOT in CI. Cost is
+#     derived offline from `~/.claude/projects/**/*.jsonl` transcripts, and those
+#     transcripts live ONLY on the developer's machine — they do not exist in a
+#     GitHub runner. Run the LOCAL monitor `telemetry/monitor.sh` (cron/launchd)
+#     for cost/budget alerts. See telemetry/monitor.sh and
+#     templates/telemetry/MONITORING.md.
+
+on:
+  schedule:
+    # Weekly, Monday 08:00 UTC. DORA is a trailing trend; a daily cron would be
+    # noise for a window measured in weeks.
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+    inputs:
+      cfr_threshold_pct:
+        description: 'Change-failure-rate alert threshold (percent). Above this -> open/refresh an issue.'
+        type: string
+        default: '15'
+      window:
+        description: 'DORA window: 30d | 12w | 6m | 1y | YYYY-MM-DD'
+        type: string
+        default: '30d'
+      deploy_mode:
+        description: 'What counts as a deploy: release tag (tag) or first-parent merge (merge).'
+        type: choice
+        options: [tag, merge]
+        default: tag
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: telemetry-monitor
+  cancel-in-progress: false
+
+jobs:
+  dora:
+    runs-on: ubuntu-latest
+    env:
+      # Defaults apply to the scheduled run (workflow_dispatch inputs are empty there).
+      CFR_THRESHOLD_PCT: ${{ github.event.inputs.cfr_threshold_pct || '15' }}
+      WINDOW: ${{ github.event.inputs.window || '30d' }}
+      DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'tag' }}
+      GH_TOKEN: ${{ github.token }}
+      ISSUE_LABEL: metrics
+    steps:
+      - name: Checkout (FULL history — DORA reads git log/tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: DORA report -> job summary (human-readable, fenced)
+        run: |
+          {
+            echo '## DORA report (OFFLINE, from git history)'
+            echo
+            echo "window=\`${WINDOW}\`  deploy-mode=\`${DEPLOY_MODE}\`  cfr-threshold=\`${CFR_THRESHOLD_PCT}%\`"
+            echo
+            echo '```text'
+            python3 telemetry/dora.py --window "${WINDOW}" --deploy-mode "${DEPLOY_MODE}" --format md
+            echo '```'
+            echo
+            echo '> Token-COST / budget monitoring is NOT in CI: `~/.claude` transcripts'
+            echo '> do not exist in a runner. Run `telemetry/monitor.sh` locally for cost.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compute DORA (JSON) and decide alert
+        id: dora
+        run: |
+          set -euo pipefail
+          python3 telemetry/dora.py --window "${WINDOW}" --deploy-mode "${DEPLOY_MODE}" --format json > dora.json
+          cat dora.json
+
+          # Parse with stdlib python (no jq dependency). Emits the alert decision
+          # plus a markdown body to GITHUB_OUTPUT. "Overdue" = zero deploys in the
+          # window OR an unresolved failure (a failure marker with no restoring deploy).
+          python3 - "$CFR_THRESHOLD_PCT" <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, sys
+
+          threshold_pct = float(sys.argv[1])
+          d = json.load(open("dora.json"))
+
+          cfr_rate = d["change_failure_rate"]["rate"] or 0.0          # 0.0..1.0
+          cfr_pct = round(cfr_rate * 100, 1)
+          deploys = d["deployment_frequency"]["deploys"]
+          unresolved = d["mean_time_to_restore"]["unresolved_failures"]
+
+          reasons = []
+          if cfr_pct > threshold_pct:
+              reasons.append(
+                  f"Change-failure rate **{cfr_pct}%** exceeds threshold **{threshold_pct}%** "
+                  f"({d['change_failure_rate']['failed_deploys']}/{d['change_failure_rate']['total_deploys']} deploys)."
+              )
+          if deploys == 0:
+              reasons.append("**No deploys** detected in the window (deploy cadence overdue).")
+          if unresolved > 0:
+              reasons.append(f"**{unresolved} unresolved failure(s)** — a failure marker with no restoring deploy.")
+
+          alert = "true" if reasons else "false"
+
+          # Build the issue body (markdown). Multi-line output via a heredoc delimiter.
+          df = d["deployment_frequency"]; lt = d["lead_time_for_changes"]
+          cf = d["change_failure_rate"]; mt = d["mean_time_to_restore"]
+          w = d["window"]
+          body_lines = [
+              "Automated DORA monitor flagged a regression. This issue is opened/refreshed by",
+              "`.github/workflows/monitor.yml` and auto-closed when metrics recover.",
+              "",
+              "### Why this fired",
+              *[f"- {r}" for r in reasons],
+              "",
+              "### Snapshot",
+              f"- Window: `{w['start']}` -> `{w['end']}` ({w['span_days']} days)",
+              f"- Deployment frequency: {df['deploys']} deploys ({df['per_week']}/wk) — {df['rating']}",
+              f"- Lead time: {lt['median_human']} — {lt['rating']}",
+              f"- Change-failure rate: {cfr_pct}% ({cf['failed_deploys']}/{cf['total_deploys']}) — {cf['rating']}",
+              f"- MTTR: {mt['median_human']} (unresolved={mt['unresolved_failures']}) — {mt['rating']}",
+              "",
+              "> Heuristic: deploys/failures are git PROXIES, not a real deployment stream.",
+              "> See `telemetry/dora.py --help` for definitions and limits.",
+          ]
+          body = "\n".join(body_lines)
+
+          print(f"alert={alert}")
+          print(f"cfr_pct={cfr_pct}")
+          print(f"deploys={deploys}")
+          delim = "BODY_EOF"
+          print(f"body<<{delim}")
+          print(body)
+          print(delim)
+          PY
+
+      - name: Open or refresh the metrics issue
+        if: steps.dora.outputs.alert == 'true'
+        env:
+          ISSUE_TITLE: 'DORA monitor: metrics regression'
+          BODY: ${{ steps.dora.outputs.body }}
+        run: |
+          set -euo pipefail
+          # Find an existing OPEN issue with our label + title (idempotent: refresh, don't duplicate).
+          existing="$(gh issue list --state open --label "$ISSUE_LABEL" \
+            --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Refreshing existing issue #$existing"
+            printf '%s\n' "$BODY" | gh issue comment "$existing" --body-file -
+          else
+            echo "Opening a new issue"
+            # Ensure the label exists (ignore 'already exists' error).
+            gh label create "$ISSUE_LABEL" --color FBCA04 --description "Telemetry / DORA monitor" 2>/dev/null || true
+            printf '%s\n' "$BODY" | gh issue create --title "$ISSUE_TITLE" --label "$ISSUE_LABEL" --body-file -
+          fi
+
+      - name: Close the metrics issue (metrics recovered)
+        if: steps.dora.outputs.alert == 'false'
+        env:
+          ISSUE_TITLE: 'DORA monitor: metrics regression'
+        run: |
+          set -euo pipefail
+          existing="$(gh issue list --state open --label "$ISSUE_LABEL" \
+            --search "$ISSUE_TITLE in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "Metrics recovered — closing issue #$existing"
+            gh issue close "$existing" --comment "DORA metrics recovered (below threshold, deploys present, no unresolved failures). Auto-closed by the telemetry monitor."
+          else
+            echo "No open metrics issue and metrics are healthy — nothing to do."
+          fi

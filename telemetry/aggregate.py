@@ -48,7 +48,7 @@
 #                        [--daily] [--daily-by model|feature|agent|session]
 #                        [--budget USD] [--budget-axis AXIS]
 #                        [--bucket-budget NAME=USD ...] [--budget-strict]
-#                        [--format table|json|both] [--manifest PATH]
+#                        [--format table|json|both|md|html] [--manifest PATH]
 #   See README.md for the full attribution model and worked examples.
 # =============================================================================
 
@@ -613,6 +613,343 @@ def render_table(result):
 
 
 # ---------------------------------------------------------------------------
+# Markdown rendering  (a drop-in for a PR comment / GitHub job-summary)
+# ---------------------------------------------------------------------------
+# The Markdown report is built from the SAME `result` dict that table/json use
+# (no recomputation): GitHub-flavored tables per axis, an optional daily series,
+# a budget block, and a totals/reconciliation footer. It is plain GFM with no
+# HTML, so it pastes cleanly into a PR comment or `$GITHUB_STEP_SUMMARY`.
+def _md_num(n):
+    """Thousands-separated integer for a Markdown cell."""
+    return f"{int(n):,}"
+
+
+def render_md(result):
+    out = []
+    out.append("# AI usage report")
+    out.append("")
+    out.append(
+        f"_OFFLINE estimate: transcript `message.usage` x `pricing.json` "
+        f"(as_of {result['pricing_as_of']})._"
+    )
+    out.append("")
+    out.append(f"- **Grand total:** ${result['total_cost_usd']:.4f} USD")
+    out.append(f"- **Assistant turns:** {result['assistant_turns']:,}  "
+               f"(files scanned: {result['files_scanned']:,})")
+    tk = result["total_tokens"]
+    out.append(
+        f"- **Tokens:** in {_md_num(tk['input'])} / out {_md_num(tk['output'])} / "
+        f"cache-read {_md_num(tk['cache_read'])} / "
+        f"cache-write {_md_num(tk['cache_write_5m'] + tk['cache_write_1h'])}"
+    )
+    out.append(
+        f"- **Reconciled across all axes:** "
+        f"{'yes' if result['reconciled'] else '**NO -- INVESTIGATE**'}"
+    )
+    out.append("")
+
+    for ax in result["axes"]:
+        out.append(f"## by {ax}")
+        out.append("")
+        out.append("| bucket | turns | cost USD | in+out tok | cache tok |")
+        out.append("|---|---:|---:|---:|---:|")
+        for name, v in result["buckets"][ax].items():
+            t = v["tokens"]
+            io_tok = t["input"] + t["output"]
+            cache_tok = t["cache_read"] + t["cache_write_5m"] + t["cache_write_1h"]
+            out.append(
+                f"| {_md_cell(name)} | {v['turns']:,} | {v['cost_usd']:.4f} | "
+                f"{_md_num(io_tok)} | {_md_num(cache_tok)} |"
+            )
+        rc = result["reconciliation"][ax]
+        flag = "OK" if rc["ok"] else "**MISMATCH**"
+        out.append(
+            f"| **sum(buckets)** | | **{rc['bucket_sum']:.4f}** | | "
+            f"_reconcile vs {result['total_cost_usd']:.4f}: {flag}_ |"
+        )
+        out.append("")
+
+    daily = result.get("daily")
+    if daily:
+        by = daily.get("by")
+        out.append("## daily time series" + (f" (split by {by})" if by else ""))
+        out.append("")
+        out.append("| day | turns | cost USD | in+out tok | cache tok |")
+        out.append("|---|---:|---:|---:|---:|")
+        for d in daily["days"]:
+            t = d["tokens"]
+            io_tok = t["input"] + t["output"]
+            cache_tok = t["cache_read"] + t["cache_write_5m"] + t["cache_write_1h"]
+            out.append(
+                f"| {d['day']} | {d['turns']:,} | {d['cost_usd']:.4f} | "
+                f"{_md_num(io_tok)} | {_md_num(cache_tok)} |"
+            )
+            for name, sv in (d.get("split") or {}).items():
+                out.append(
+                    f"| &nbsp;&nbsp;&bull; {_md_cell(name)} | {sv['turns']:,} | "
+                    f"{sv['cost_usd']:.4f} | | |"
+                )
+        out.append("")
+
+    budget = result.get("budget")
+    if budget:
+        out.append("## budget")
+        out.append("")
+        tot = budget.get("total")
+        if tot:
+            util = (f"{tot['utilization'] * 100:.1f}%"
+                    if tot["utilization"] is not None else "n/a")
+            mark = "OVER" if tot["over"] else "ok"
+            out.append(
+                f"- **total:** spent ${tot['spent_usd']:.4f} / cap "
+                f"${tot['cap_usd']:.4f} = {util} "
+                f"(remaining ${tot['remaining_usd']:.4f}) -- **{mark}**"
+            )
+        if budget.get("buckets"):
+            out.append("")
+            out.append(f"per-{budget.get('axis')} ceilings:")
+            out.append("")
+            out.append("| bucket | spent USD | cap USD | utilization | status |")
+            out.append("|---|---:|---:|---:|---|")
+            for name, row in budget["buckets"].items():
+                util = (f"{row['utilization'] * 100:.1f}%"
+                        if row["utilization"] is not None else "n/a")
+                mark = "OVER" if row["over"] else "ok"
+                out.append(
+                    f"| {_md_cell(name)} | {row['spent_usd']:.4f} | "
+                    f"{row['cap_usd']:.4f} | {util} | {mark} |"
+                )
+        out.append("")
+        out.append(
+            f"**Over budget:** {'YES -- exceeds a ceiling' if budget['over_budget'] else 'no'}"
+        )
+        out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _md_cell(s):
+    """Escape a string so it is safe inside a single Markdown table cell."""
+    return str(s).replace("|", "\\|").replace("\n", " ")
+
+
+# ---------------------------------------------------------------------------
+# HTML rendering  (a SINGLE self-contained file: inline CSS + inline SVG bars,
+# NO external CSS/JS/CDN, NO deps -- opens standalone in any browser)
+# ---------------------------------------------------------------------------
+def _esc(s):
+    """Minimal HTML-escape for text and attribute content."""
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def _svg_bar(value, vmax, width=180, height=14, fill="#4c78a8"):
+    """A single inline horizontal SVG bar, proportional to value/vmax."""
+    vmax = vmax if vmax > 0 else 1.0
+    w = max(0.0, min(1.0, value / vmax)) * width
+    return (
+        f'<svg class="bar" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" role="img" aria-label="{_esc(value)}">'
+        f'<rect width="{width}" height="{height}" fill="#eee"/>'
+        f'<rect width="{w:.2f}" height="{height}" fill="{fill}"/>'
+        f'</svg>'
+    )
+
+
+def _svg_sparkline(values, width=260, height=40, stroke="#4c78a8"):
+    """An inline SVG sparkline for a small numeric series (daily cost/tokens)."""
+    if not values:
+        return ""
+    vmax = max(values) or 1.0
+    n = len(values)
+    if n == 1:
+        pts = [(width / 2.0, height - (values[0] / vmax) * (height - 2) - 1)]
+    else:
+        step = width / (n - 1)
+        pts = [(i * step, height - (v / vmax) * (height - 2) - 1)
+               for i, v in enumerate(values)]
+    path = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    dots = "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.6" fill="{stroke}"/>'
+                   for x, y in pts)
+    return (
+        f'<svg class="spark" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" role="img" aria-label="sparkline">'
+        f'<polyline fill="none" stroke="{stroke}" stroke-width="1.5" points="{path}"/>'
+        f'{dots}</svg>'
+    )
+
+
+_HTML_STYLE = """
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+       margin: 0; padding: 2rem; max-width: 1000px; margin-inline: auto; color: #1b1b1b; background: #fff; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.15rem; margin: 1.6rem 0 .5rem; border-bottom: 1px solid #e3e3e3; padding-bottom: .25rem; }
+.sub { color: #666; margin: 0 0 1rem; }
+.cards { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.card { flex: 1 1 160px; border: 1px solid #e3e3e3; border-radius: 8px; padding: .6rem .8rem; background: #fafafa; }
+.card .k { color: #666; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; }
+.card .v { font-size: 1.25rem; font-weight: 600; }
+table { border-collapse: collapse; width: 100%; margin: .25rem 0 1rem; font-variant-numeric: tabular-nums; }
+th, td { padding: .35rem .55rem; border-bottom: 1px solid #ededed; text-align: left; }
+th { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+td.num, th.num { text-align: right; }
+tr.sum td { border-top: 2px solid #ccc; font-weight: 600; }
+.bar { vertical-align: middle; border-radius: 2px; }
+.ok { color: #1a7f37; font-weight: 600; }
+.bad { color: #b3261e; font-weight: 700; }
+.badge { display: inline-block; padding: .05rem .45rem; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+.badge.ok { background: #dafbe1; color: #1a7f37; }
+.badge.bad { background: #ffe3e0; color: #b3261e; }
+footer { margin-top: 2rem; color: #777; font-size: .8rem; border-top: 1px solid #e3e3e3; padding-top: .75rem; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e6e6e6; background: #161616; }
+  .card { background: #1f1f1f; border-color: #333; }
+  h2 { border-color: #333; } th, td { border-color: #2a2a2a; }
+  .sub, .card .k, th, footer { color: #9a9a9a; }
+}
+"""
+
+
+def render_html(result):
+    tk = result["total_tokens"]
+    cache_w = tk["cache_write_5m"] + tk["cache_write_1h"]
+    recon_badge = ('<span class="badge ok">reconciled</span>'
+                   if result["reconciled"]
+                   else '<span class="badge bad">NOT reconciled</span>')
+    h = []
+    h.append("<!doctype html>")
+    h.append('<html lang="en"><head><meta charset="utf-8">')
+    h.append('<meta name="viewport" content="width=device-width, initial-scale=1">')
+    h.append("<title>AI usage report</title>")
+    h.append(f"<style>{_HTML_STYLE}</style></head><body>")
+    h.append("<h1>AI usage report</h1>")
+    h.append(
+        f'<p class="sub">OFFLINE estimate: transcript <code>message.usage</code> '
+        f'&times; <code>pricing.json</code> (as_of {_esc(result["pricing_as_of"])}). '
+        f'{recon_badge}</p>'
+    )
+    h.append('<div class="cards">')
+    h.append(f'<div class="card"><div class="k">Grand total</div>'
+             f'<div class="v">${result["total_cost_usd"]:.4f}</div></div>')
+    h.append(f'<div class="card"><div class="k">Assistant turns</div>'
+             f'<div class="v">{result["assistant_turns"]:,}</div></div>')
+    h.append(f'<div class="card"><div class="k">Input + output tok</div>'
+             f'<div class="v">{tk["input"] + tk["output"]:,}</div></div>')
+    h.append(f'<div class="card"><div class="k">Cache tok (read/write)</div>'
+             f'<div class="v">{tk["cache_read"]:,} / {cache_w:,}</div></div>')
+    h.append("</div>")
+
+    for ax in result["axes"]:
+        buckets = result["buckets"][ax]
+        vmax = max((v["cost_usd"] for v in buckets.values()), default=0.0)
+        h.append(f"<h2>by {_esc(ax)}</h2>")
+        h.append("<table><thead><tr>"
+                 "<th>bucket</th><th class='num'>turns</th>"
+                 "<th class='num'>cost USD</th><th>cost</th>"
+                 "<th class='num'>in+out tok</th><th class='num'>cache tok</th>"
+                 "</tr></thead><tbody>")
+        for name, v in buckets.items():
+            t = v["tokens"]
+            io_tok = t["input"] + t["output"]
+            cache_tok = t["cache_read"] + t["cache_write_5m"] + t["cache_write_1h"]
+            h.append(
+                f"<tr><td>{_esc(name)}</td>"
+                f"<td class='num'>{v['turns']:,}</td>"
+                f"<td class='num'>{v['cost_usd']:.4f}</td>"
+                f"<td>{_svg_bar(v['cost_usd'], vmax)}</td>"
+                f"<td class='num'>{io_tok:,}</td>"
+                f"<td class='num'>{cache_tok:,}</td></tr>"
+            )
+        rc = result["reconciliation"][ax]
+        flag = ('<span class="ok">OK</span>' if rc["ok"]
+                else '<span class="bad">MISMATCH</span>')
+        h.append(
+            f"<tr class='sum'><td>sum(buckets)</td><td></td>"
+            f"<td class='num'>{rc['bucket_sum']:.4f}</td>"
+            f"<td colspan='3'>reconcile vs {result['total_cost_usd']:.4f}: {flag}</td></tr>"
+        )
+        h.append("</tbody></table>")
+
+    daily = result.get("daily")
+    if daily and daily["days"]:
+        by = daily.get("by")
+        costs = [d["cost_usd"] for d in daily["days"]]
+        h.append("<h2>daily time series" + (f" (split by {_esc(by)})" if by else "") + "</h2>")
+        h.append(f'<p>{_svg_sparkline(costs)} <small>daily cost USD '
+                 f'(max ${max(costs):.4f})</small></p>')
+        h.append("<table><thead><tr><th>day</th>"
+                 "<th class='num'>turns</th><th class='num'>cost USD</th>"
+                 "<th class='num'>in+out tok</th><th class='num'>cache tok</th>"
+                 "</tr></thead><tbody>")
+        for d in daily["days"]:
+            t = d["tokens"]
+            io_tok = t["input"] + t["output"]
+            cache_tok = t["cache_read"] + t["cache_write_5m"] + t["cache_write_1h"]
+            h.append(
+                f"<tr><td>{_esc(d['day'])}</td>"
+                f"<td class='num'>{d['turns']:,}</td>"
+                f"<td class='num'>{d['cost_usd']:.4f}</td>"
+                f"<td class='num'>{io_tok:,}</td>"
+                f"<td class='num'>{cache_tok:,}</td></tr>"
+            )
+            for name, sv in (d.get("split") or {}).items():
+                h.append(
+                    f"<tr><td>&nbsp;&nbsp;&bull; {_esc(name)}</td>"
+                    f"<td class='num'>{sv['turns']:,}</td>"
+                    f"<td class='num'>{sv['cost_usd']:.4f}</td>"
+                    f"<td></td><td></td></tr>"
+                )
+        h.append("</tbody></table>")
+
+    budget = result.get("budget")
+    if budget:
+        h.append("<h2>budget</h2>")
+        tot = budget.get("total")
+        if tot:
+            util = (f"{tot['utilization'] * 100:.1f}%"
+                    if tot["utilization"] is not None else "n/a")
+            badge = ('<span class="badge bad">OVER</span>' if tot["over"]
+                     else '<span class="badge ok">ok</span>')
+            h.append(
+                f"<p>total: spent ${tot['spent_usd']:.4f} / cap "
+                f"${tot['cap_usd']:.4f} = {util} "
+                f"(remaining ${tot['remaining_usd']:.4f}) {badge}</p>"
+            )
+        if budget.get("buckets"):
+            h.append(f"<p>per-{_esc(budget.get('axis'))} ceilings:</p>")
+            h.append("<table><thead><tr><th>bucket</th>"
+                     "<th class='num'>spent USD</th><th class='num'>cap USD</th>"
+                     "<th class='num'>utilization</th><th>status</th>"
+                     "</tr></thead><tbody>")
+            for name, row in budget["buckets"].items():
+                util = (f"{row['utilization'] * 100:.1f}%"
+                        if row["utilization"] is not None else "n/a")
+                badge = ('<span class="badge bad">OVER</span>' if row["over"]
+                         else '<span class="badge ok">ok</span>')
+                h.append(
+                    f"<tr><td>{_esc(name)}</td>"
+                    f"<td class='num'>{row['spent_usd']:.4f}</td>"
+                    f"<td class='num'>{row['cap_usd']:.4f}</td>"
+                    f"<td class='num'>{util}</td><td>{badge}</td></tr>"
+                )
+            h.append("</tbody></table>")
+        over = budget["over_budget"]
+        h.append(f'<p><strong>Over budget:</strong> '
+                 f'{"YES -- exceeds a ceiling" if over else "no"}</p>')
+
+    h.append(
+        f'<footer>ai-core-kit offline cost aggregator &middot; '
+        f'pricing as_of {_esc(result["pricing_as_of"])} &middot; '
+        f'files scanned {result["files_scanned"]:,} &middot; '
+        f'reconciled: {"yes" if result["reconciled"] else "NO"}</footer>'
+    )
+    h.append("</body></html>")
+    return "\n".join(h) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # manifest-driven defaults (CHILD layer reads telemetry.* from the manifest)
 # ---------------------------------------------------------------------------
 def manifest_defaults(manifest_path):
@@ -720,8 +1057,9 @@ def build_parser():
                     help="exit non-zero if ANY budget ceiling is exceeded (default: report only)")
     ap.add_argument("--manifest", default=None,
                     help="CHILD project.manifest.yaml; supplies telemetry.* defaults (CLI wins)")
-    ap.add_argument("--format", choices=("table", "json", "both"), default="both",
-                    help="output format (default: both)")
+    ap.add_argument("--format", choices=("table", "json", "both", "md", "html"), default="both",
+                    help="output format: table|json|both (default), or md / html "
+                         "(self-contained Markdown / single-file HTML report)")
     return ap
 
 
@@ -822,6 +1160,10 @@ def main(argv=None):
         if args.format == "both":
             print()  # separate table from JSON on stdout
         print(json.dumps(result, indent=2, sort_keys=False))
+    if args.format == "md":
+        print(render_md(result), end="")
+    if args.format == "html":
+        print(render_html(result), end="")
 
     if not result["reconciled"]:
         print("FATAL: bucket sums do not reconcile to grand total.", file=sys.stderr)

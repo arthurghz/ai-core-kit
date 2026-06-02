@@ -23,9 +23,25 @@ Claude Code:
    estimativa de transcript.
 
 Esta página é a lista completa, sem omissões, dessas peças: o agregador, o mapa
-de preços, os orçamentos, o módulo DORA, o exportador Prometheus e a stack
-docker-compose com seus três dashboards. O modelo de atribuição de custo está
-detalhado em [Telemetria de Custo Offline](/features/cost-telemetry).
+de preços, os orçamentos, o módulo DORA, o relatório, o monitor local, o
+exportador Prometheus e a stack docker-compose com seus três dashboards. O modelo
+de atribuição de custo está detalhado em
+[Telemetria de Custo Offline](/features/cost-telemetry).
+
+## Como você consome — três tiers
+
+A observabilidade aqui é **offline-first e em tiers**. Você não precisa do Grafana
+— nem de infra alguma — para obter o quadro completo de custo, tokens e DORA. Os
+tiers são aditivos (cada um lê os mesmos dois motores, sem reimplementar
+matemática):
+
+| Tier | Infra | O que você ganha |
+|---|---|---|
+| **Tier 0** — CLI + relatório (padrão) | **nenhuma** | `aggregate.py` / `dora.py` na CLI, mais um **relatório** HTML/Markdown autocontido (`report.py`) que você abre ou anexa a um PR |
+| **Tier 1** — monitor agendado | nenhuma nova | DORA via **GitHub Action** (o histórico git está no runner); custo/orçamento via um `monitor.sh` **local** |
+| **Tier 2** — stack Grafana | Docker | dashboards quase-ao-vivo sobre os mesmos gauges — **opcional, para times que já rodam Grafana** |
+
+Comece no Tier 0. Recorra ao Tier 2 apenas se um dashboard justificar seu custo.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#1e1b4b","secondaryColor":"#ecfeff","tertiaryColor":"#faf5ff","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":58,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
@@ -45,11 +61,13 @@ flowchart LR
 
 | Peça | Tipo | Camada | O que faz |
 |---|---|---|---|
-| `aggregate.py` | telemetria | META | Agregador offline de **custo + tokens** — lê transcripts, multiplica as contagens de tokens pelo mapa de preços versionado, atribui por `model`/`feature`/`agent`/`session`/`day` e compara totais com orçamentos consultivos. |
+| `aggregate.py` | telemetria | META | **Tier 0.** Agregador offline de **custo + tokens** — lê transcripts, multiplica as contagens de tokens pelo mapa de preços versionado, atribui por `model`/`feature`/`agent`/`session`/`day` e compara totais com orçamentos consultivos. |
 | `pricing.json` | telemetria | META | Mapa versionado `model → USD/MTok`, `unknown_model_policy=error`. |
-| `dora.py` | telemetria | META | As **quatro chaves** DORA a partir do histórico git local (+ `gh` opcional), com self-test. Saída text / JSON / Prometheus. |
-| `ack-cost-exporter` | telemetria | META | Wrapper Prometheus fino que **importa** o `aggregate.py` (sem reimplementação) e expõe gauges de custo/tokens em `/metrics`. |
-| `observability-stack` | telemetria | META | Stack docker-compose Prometheus + Grafana + exportador com três dashboards. |
+| `dora.py` | telemetria | META | **Tier 0.** As **quatro chaves** DORA a partir do histórico git local (+ `gh` opcional), com self-test. Saída text / JSON / Prometheus. |
+| `report.py` | telemetria | META | **Tier 0.** Relatório HTML/Markdown autocontido — importa os dois motores num único artefato standalone, sem rede. |
+| `monitor.sh` | telemetria | META | **Tier 1.** Monitor local de custo/orçamento — roda o `aggregate.py` contra os transcripts locais e dispara um ALERTA no excesso de um orçamento do manifesto. |
+| `ack-cost-exporter` | telemetria | META | **Tier 2.** Wrapper Prometheus fino que **importa** o `aggregate.py` (sem reimplementação) e expõe gauges de custo/tokens em `/metrics`. |
+| `observability-stack` | telemetria | META | **Tier 2 (opcional).** Stack docker-compose Prometheus + Grafana + exportador com três dashboards. |
 
 Caminhos:
 
@@ -58,6 +76,8 @@ Caminhos:
 | `aggregate.py` | `telemetry/aggregate.py` |
 | `pricing.json` | `telemetry/pricing.json` |
 | `dora.py` | `telemetry/dora.py` |
+| `report.py` | `telemetry/report.py` |
+| `monitor.sh` | `telemetry/monitor.sh` |
 | `ack-cost-exporter` | `telemetry/observability/exporter/ack_cost_exporter.py` |
 | `observability-stack` | `telemetry/observability/docker-compose.yml` |
 | dashboards | `telemetry/observability/grafana/dashboards/{ack-cost,ack-ai-usage,ack-dora}.json` |
@@ -138,6 +158,24 @@ tier, defina os valores USD/MTok, atualize o `as_of`).
 
 ---
 
+## Tier 0 — `report.py` (relatório autocontido)
+
+<TerminalCast src="/demo/ack-report.cast" />
+
+A visão padrão, zero infra. O `report.py` **importa** o `aggregate.py` e o
+`dora.py` e renderiza um único artefato standalone — sem CSS/JS externo, sem rede
+— combinando o detalhamento de custo+tokens e as quatro chaves DORA num só
+documento que você abre no navegador ou cola num PR. É uma *visão*, não uma
+segunda fonte da verdade: os números continuam sendo a saída reconciliada e
+fail-loud dos dois motores.
+
+```bash
+python3 telemetry/report.py --format html --out report.html   # abre / anexa a um PR
+python3 telemetry/report.py --format md   --out report.md      # comentário / commit
+```
+
+---
+
 ## DORA — `dora.py` (as quatro chaves, exatas a partir do git)
 
 <TerminalCast src="/demo/ack-metrics.cast" />
@@ -189,7 +227,42 @@ enganoso).
 
 ---
 
-## `ack-cost-exporter` — gauges Prometheus
+## Tier 1 — monitor agendado (zero infra nova)
+
+<TerminalCast src="/demo/ack-monitor.cast" />
+
+O mesmo motor também alimenta uma **sessão de terminal ao vivo** — o `telemetry/watch.py` redesenha tokens + custo por feature no lugar, como o `top`:
+
+<TerminalCast src="/demo/ack-watch.cast" />
+
+Os mesmos motores, agora rodando **em um agendamento** para que uma regressão ou
+um excesso encontre você. A divisão segue os dados:
+
+- **DORA → GitHub Action.** O histórico git já está no runner, então um workflow
+  agendado roda o `dora.py` (`--json` / `--prom`), escreve as quatro chaves no
+  **resumo do job** e abre uma **issue numa regressão** (uma chave caindo de banda
+  de rating). Nada sai do CI; nenhum transcript é necessário.
+- **Custo/orçamento → `monitor.sh` local.** Ele roda o `aggregate.py` contra os
+  seus transcripts **locais** com os orçamentos consultivos do manifesto e
+  **dispara um ALERTA no excesso**. Isso fica na máquina do dev *de propósito*: os
+  transcripts de token são locais à máquina
+  ([#11008](https://github.com/anthropics/claude-code/issues/11008) + a
+  [nota de localidade](/features/cost-telemetry)) e **não** estão presentes no CI,
+  então um job de CI não conseguiria precificá-los. Rode via cron, um hook
+  `SessionStart`/`Stop`, ou à mão: `telemetry/monitor.sh`.
+
+> **Por que a divisão:** o DORA viaja com o repo (o CI o vê); o custo de IA é
+> reconstruído de transcripts locais à máquina (o CI não vê). O Tier 1 coloca cada
+> métrica onde seus dados já vivem — sem infra nova, sem enviar transcripts para
+> fora da máquina.
+
+---
+
+## Tier 2 (opcional) — `ack-cost-exporter` — gauges Prometheus
+
+> **O Tier 2 é opcional** — vale a pena só para times que **já rodam Grafana**.
+> Ele acrescenta visualização sobre os *mesmos* números offline, não acurácia, e
+> não é um medidor ao vivo.
 
 Um wrapper Prometheus fino que **importa** `load_pricing`, `discover_jsonl` e
 `aggregate` do `aggregate.py` irmão — ele **não** reimplementa preço nem
@@ -217,7 +290,7 @@ Config (ambiente): `ACK_PROJECT_DIR`, `ACK_PRICING`, `ACK_MANIFEST` (opcional;
 fornece orçamentos), `ACK_BRANCH_PREFIX` (padrão `feat/`), `ACK_DEFAULT_BUCKET`,
 `ACK_SINCE`, `ACK_PORT` (padrão `9418`), `ACK_SCRAPE_TTL` (padrão `30`).
 
-## `observability-stack` — Prometheus + Grafana
+## Tier 2 (opcional) — `observability-stack` — Prometheus + Grafana
 
 `telemetry/observability/docker-compose.yml` sobe três serviços:
 
@@ -259,8 +332,10 @@ token ao vivo.
 > antes de prometer qualquer número em tempo real.
 
 Então **o custo de IA é offline** (transcript × preços, near-real-time no melhor
-caso). **O DORA é exato** (derivado do git, não do transcript). Duas skills do
-payload FILHO ficam sobre o motor de custo (ambas MIT):
+caso). **O DORA é exato** (derivado do git, não do transcript). Nada disso precisa
+de Grafana: o Tier 0 (CLI + relatório) é o padrão, o Tier 1 (o monitor agendado)
+não acrescenta infra nova, e o Tier 2 (Grafana) é puramente opcional. Duas skills
+do payload FILHO ficam sobre o motor de custo (ambas MIT):
 
 - **`cost-telemetry`** — roda o `aggregate.py` e interpreta sua saída; a única
   fonte da verdade para *os números*. Renderizada quando

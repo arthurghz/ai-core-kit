@@ -722,6 +722,215 @@ def render_prom(r):
 
 
 # ---------------------------------------------------------------------------
+# Markdown rendering  (a drop-in for a PR comment / GitHub job-summary)
+# ---------------------------------------------------------------------------
+# Built from the SAME result dict as text/json/prom (no recomputation): a
+# four-keys summary table plus the heuristic note, in plain GFM (no HTML), so it
+# pastes into a PR comment or `$GITHUB_STEP_SUMMARY`.
+def render_md(r):
+    df = r["deployment_frequency"]
+    lt = r["lead_time_for_changes"]
+    cf = r["change_failure_rate"]
+    mt = r["mean_time_to_restore"]
+    w = r["window"]
+    m = r.get("meta", {})
+    cfr_s = "n/a" if cf["rate"] is None else f"{cf['rate'] * 100:.1f}%"
+
+    out = []
+    out.append("# DORA report")
+    out.append("")
+    out.append("_OFFLINE, from local git history (deploys/failures are PROXIES)._")
+    out.append("")
+    if m:
+        out.append(f"- **repo:** `{m.get('repo')}`")
+        out.append(f"- **deploy proxy:** {m.get('deploy_proxy')}")
+        out.append(f"- **hotfix glob:** `{m.get('hotfix_glob')}`")
+        out.append(f"- **gh:** {m.get('gh')}")
+    out.append(f"- **window:** {w['start']} .. {w['end']} ({w['span_days']:.1f} days)")
+    out.append("")
+    out.append("| key | value | sample | rating |")
+    out.append("|---|---|---|---|")
+    out.append(
+        f"| Deployment frequency | {df['deploys']} deploys "
+        f"({df['per_day']:.3f}/day, {df['per_week']:.3f}/week) | "
+        f"{df['deploys']} deploys | {df['rating']} |"
+    )
+    out.append(
+        f"| Lead time for changes | {lt['median_human'] or 'n/a'} | "
+        f"{lt['sample_size']} commits | {lt['rating']} |"
+    )
+    out.append(
+        f"| Change failure rate | {cfr_s} "
+        f"({cf['failed_deploys']}/{cf['total_deploys']}) | "
+        f"{cf['total_deploys']} deploys | {cf['rating']} |"
+    )
+    out.append(
+        f"| Mean time to restore | {mt['median_human'] or 'n/a'} | "
+        f"{mt['sample_size']} resolved / {mt['unresolved_failures']} unresolved | "
+        f"{mt['rating']} |"
+    )
+    out.append("")
+    out.append(
+        "> **Heuristic note:** deploys/failures are PROXIES from git, not a real "
+        "deployment stream. Pick the deploy mode that matches how you ship."
+    )
+    out.append("")
+    return "\n".join(out).rstrip() + "\n"
+
+
+# ---------------------------------------------------------------------------
+# HTML rendering  (a SINGLE self-contained file: inline CSS + inline SVG bars,
+# NO external CSS/JS/CDN, NO deps -- opens standalone in any browser)
+# ---------------------------------------------------------------------------
+def _esc(s):
+    """Minimal HTML-escape for text and attribute content."""
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+# A rating -> [0,1] fill fraction + color, so each key gets a comparable bar.
+_RATING_FILL = {
+    "elite": (1.0, "#1a7f37"),
+    "elite/high": (0.9, "#1a7f37"),
+    "high": (0.72, "#4c78a8"),
+    "medium": (0.45, "#d4a72c"),
+    "low": (0.2, "#b3261e"),
+    "n/a": (0.0, "#bbb"),
+}
+
+
+def _rating_bar(rating, width=140, height=14):
+    frac, fill = _RATING_FILL.get(rating, (0.0, "#bbb"))
+    w = frac * width
+    return (
+        f'<svg class="bar" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" role="img" aria-label="{_esc(rating)}">'
+        f'<rect width="{width}" height="{height}" fill="#eee"/>'
+        f'<rect width="{w:.1f}" height="{height}" fill="{fill}"/>'
+        f'</svg>'
+    )
+
+
+_HTML_STYLE = """
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+       margin: 0; padding: 2rem; max-width: 1000px; margin-inline: auto; color: #1b1b1b; background: #fff; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.15rem; margin: 1.6rem 0 .5rem; border-bottom: 1px solid #e3e3e3; padding-bottom: .25rem; }
+.sub { color: #666; margin: 0 0 1rem; }
+.meta { color: #555; font-size: .85rem; margin: 0 0 1rem; }
+.meta code { background: #f2f2f2; padding: 0 .25rem; border-radius: 3px; }
+.cards { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.card { flex: 1 1 200px; border: 1px solid #e3e3e3; border-radius: 8px; padding: .7rem .9rem; background: #fafafa; }
+.card .k { color: #666; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; }
+.card .v { font-size: 1.35rem; font-weight: 600; }
+.card .s { color: #777; font-size: .78rem; }
+table { border-collapse: collapse; width: 100%; margin: .25rem 0 1rem; font-variant-numeric: tabular-nums; }
+th, td { padding: .4rem .55rem; border-bottom: 1px solid #ededed; text-align: left; vertical-align: middle; }
+th { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+.bar { vertical-align: middle; border-radius: 2px; }
+.rating { font-weight: 600; }
+.rating.elite, .rating.elite\\/high { color: #1a7f37; }
+.rating.high { color: #2f6db5; } .rating.medium { color: #946c00; } .rating.low { color: #b3261e; }
+.note { background: #fff8e1; border: 1px solid #f0e3b0; border-radius: 8px; padding: .6rem .9rem; color: #6b5900; }
+footer { margin-top: 2rem; color: #777; font-size: .8rem; border-top: 1px solid #e3e3e3; padding-top: .75rem; }
+@media (prefers-color-scheme: dark) {
+  body { color: #e6e6e6; background: #161616; }
+  .card { background: #1f1f1f; border-color: #333; }
+  h2 { border-color: #333; } th, td { border-color: #2a2a2a; }
+  .sub, .meta, .card .k, .card .s, th, footer { color: #9a9a9a; }
+  .meta code { background: #2a2a2a; }
+  .note { background: #2a2410; border-color: #5a4d10; color: #d9c98a; }
+}
+"""
+
+
+def render_html(r):
+    df = r["deployment_frequency"]
+    lt = r["lead_time_for_changes"]
+    cf = r["change_failure_rate"]
+    mt = r["mean_time_to_restore"]
+    w = r["window"]
+    m = r.get("meta", {})
+    cfr_s = "n/a" if cf["rate"] is None else f"{cf['rate'] * 100:.1f}%"
+
+    def rating_span(rating):
+        cls = _esc(rating).replace("/", "\\/")
+        return f'<span class="rating {cls}">{_esc(rating)}</span>'
+
+    keys = [
+        ("Deployment frequency",
+         f"{df['deploys']} deploys",
+         f"{df['per_day']:.3f}/day &middot; {df['per_week']:.3f}/week",
+         df["rating"]),
+        ("Lead time for changes",
+         lt["median_human"] or "n/a",
+         f"{lt['sample_size']} commits sampled",
+         lt["rating"]),
+        ("Change failure rate",
+         cfr_s,
+         f"{cf['failed_deploys']}/{cf['total_deploys']} deploys",
+         cf["rating"]),
+        ("Mean time to restore",
+         mt["median_human"] or "n/a",
+         f"{mt['sample_size']} resolved &middot; {mt['unresolved_failures']} unresolved",
+         mt["rating"]),
+    ]
+
+    h = []
+    h.append("<!doctype html>")
+    h.append('<html lang="en"><head><meta charset="utf-8">')
+    h.append('<meta name="viewport" content="width=device-width, initial-scale=1">')
+    h.append("<title>DORA report</title>")
+    h.append(f"<style>{_HTML_STYLE}</style></head><body>")
+    h.append("<h1>DORA report</h1>")
+    h.append('<p class="sub">OFFLINE, from local git history '
+             '(deploys/failures are PROXIES, not a real deployment stream).</p>')
+    if m:
+        h.append('<p class="meta">'
+                 f'repo <code>{_esc(m.get("repo"))}</code> &middot; '
+                 f'deploy proxy: {_esc(m.get("deploy_proxy"))} &middot; '
+                 f'hotfix glob <code>{_esc(m.get("hotfix_glob"))}</code><br>'
+                 f'gh: {_esc(m.get("gh"))}</p>')
+    h.append(f'<p class="meta">window: {_esc(w["start"])} .. {_esc(w["end"])} '
+             f'({w["span_days"]:.1f} days)</p>')
+
+    h.append('<div class="cards">')
+    for label, value, sub, rating in keys:
+        h.append(
+            f'<div class="card"><div class="k">{_esc(label)}</div>'
+            f'<div class="v">{value}</div><div class="s">{sub}</div></div>'
+        )
+    h.append("</div>")
+
+    h.append("<h2>four keys</h2>")
+    h.append("<table><thead><tr>"
+             "<th>key</th><th>value</th><th>sample</th><th>rating</th><th>rating bar</th>"
+             "</tr></thead><tbody>")
+    for label, value, sub, rating in keys:
+        h.append(
+            f"<tr><td>{_esc(label)}</td><td>{value}</td>"
+            f"<td>{sub}</td><td>{rating_span(rating)}</td>"
+            f"<td>{_rating_bar(rating)}</td></tr>"
+        )
+    h.append("</tbody></table>")
+
+    h.append('<p class="note"><strong>Heuristic note:</strong> deploys/failures are '
+             'PROXIES from git, not a real deployment stream. Pick the deploy mode '
+             'that matches how you ship; ratings are directional.</p>')
+
+    h.append(
+        f'<footer>ai-core-kit DORA report &middot; '
+        f'deploy mode {_esc(m.get("deploy_mode", "?"))} &middot; '
+        f'commits seen {m.get("total_commits_seen", "?")} &middot; '
+        f'deploys all-time {m.get("total_deploys_all_time", "?")}</footer>'
+    )
+    h.append("</body></html>")
+    return "\n".join(h) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # self-test  (pins the metric MATH on a synthetic, git-free fixture)
 # ---------------------------------------------------------------------------
 def _selftest():
@@ -819,11 +1028,19 @@ def _selftest():
     except DoraError:
         pass
 
-    # (e) prom + text render without raising, and prom emits NaN for None.
+    # (e) every renderer runs without raising, and prom emits NaN for None.
     _ = render_text(r)
     prom = render_prom(r0)
     if "NaN" not in prom:
         failures.append("render_prom: empty result should emit NaN samples")
+    md = render_md(r)
+    if "# DORA report" not in md or "| Deployment frequency |" not in md:
+        failures.append("render_md: missing the DORA heading / four-keys table")
+    html = render_html(r)
+    if not html.startswith("<!doctype html>") or "DORA report" not in html:
+        failures.append("render_html: not a self-contained HTML document")
+    if "http://" in html or "https://" in html or "cdn" in html.lower():
+        failures.append("render_html: must be self-contained (no external URL/CDN)")
 
     if failures:
         print("DORA SELFTEST: FAIL", file=sys.stderr)
@@ -873,8 +1090,10 @@ def build_parser():
                     help="glob marking a commit subject/ref as a hotfix (default *hotfix*)")
     ap.add_argument("--use-gh", action="store_true",
                     help="enrich change-failure with `gh` CI conclusions (best-effort)")
-    ap.add_argument("--format", choices=("text", "json", "prom"), default="text",
-                    help="output format (default: text)")
+    ap.add_argument("--format", choices=("text", "json", "prom", "md", "html"), default="text",
+                    help="output format: text (default) | json | prom | md "
+                         "(Markdown for a PR comment / job-summary) | html "
+                         "(single self-contained file)")
     ap.add_argument("--json", action="store_true", help="shortcut for --format json")
     ap.add_argument("--prom", action="store_true",
                     help="shortcut for --format prom (Prometheus exposition text)")
@@ -914,6 +1133,10 @@ def main(argv=None):
         print(json.dumps(result, indent=2, sort_keys=False))
     elif fmt == "prom":
         sys.stdout.write(render_prom(result))
+    elif fmt == "md":
+        sys.stdout.write(render_md(result))
+    elif fmt == "html":
+        sys.stdout.write(render_html(result))
     else:
         print(render_text(result))
     return 0

@@ -388,6 +388,54 @@ METRICS = [
     ("wait", 1.1),
 ]
 
+# ── reference/observability Tier 0 — self-contained report + the CLI source ──
+REPORT = [
+    ("type", "python3 telemetry/report.py --format html --out report.html"),
+    ("out", [
+        dim("Tier 0 (zero infra): import aggregate.py × dora.py → ONE standalone file"),
+        green("✓") + " report.html  " + dim("self-contained · no CSS/JS/network · open or attach to a PR"),
+        dim("  cost + tokens (OFFLINE) and the DORA four keys (EXACT) in one document"),
+    ], 0.16),
+    ("wait", 0.5),
+    ("type", "python3 telemetry/aggregate.py --by session --format md"),
+    ("out", [
+        bold("## by session") + dim("        turns   cost USD    in+out tok    cache tok"),
+        "e3b61498-3313-49..    3872    " + green("441.4824") + "   3,546,105  446,558,196",
+        "a29e493f-f2aa-4d..    5496    " + green("340.2362") + "   3,670,522  442,059,374",
+        dim("reconcile vs total … ") + green("OK") + dim("   # fail-loud: a mismatch exits non-zero"),
+    ], 0.14),
+    ("wait", 0.4),
+    ("out", [
+        dim("──────────────────────────────────────────────────────────────────"),
+        dim("# the report is a VIEW; aggregate.py is the one source of truth (#11008)"),
+    ], 0.16),
+    ("wait", 1.1),
+]
+
+# ── reference/observability Tier 1 — local cost ALERT + DORA-in-CI one-liner ──
+MONITOR = [
+    ("type", "telemetry/monitor.sh"),
+    ("out", [
+        dim("Tier 1 LOCAL cost/budget monitor — reads manifest budgets, OFFLINE"),
+        "  project     $1174.35 / $1000.00 budget",
+        c("  !! ALERT", "31") + dim("  budget exceeded by ") + yellow("$174.35") + dim("  (117% of cap)"),
+        dim("  transcripts are MACHINE-LOCAL — never shipped to CI to be priced"),
+    ], 0.16),
+    ("wait", 0.5),
+    ("type", "cat .github/workflows/dora.yml   " + dim("# the OTHER half of Tier 1")),
+    ("out", [
+        dim("on: { schedule: [{ cron: '0 6 * * 1' }] }   # weekly, in the runner"),
+        dim("run: python3 telemetry/dora.py --json   # git history IS checked out"),
+        green("●") + dim(" four keys → job SUMMARY   ") + yellow("●") + dim(" opens an ISSUE on a regression"),
+    ], 0.16),
+    ("wait", 0.4),
+    ("out", [
+        "",
+        bold("DORA runs in CI; cost runs local") + dim("  — each metric where its data lives"),
+    ], 0.16),
+    ("wait", 1.1),
+]
+
 # ── features/design-system — confirmed brand hex → globals.css + tokens ──
 DESIGN = [
     ("type", "/ack-init", cprompt()),
@@ -549,8 +597,41 @@ COMMANDS = [
     ("wait", 1.0),
 ]
 
+# ── Tier-1 LIVE terminal monitor (telemetry/watch.py) — per-feature, refreshing ──
+def _wrow(name, tok, cost, turns, bar):
+    return cyan(name) + " " * max(1, 22 - len(name)) + f"{tok:>7}  {cost:>9}  {turns:>5}  " + green("█" * bar)
+
+def _wframe(rows, ttok, tcost, tturns, budpct, budbar, prefix=""):
+    return [
+        prefix + bold(cyan("ai-core-kit · live token monitor")) + dim("   by feature · sort cost · ↻ 5s"),
+        dim("feature".ljust(22) + f"{'tokens':>7}  {'cost($)':>9}  {'turns':>5}"),
+        *[_wrow(*r) for r in rows],
+        bold("TOTAL") + " " * 17 + f"{ttok:>7}  {tcost:>9}  {tturns:>5}  " + dim("reconciled: yes"),
+        yellow("budget ") + green("█" * budbar) + dim("·" * (18 - budbar)) + f"  {budpct}%" + dim("  (advisory)"),
+        dim("offline · recomputed each tick (claude-code#11008) · ⌃C to quit"),
+    ]
+
+WATCH = [
+    ("type", "python3 telemetry/watch.py --by feature --budget 33.55"),
+    ("out", _wframe([
+        ("ack-spec-author", "1.2M", "9.4120", 142, 18),
+        ("docs-site", "0.8M", "6.1030", 98, 12),
+        ("saas-archetype", "0.5M", "3.8800", 61, 8),
+        ("contract-gate", "0.2M", "1.4500", 27, 3),
+    ], "2.7M", "20.8450", 328, 62, 11), 0.12),
+    ("wait", 2.2),  # dwell, then a live tick redraws the frame
+    ("out", _wframe([
+        ("ack-spec-author", "1.3M", "10.1200", 151, 18),
+        ("docs-site", "0.8M", "6.1030", 98, 12),
+        ("saas-archetype", "0.5M", "3.8800", 61, 8),
+        ("contract-gate", "0.2M", "1.4500", 27, 3),
+    ], "2.8M", "21.5530", 337, 64, 12, prefix="\x1b[2J\x1b[H"), 0.12),
+    ("wait", 0.6),
+]
+
 CASTS = {
     "ack-usage.cast": ("create-ack — bootstrap a spec-first repo", BOOTSTRAP),
+    "ack-watch.cast": ("live terminal monitor — tokens/cost per feature", WATCH),
     "ack-spec.cast": ("/ack-spec — author the specs", ACK_SPEC),
     "ack-backend-api.cast": ("create-ack --archetype backend-api", BACKEND),
     "ack-fullstack.cast": ("create-ack --archetype fullstack", FULLSTACK),
@@ -564,6 +645,8 @@ CASTS = {
     "ack-gate.cast": ("contract gate — block, then allow on approval", GATE),
     "ack-telemetry.cast": ("offline cost telemetry — per-model / feature", TELEMETRY),
     "ack-metrics.cast": ("DORA four keys (exact) + AI usage (offline)", METRICS),
+    "ack-report.cast": ("Tier 0 — self-contained report + CLI", REPORT),
+    "ack-monitor.cast": ("Tier 1 — local cost ALERT + DORA-in-CI", MONITOR),
     "ack-design.cast": ("design system — brand hex → tokens + globals.css", DESIGN),
     "ack-discovery.cast": ("discovery (planned) — propose, never adopt", DISCOVERY),
     "ack-mcp.cast": (".mcp.json wiring — gated by features.mcp", MCP),

@@ -232,6 +232,23 @@ cd docs && npm install && npm run dev
   Ambos são **idempotentes**: respostas idênticas → um no-op com zero escritas, e edições
   manuais *fora* das regiões gerenciadas pelo ack sempre sobrevivem.
 
+## Seu kit de comandos
+
+Quando as specs chegam, estes são os comandos do dia a dia — lista completa no
+[**guia de Comandos**](/commands):
+
+| Comando | O que faz |
+|---|---|
+| `/ack-build` | Constrói a próxima fatia das specs — contrato primeiro, multi-agente |
+| `/ack-review` | Revisa sua mudança com um time de agentes antes do PR |
+| `/ack-tooling` | Lint / tipos / testes / CI para a sua stack |
+| `/ack-cost` · `/ack-reports` | Gasto de IA por feature + entrega (DORA) — offline |
+| `/ack-list` · `/ack-features` | Inventário de contratos/fatias/skills · janelas de custo por feature |
+| `/ack-sync` · `/ack-update` | Puxa (e verifica) novos comandos/agentes/skills do kit |
+
+> **Dirija por times:** `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` antes de iniciar —
+> os comandos de build sempre distribuem o trabalho; os times tornam isso concorrente.
+
 ## Aprenda o modelo
 
 - [A fronteira META vs CHILD](/concepts/two-layer-model) — a única coisa para nunca

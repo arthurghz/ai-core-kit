@@ -164,6 +164,17 @@ test("language/pkg: an explicit override is honored even for a JS-pinned archety
   assert.equal(p.package_manager, "npm");
 });
 
+test("auth: saas AND fullstack ALWAYS ship Clerk (hosting/billing stay saas-only)", () => {
+  const fs = mk({ archetype: "fullstack", project_name: "web-app" }).managed;
+  assert.deepEqual(fs.auth, { provider: "clerk" }, "fullstack auth = clerk");
+  assert.ok(!("hosting" in fs), "fullstack has no hosting (saas-only)");
+  assert.ok(!("billing" in fs), "fullstack has no billing (saas-only)");
+  const saas = mk({ archetype: "saas", project_name: "acme" }).managed;
+  assert.deepEqual(saas.auth, { provider: "clerk" }, "saas auth = clerk");
+  // backend-api still gets NO auth block.
+  assert.ok(!("auth" in mk({ archetype: "backend-api", project_name: "svc" }).managed));
+});
+
 test("Phase B: fullstack design_system.tokens.color_brand seeded to default when install=true", () => {
   // The renderer materializes ${design_system.tokens.color_brand}; the engine has
   // no default syntax, so the assembler MUST always bind it. Default: #0066CC.

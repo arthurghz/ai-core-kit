@@ -223,6 +223,23 @@ cd docs && npm install && npm run dev
   **idempotent**: identical answers → a no-op with zero writes, and hand-edits *outside*
   ack-managed regions always survive.
 
+## Your command toolkit
+
+Once the specs land, these are the commands you'll live in — full list on the
+[**Commands** cheat-sheet](/commands):
+
+| Command | Does |
+|---|---|
+| `/ack-build` | Build the next slice from the specs — contract-first, multi-agent |
+| `/ack-review` | Review your change with a team of agents before a PR |
+| `/ack-tooling` | Lint / types / tests / CI for your stack |
+| `/ack-cost` · `/ack-reports` | AI spend per feature + delivery (DORA) — offline |
+| `/ack-list` · `/ack-features` | Inventory contracts/slices/skills · manage feature cost windows |
+| `/ack-sync` · `/ack-update` | Pull (and check for) new kit commands/agents/skills |
+
+> **Drive by teams:** `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` before you launch —
+> the build commands always fan work out; teams make it concurrent.
+
 ## Learn the model
 
 - [The META vs CHILD boundary](/concepts/two-layer-model) — the one thing never to

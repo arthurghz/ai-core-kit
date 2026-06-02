@@ -144,9 +144,30 @@ test("scaffold ships /ack-spec (+ shared commands) into the child .claude/comman
       existsSync(join(cmds, "ack-spec.md")),
       "child must include .claude/commands/ack-spec.md",
     );
-    // The RPI trio + prd/rice ship too (the full shared command surface).
-    for (const f of ["prd.md", "rice.md", join("rpi", "research.md"), join("rpi", "plan.md"), join("rpi", "implement.md")]) {
+    // The RPI trio + prd/rice + the ack-* build suite ship too (the full shared
+    // command surface). ack-build/agents/tooling are the multi-agent build loop.
+    for (const f of [
+      "prd.md", "rice.md",
+      "ack-build.md", "ack-agents.md", "ack-tooling.md", "ack-cost.md", "ack-sync.md",
+      join("rpi", "research.md"), join("rpi", "plan.md"), join("rpi", "implement.md"),
+    ]) {
       assert.ok(existsSync(join(cmds, f)), `child must include .claude/commands/${f}`);
+    }
+    // The specialist AGENTS the build commands delegate to must ship too — without
+    // them /ack-build + the RPI trio cannot fan work out.
+    const agents = join(dir, proj, ".claude", "agents");
+    for (const a of ["code-explorer.md", "code-reviewer.md", "requirement-parser.md", "documentation-analyst-writer.md"]) {
+      assert.ok(existsSync(join(agents, a)), `child must include .claude/agents/${a}`);
+    }
+    // The SKILLS library ships (conventions packs) — but NOT the proprietary
+    // document skills (docx/pdf/pptx/xlsx — "All rights reserved"; licensing fence).
+    const skills = join(dir, proj, ".claude", "skills");
+    assert.ok(existsSync(join(skills, "spec-first", "SKILL.md")), "child must include the spec-first skill");
+    for (const proprietary of ["docx", "pdf", "pptx", "xlsx"]) {
+      assert.ok(
+        !existsSync(join(skills, proprietary)),
+        `child must NOT receive the proprietary ${proprietary} skill (licensing fence)`,
+      );
     }
     // Copied verbatim — the child sees the same CHILD-correct command text.
     const head = readFileSync(join(cmds, "ack-spec.md"), "utf8").slice(0, 64);

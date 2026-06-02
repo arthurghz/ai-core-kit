@@ -937,6 +937,73 @@ function copyChildCommands({ kitRoot, targetDir }) {
 }
 
 // -----------------------------------------------------------------------------
+// Child SUBAGENT copy — drop templates/agents/*.md into the child's .claude/agents/.
+// These are the specialist agents the build commands delegate to (code-explorer,
+// code-reviewer, requirement-parser, architect, security-reviewer, …). Without
+// them, /ack-build + the RPI trio cannot fan work out. Copied verbatim (.md only;
+// no .tpl today). The META .claude/ tree is never the source — these come from the
+// CHILD authoring root templates/agents/.
+// -----------------------------------------------------------------------------
+function copyChildAgents({ kitRoot, targetDir }) {
+  const src = join(kitRoot, "templates", "agents");
+  if (!existsSync(src)) return [];
+  const dstRoot = join(targetDir, ".claude", "agents");
+  const copied = [];
+  for (const entry of readdirSync(src)) {
+    if (entry === "__pycache__") continue;
+    const sp = join(src, entry);
+    const st = statSync(sp);
+    if (!st.isFile() || !entry.endsWith(".md")) continue;
+    const dp = join(dstRoot, entry);
+    mkdirSync(dirname(dp), { recursive: true });
+    copyFileSync(sp, dp);
+    copied.push(join(".claude", "agents", entry));
+  }
+  return copied;
+}
+
+// -----------------------------------------------------------------------------
+// Child SKILL copy — ship templates/skills/** into the child's .claude/skills/
+// (verbatim; skills are not templates — the `project.language == x` strings are
+// routing-doc conditions, not ${...} vars). Preserves the dir structure (SKILL.md
+// + references/ + scripts/ + assets/). EXCLUDES, by policy:
+//   * __pycache__ dirs + *.pyc        — build artifacts, never shipped;
+//   * docx / pdf / pptx / xlsx        — the PROPRIETARY Anthropic document skills
+//     ("All rights reserved"; see templates/skills/INDEX.md + docs/REFERENCES.md).
+//     The licensing guardrail forbids copying/redistributing them, so a fork never
+//     receives them. (They are present in the kit tree but fenced off here.)
+// -----------------------------------------------------------------------------
+const PROPRIETARY_DOC_SKILLS = new Set(["docx", "pdf", "pptx", "xlsx"]);
+function copyChildSkills({ kitRoot, targetDir }) {
+  const src = join(kitRoot, "templates", "skills");
+  if (!existsSync(src)) return [];
+  const dstRoot = join(targetDir, ".claude", "skills");
+  const copied = [];
+  const walk = (relDir) => {
+    const abs = join(src, relDir);
+    for (const entry of readdirSync(abs)) {
+      if (entry === "__pycache__") continue;
+      const rel = relDir ? join(relDir, entry) : entry;
+      // Fence off the proprietary document skills at their top-level dir.
+      if (!relDir && PROPRIETARY_DOC_SKILLS.has(entry)) continue;
+      const sp = join(src, rel);
+      const st = statSync(sp);
+      if (st.isDirectory()) {
+        walk(rel);
+        continue;
+      }
+      if (!st.isFile() || entry.endsWith(".pyc")) continue;
+      const dp = join(dstRoot, rel);
+      mkdirSync(dirname(dp), { recursive: true });
+      copyFileSync(sp, dp);
+      copied.push(join(".claude", "skills", rel));
+    }
+  };
+  walk("");
+  return copied;
+}
+
+// -----------------------------------------------------------------------------
 // project.manifest.yaml writer — schema_version, generator (provenance, leading
 // comment), managed (machine-owned), user (human-owned).
 // -----------------------------------------------------------------------------
@@ -1100,12 +1167,19 @@ async function runScaffold(argv) {
   // `create-ack spec` CLI shells to it). Record in the ledger so /ack-init sees
   // them; they are ack:managed (the kit owns the command text).
   const commandsCopied = copyChildCommands({ kitRoot, targetDir });
-  if (commandsCopied.length) {
+  // Ship the rest of the .claude/ payload a working fork needs: the specialist
+  // AGENTS the build commands delegate to, and the SKILLS library (minus the
+  // proprietary document skills). Without agents, /ack-build + the RPI trio cannot
+  // fan work out; without skills, the conventions packs never reach the fork.
+  const agentsCopied = copyChildAgents({ kitRoot, targetDir });
+  const skillsCopied = copyChildSkills({ kitRoot, targetDir });
+  const childPayloadCopied = [...commandsCopied, ...agentsCopied, ...skillsCopied];
+  if (childPayloadCopied.length) {
     if (!Array.isArray(finalManifest.managed.rendered_files)) {
       finalManifest.managed.rendered_files = [];
     }
     const known = new Set(finalManifest.managed.rendered_files.map((e) => e.path));
-    for (const p of commandsCopied) {
+    for (const p of childPayloadCopied) {
       if (!known.has(p)) {
         finalManifest.managed.rendered_files.push({ path: p, managed_block: null });
       }
@@ -1184,6 +1258,8 @@ async function runScaffold(argv) {
     here: opts.here,
     telemetryCopied,
     commandsCopied,
+    agentsCopied,
+    skillsCopied,
     treeAbsent: Boolean(renderResult && renderResult.treeAbsent),
     docsWritten: docsResult && Array.isArray(docsResult.written) ? docsResult.written.length : 0,
     docsSkipped: !opts.docs,
@@ -1204,6 +1280,8 @@ function printNextSteps({
   here,
   telemetryCopied,
   commandsCopied = [],
+  agentsCopied = [],
+  skillsCopied = [],
   treeAbsent,
   docsWritten = 0,
   docsSkipped = false,
@@ -1244,7 +1322,11 @@ function printNextSteps({
   if (claudeWritten) out.write(`  CLAUDE.md     spec-first pointer written\n`);
   if (telemetryCopied.length) out.write(`  telemetry     ${telemetryCopied.length} file(s)\n`);
   if (commandsCopied.length)
-    out.write(`  commands      ${commandsCopied.length} -> .claude/commands/  (incl. /ack-spec)\n`);
+    out.write(`  commands      ${commandsCopied.length} -> .claude/commands/  (ack-spec/build/agents/tooling/cost + rpi)\n`);
+  if (agentsCopied.length)
+    out.write(`  agents        ${agentsCopied.length} -> .claude/agents/  (build/review specialists)\n`);
+  if (skillsCopied.length)
+    out.write(`  skills        ${skillsCopied.length} file(s) -> .claude/skills/  (conventions packs)\n`);
   if (docsWritten) out.write(`  docs scaffolded: ${docsWritten} files -> docs/\n`);
   else if (docsSkipped) out.write(`  docs          skipped (--no-docs)\n`);
   out.write(c.dim("  ─────────────────────────────────────────\n"));
@@ -1362,12 +1444,24 @@ const TELEMETRY_SUBCOMMANDS = {
   monitor: { script: "monitor.sh", runner: "bash" },
 };
 
+// Child-authoring commands that are LLM islands: the CLI stays THIN and shells to
+// Claude Code headless (`claude -p /<command>`) so `create-ack <cmd>` == running the
+// slash command in the child. The heavy logic lives in the command files
+// (templates/commands/ack-*.md), not here. Keeps CLI ⇄ slash-command parity.
+const CLAUDE_COMMAND_SUBCOMMANDS = {
+  build: { slash: "/ack-build", blurb: "build the next slice from the specs (multi-agent, gated)" },
+  agents: { slash: "/ack-agents", blurb: "fan a unit of work out to parallel agents" },
+  tooling: { slash: "/ack-tooling", blurb: "stand up the project's engineering tooling" },
+};
+
 // All recognized subcommands (telemetry + the kit-native ones). `new` aliases the
 // scaffold. Anything NOT here makes argv fall through to the scaffold unchanged.
 const KNOWN_SUBCOMMANDS = new Set([
   "new",
   ...Object.keys(TELEMETRY_SUBCOMMANDS),
+  ...Object.keys(CLAUDE_COMMAND_SUBCOMMANDS),
   "spec",
+  "sync",
   "feature",
   "update",
   "migrate",
@@ -1387,6 +1481,10 @@ ${c.bold("Subcommands:")}
   ${c.cyan("watch")} [...]            live per-feature cost TUI (telemetry/watch.py)
   ${c.cyan("monitor")} [...]          budget-alert monitor (telemetry/monitor.sh)
   ${c.cyan("spec")} [...]             author specs — the LLM step (runs /ack-spec)
+  ${c.cyan("build")} [<slice>]        build the next slice from the specs (runs /ack-build)
+  ${c.cyan("agents")} [<work>]        fan work out to parallel agents (runs /ack-agents)
+  ${c.cyan("tooling")} [...]          stand up engineering tooling (runs /ack-tooling)
+  ${c.cyan("sync")}                   pull the latest kit commands/agents/skills into this fork
   ${c.cyan("feature")} <name> [--end] branch-free per-feature cost window (sidecar map)
   ${c.cyan("update")}                 check for a newer @arthurghz/create-ack
   ${c.cyan("migrate")}                manifest v2 -> v3 (stub)
@@ -1489,6 +1587,39 @@ function runSpec(args) {
 }
 
 // -----------------------------------------------------------------------------
+// build / agents / tooling — the post-spec build commands. Like `spec`, these are
+// LLM islands: the CLI shells to Claude Code headless (`claude -p /<command>`) so
+// `create-ack build` == running /ack-build in the child. Positional args become the
+// slash command's arguments; a leading `-` is treated as raw `claude` flags.
+// -----------------------------------------------------------------------------
+function runClaudeCommand(name, args) {
+  const spec = CLAUDE_COMMAND_SUBCOMMANDS[name];
+  process.stdout.write(
+    c.bold(`create-ack ${name}`) + ` — runs ${c.cyan(spec.slash)} in Claude Code.\n`,
+  );
+  if (hasOnPath("claude")) {
+    process.stdout.write(
+      c.dim("  Driving Claude Code headless to run ") + c.cyan(spec.slash) + c.dim("…\n"),
+    );
+    let promptArgs;
+    if (!args.length) promptArgs = ["-p", spec.slash];
+    else if (args[0].startsWith("-")) promptArgs = args; // power-user: raw claude flags
+    else promptArgs = ["-p", `${spec.slash} ${args.join(" ")}`]; // positional => slash args
+    const child = spawnSync("claude", promptArgs, { stdio: "inherit" });
+    if (child.error) fail(`failed to launch claude: ${child.error.message}`);
+    process.exit(child.status === null ? 1 : child.status);
+  }
+  process.stdout.write(
+    "\n  The " +
+      c.cyan("claude") +
+      " CLI is not on PATH. Open this project in Claude Code and run " +
+      c.cyan(c.bold(spec.slash)) +
+      `\n  (you have the subscription) to ${spec.blurb}.\n`,
+  );
+  process.exit(0);
+}
+
+// -----------------------------------------------------------------------------
 // `feature <name> [--end]` — the BRANCH-FREE per-feature cost tracker. Maintains
 // telemetry/sidecar.local.json in the exact shape aggregate.py's sidecar_map mode
 // reads: {"entries": [{"from": ISO, "to": ISO|null, "bucket": <name>}]}. Starting
@@ -1582,6 +1713,48 @@ function runFeature(args) {
     c.dim(
       `  Cost for this feature: create-ack cost --sidecar-map ${join("telemetry", SIDECAR_FILE)} --by feature\n`,
     ),
+  );
+}
+
+// -----------------------------------------------------------------------------
+// `sync` — pull the latest kit .claude PAYLOAD (slash commands + agents + skills)
+// into an EXISTING fork, WITHOUT re-scaffolding. Run from a fork root (where a
+// project.manifest.yaml exists), typically `npx @arthurghz/create-ack@latest sync`,
+// so a fork picks up new features as the kit evolves. Idempotent: it overwrites the
+// KIT-OWNED payload (commands/agents/skills) and never touches specs, code, or
+// contracts. The slash-command face is /ack-sync.
+// -----------------------------------------------------------------------------
+function runSync(args) {
+  if (args.includes("-h") || args.includes("--help")) {
+    process.stdout.write(
+      "create-ack sync   pull the latest kit commands/agents/skills into this fork's .claude/\n" +
+        "  Run from a fork root. Overwrites kit-owned files only; your specs/code are untouched.\n" +
+        "  Tip: `npx @arthurghz/create-ack@latest sync` to sync against the newest kit.\n",
+    );
+    return;
+  }
+  const cwd = process.cwd();
+  // Refuse the META kit itself (sync is a FORK operation, the inverse of the guard).
+  if (existsSync(join(cwd, "templates", "archetypes")) || existsSync(join(cwd, "docs", "BOOTSTRAP.md"))) {
+    fail("`create-ack sync` runs in a FORK, not the ai-core-kit repository itself.");
+  }
+  if (!existsSync(join(cwd, "project.manifest.yaml"))) {
+    fail(
+      "no project.manifest.yaml here — `create-ack sync` updates an EXISTING fork's .claude\n" +
+        "  payload. Run it from your project root, or scaffold a new project with `create-ack`.",
+    );
+  }
+  const kitRoot = kitRootFromHere();
+  const commands = copyChildCommands({ kitRoot, targetDir: cwd });
+  const agents = copyChildAgents({ kitRoot, targetDir: cwd });
+  const skills = copyChildSkills({ kitRoot, targetDir: cwd });
+  const out = process.stdout;
+  out.write(c.green("✓ ") + c.bold("synced the kit payload into .claude/") + ` (v${readKitVersion()})\n`);
+  out.write(c.dim(`  commands  ${commands.length}  ·  agents  ${agents.length}  ·  skills  ${skills.length} file(s)\n`));
+  out.write(
+    "\n  These files are KIT-OWNED — review the update with " +
+      c.cyan("git diff .claude/") +
+      " (your specs, code, and contracts were not touched).\n",
   );
 }
 
@@ -1826,6 +1999,16 @@ async function main() {
   // Kit-native subcommands.
   if (first === "spec") {
     runSpec(argv.slice(1));
+    return;
+  }
+  // build / agents / tooling — shell to Claude Code to run the slash command.
+  if (first in CLAUDE_COMMAND_SUBCOMMANDS) {
+    runClaudeCommand(first, argv.slice(1));
+    return;
+  }
+  if (first === "sync") {
+    runSync(argv.slice(1));
+    maybeNotifyUpdate(argv);
     return;
   }
   if (first === "feature") {

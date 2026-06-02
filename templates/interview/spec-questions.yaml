@@ -1,0 +1,295 @@
+# =============================================================================
+# templates/interview/spec-questions.yaml
+# -----------------------------------------------------------------------------
+# The MOMENT-0 DISCOVERY question bank. This is the NARRATIVE, free-text-heavy
+# interview the model (`/ack-spec` in Claude Code) drives to author the FILLED
+# spec documents under `docs/specs/`. It is DELIBERATELY DISTINCT from the
+# deterministic manifest stack bank in `templates/interview/questions.yaml`:
+#
+#   questions.yaml         (manifest)   DISCOVERY (this file)
+#   ------------------------------------ -----------------------------------------
+#   deterministic, gated   archetype →  narrative, model-led interview
+#   writes_to → manifest   managed:     feeds → a spec doc + section
+#   no LLM in the loop                  the LLM SYNTHESISES prose from answers
+#   byte-identical out                  authored Markdown (human-reviewed)
+#
+# These questions gather INTENT, not stack. The manifest already knows the
+# language/framework/db/gate; this bank asks WHY the project exists, WHO it is
+# for, WHAT it must (and must NOT) do, the DOMAIN's ubiquitous language, the
+# load-bearing architecture decisions and their rationale, the constraints it
+# must hold (perf/security/compliance/SLA), the systems it integrates with, how
+# success is MEASURED, the phases it ships in, and the risks worth naming early.
+#
+# HOW IT IS USED
+#   `/ack-spec` reads this bank, conducts the interview (AskUserQuestion for the
+#   few enumerated `select` fields; free-text follow-ups for everything else),
+#   then SYNTHESISES the answers into the `docs/specs/*.md` skeletons that
+#   `create-ack` laid down. The model is the author: it turns terse answers into
+#   well-formed PRD / ARCHITECTURE / REQUIREMENTS / DOMAIN / NON-GOALS / ROADMAP
+#   prose and seeds the first ADR. Same answers do NOT guarantee byte-identical
+#   docs — this layer is intentionally model-driven (see GROUND-TRUTH, moment-2).
+#
+# RELATIONSHIP TO THE CONTRACT GATE
+#   The discovery output is the SOURCE the first contract is drawn from. After
+#   `/ack-spec` fills these docs, the model proposes `C-001-<slug>` whose scope
+#   and acceptance trace back to REQUIREMENTS.md + NON-GOALS.md. The spec docs
+#   are the "why"; the contract is the "what we're committing to".
+#
+# FIELD REFERENCE (per question)
+#   id        unique, stable, kebab-case. Referenced by relevance notes only;
+#             there is no ask_if/skip_if cascade here — discovery is linear and
+#             the interviewer uses judgement on depth (this is the model-driven
+#             layer, not the deterministic one).
+#   prompt    the question put to the human (the model may rephrase/expand).
+#   type      text       — short free text (a line or two).
+#             longtext   — multi-paragraph / bulleted free text.
+#             list       — an enumerable list of short items.
+#             select     — single choice from `options` (AskUserQuestion).
+#             multiselect— zero-or-more choices from `options`.
+#   options   for select/multiselect: list of {value, label?}. The author may
+#             always pick "other" and supply free text; these enumerations are
+#             conversation scaffolding, not a frozen manifest enum.
+#   feeds     the spec DOC and SECTION this answer primarily informs, as
+#             `<doc>.tpl#<Section Heading>`. One answer may enrich several docs;
+#             `feeds` names the primary home so the synthesiser knows where the
+#             prose lands. Docs live under templates/specs/ and render to
+#             docs/specs/ in the child.
+#   guidance  a one-line note to the interviewer on what a GOOD answer contains
+#             and how deep to probe. Advisory; not machine-enforced.
+#
+# SCOPE NOTE
+#   This bank is archetype-AGNOSTIC. Every project — backend-api, fullstack,
+#   monorepo, library-sdk, infra-iac — has a vision, users, domain, constraints,
+#   and non-goals. The synthesiser tailors emphasis by archetype (an SDK has no
+#   "personas" so much as "consumers"; IaC's "domain entities" are resources),
+#   but the QUESTIONS are universal. The manifest bank owns the archetype branch.
+# =============================================================================
+
+schema_target: specs   # this bank feeds the docs/specs/ doc set, not the manifest.
+
+questions:
+
+  # ===========================================================================
+  # 1. VISION & PROBLEM  -- the one read every later spec is grounded in.
+  # ===========================================================================
+  - id: problem_statement
+    prompt: "What problem does this project solve? Describe the pain it removes or the job it does, before any solution."
+    type: longtext
+    feeds: "PRD.md.tpl#Problem"
+    guidance: "Probe for the concrete pain and who feels it. A good answer names the status-quo workaround it replaces."
+
+  - id: vision_statement
+    prompt: "In one or two sentences, what is the long-term vision? If this succeeds completely, what is true about the world?"
+    type: text
+    feeds: "PRD.md.tpl#Vision"
+    guidance: "One crisp outcome-oriented sentence. Avoid feature lists; capture the destination, not the route."
+
+  - id: value_proposition
+    prompt: "Why this, why now? What makes this worth building over the alternatives (including doing nothing)?"
+    type: longtext
+    feeds: "PRD.md.tpl#Why Now"
+    guidance: "Name the alternatives and the wedge. Probe for the unfair advantage or timing that makes it viable."
+
+  # ===========================================================================
+  # 2. USERS & PERSONAS  -- who it is for; whose problem it is.
+  # ===========================================================================
+  - id: target_users
+    prompt: "Who are the primary users or consumers? List each distinct persona/role and what each is trying to accomplish."
+    type: list
+    feeds: "PRD.md.tpl#Target Users & Personas"
+    guidance: "One entry per persona: name + the job they hire the product for. For an SDK/library, 'users' are integrating developers; for IaC, the operators/teams."
+
+  - id: persona_pain
+    prompt: "For the most important persona, walk through their day today and where it hurts. What is their current workflow without this?"
+    type: longtext
+    feeds: "PRD.md.tpl#Target Users & Personas"
+    guidance: "Concrete narrative. The synthesiser turns this into a primary-persona profile (goals, frustrations, context of use)."
+
+  # ===========================================================================
+  # 3. USE-CASES & SCOPE  -- what it does (and the IN-scope boundary).
+  # ===========================================================================
+  - id: core_use_cases
+    prompt: "What are the core use-cases / user journeys? List the handful of flows that, if any were missing, the product would fail."
+    type: list
+    feeds: "REQUIREMENTS.md.tpl#Functional Requirements"
+    guidance: "Each as a 'As a <persona>, I <goal> so that <outcome>' shape if possible. Aim for 3-7 load-bearing journeys, not an exhaustive backlog."
+
+  - id: in_scope_features
+    prompt: "What capabilities are IN scope for the first deliverable? Be specific about the boundary of v1."
+    type: list
+    feeds: "REQUIREMENTS.md.tpl#Functional Requirements"
+    guidance: "These become numbered functional requirements (FR-NN). Push for a tight v1 boundary; everything else is roadmap or non-goal."
+
+  - id: primary_acceptance
+    prompt: "How will you know the FIRST deliverable is correct and done? Describe the observable behaviours that must hold."
+    type: longtext
+    feeds: "REQUIREMENTS.md.tpl#Acceptance Criteria"
+    guidance: "Testable, observable statements ('given X, when Y, then Z'). These seed the acceptance section AND the first contract's acceptance."
+
+  # ===========================================================================
+  # 4. NON-GOALS  -- the explicit out-of-scope boundary. As important as scope.
+  # ===========================================================================
+  - id: non_goals
+    prompt: "What is explicitly OUT of scope — things people might reasonably expect that you are deliberately NOT doing (now or ever)?"
+    type: list
+    feeds: "NON-GOALS.md.tpl#Out of Scope"
+    guidance: "For each, capture WHY it is excluded (deferred vs never). Strong non-goals prevent scope creep and keep the contract gate honest."
+
+  - id: non_goal_rationale
+    prompt: "For the most tempting non-goal, why resist it? What would adding it cost or compromise?"
+    type: longtext
+    feeds: "NON-GOALS.md.tpl#Rationale"
+    guidance: "Names the trade-off that makes the exclusion deliberate, not accidental. Distinguishes 'not yet' from 'not ever'."
+
+  # ===========================================================================
+  # 5. DOMAIN & UBIQUITOUS LANGUAGE  -- the model the code will speak.
+  # ===========================================================================
+  - id: domain_entities
+    prompt: "What are the core domain entities / concepts? List the nouns the system is fundamentally about."
+    type: list
+    feeds: "DOMAIN.md.tpl#Entities"
+    guidance: "One per concept. The synthesiser expands each into name + definition + key attributes + relationships in DOMAIN.md."
+
+  - id: domain_relationships
+    prompt: "How do those entities relate? Describe the key relationships, ownership, and lifecycles between them."
+    type: longtext
+    feeds: "DOMAIN.md.tpl#Relationships"
+    guidance: "Cardinalities and ownership ('an Order has many LineItems; a LineItem cannot exist without its Order'). Feeds the relationship/ER section."
+
+  - id: ubiquitous_language
+    prompt: "Are there terms with a SPECIFIC meaning in this domain (or that differ from everyday usage)? List term + the precise meaning here."
+    type: list
+    feeds: "DOMAIN.md.tpl#Glossary (Ubiquitous Language)"
+    guidance: "term → definition pairs. This is the shared vocabulary the spec, code, and team must use identically. Flag any overloaded/ambiguous words."
+
+  - id: domain_invariants
+    prompt: "What are the non-negotiable rules of the domain — the invariants that, if violated, mean the system is wrong?"
+    type: list
+    feeds: "DOMAIN.md.tpl#Invariants"
+    guidance: "Always-true business rules ('balance never goes negative', 'an email is unique per tenant'). These become the strongest acceptance/contract clauses."
+
+  # ===========================================================================
+  # 6. ARCHITECTURE DECISIONS  -- the load-bearing calls + their rationale.
+  # ===========================================================================
+  - id: key_decisions
+    prompt: "What are the load-bearing architecture/design decisions already made or that must be made? List each as a decision + the alternatives weighed."
+    type: list
+    feeds: "ARCHITECTURE.md.tpl#Key Decisions"
+    guidance: "Each significant choice (datastore, API style, sync vs async, monolith vs services). Each becomes an ADR via the architecture-decision-records skill."
+
+  - id: decision_rationale
+    prompt: "For the single most consequential decision, explain the reasoning: the forces at play, what you chose, and what you rejected and why."
+    type: longtext
+    feeds: "ARCHITECTURE.md.tpl#Key Decisions"
+    guidance: "Context → decision → rejected alternatives → consequences. Seeds ADR-0002 (0001 is the 'record decisions' meta-ADR). 'We just picked it' is not a rationale."
+
+  - id: system_context
+    prompt: "Describe the high-level system shape: the major components/services and how requests/data flow through them."
+    type: longtext
+    feeds: "ARCHITECTURE.md.tpl#System Overview"
+    guidance: "The boxes-and-arrows narrative. The synthesiser turns it into a component overview (and a context-diagram prompt) in ARCHITECTURE.md."
+
+  # ===========================================================================
+  # 7. CONSTRAINTS & NON-FUNCTIONAL REQUIREMENTS  -- what it must hold.
+  # ===========================================================================
+  - id: nfr_categories
+    prompt: "Which non-functional dimensions are first-class for this project? (Select all that materially constrain the design.)"
+    type: multiselect
+    options:
+      - { value: performance,    label: "Performance / latency" }
+      - { value: scalability,    label: "Scalability / throughput" }
+      - { value: availability,   label: "Availability / SLA / uptime" }
+      - { value: security,       label: "Security / authn / authz" }
+      - { value: privacy,        label: "Privacy / data protection" }
+      - { value: compliance,     label: "Compliance / regulatory (GDPR, HIPAA, SOC2, PCI…)" }
+      - { value: reliability,    label: "Reliability / durability / consistency" }
+      - { value: observability,  label: "Observability / auditability" }
+      - { value: accessibility,  label: "Accessibility (a11y)" }
+      - { value: cost,           label: "Cost / efficiency budget" }
+      - { value: maintainability,label: "Maintainability / operability" }
+    feeds: "REQUIREMENTS.md.tpl#Non-Functional Requirements"
+    guidance: "Selecting a dimension triggers a depth follow-up for a measurable target. Unselected dimensions are noted as 'not a primary constraint'."
+
+  - id: nfr_targets
+    prompt: "For each non-functional dimension you flagged, give a MEASURABLE target (e.g. 'p95 < 200ms at 1k rps', '99.9% monthly uptime', 'SOC2 Type II by Q4')."
+    type: list
+    feeds: "REQUIREMENTS.md.tpl#Non-Functional Requirements"
+    guidance: "Each becomes a numbered NFR (NFR-NN) with a number, a unit, and a verification method. Reject vague targets ('fast', 'secure') — push for a metric."
+
+  - id: hard_constraints
+    prompt: "What hard constraints box in the solution? (budget, deadline, team size, must-use/forbidden tech, data residency, existing systems to live within.)"
+    type: list
+    feeds: "REQUIREMENTS.md.tpl#Constraints"
+    guidance: "Externally-imposed limits the design cannot violate. Distinguish from preferences. These shape both architecture and roadmap."
+
+  - id: compliance_obligations
+    prompt: "Are there regulatory, contractual, or policy obligations the system must demonstrably meet? Name each and what it requires."
+    type: list
+    feeds: "REQUIREMENTS.md.tpl#Non-Functional Requirements"
+    guidance: "GDPR/HIPAA/PCI/SOC2/internal-policy. Capture the obligation AND the evidence/audit needed. Empty is a valid, explicit answer."
+
+  # ===========================================================================
+  # 8. EXTERNAL INTEGRATIONS  -- the systems it depends on / talks to.
+  # ===========================================================================
+  - id: external_integrations
+    prompt: "What external systems does this integrate with? List each (third-party API, internal service, webhook source, message bus, identity provider, payment, etc.)."
+    type: list
+    feeds: "ARCHITECTURE.md.tpl#External Integrations"
+    guidance: "Per integration: name, direction (we call / they call us), protocol, and what breaks if it is down. Feeds the integrations + dependencies sections."
+
+  - id: integration_risks
+    prompt: "Which integrations or dependencies are riskiest (rate limits, reliability, vendor lock-in, breaking changes, cost) and how will you contain that risk?"
+    type: longtext
+    feeds: "ARCHITECTURE.md.tpl#External Integrations"
+    guidance: "Names failure modes and mitigations (circuit breakers, retries, fallbacks, abstraction layers). Also feeds the roadmap's risk register."
+
+  # ===========================================================================
+  # 9. SUCCESS METRICS & KPIs  -- how 'working well' is measured over time.
+  # ===========================================================================
+  - id: success_metrics
+    prompt: "How will success be MEASURED after launch? List the KPIs / metrics that tell you it is working (and their target values)."
+    type: list
+    feeds: "PRD.md.tpl#Goals & Success Metrics"
+    guidance: "Outcome metrics (adoption, retention, conversion, task-completion, error-rate), each with a target and a baseline. Distinct from acceptance (which is correctness)."
+
+  - id: north_star
+    prompt: "If you could track only ONE number to know the project is succeeding, what would it be?"
+    type: text
+    feeds: "PRD.md.tpl#Goals & Success Metrics"
+    guidance: "The single north-star metric (rendered as the 'North-star metric' subsection). Forces prioritisation among the KPIs above and anchors the success section."
+
+  # ===========================================================================
+  # 10. MILESTONES & PHASES  -- the shipping plan.
+  # ===========================================================================
+  - id: milestones
+    prompt: "What are the major milestones or phases, in order? List each with its goal and rough sequencing (MVP → … → GA)."
+    type: list
+    feeds: "ROADMAP.md.tpl#Phases"
+    guidance: "Phase name + the one outcome that defines its completion. Tie phase 1 to the in_scope_features above; later phases absorb deferred non-goals."
+
+  - id: mvp_definition
+    prompt: "What is the smallest version that delivers real value and proves the core thesis (the MVP)? What is in it and what is deferred?"
+    type: longtext
+    feeds: "ROADMAP.md.tpl#MVP / First Release"
+    guidance: "The thin slice that validates the bet end-to-end. The synthesiser uses this to anchor phase 1 and to scope the first contract."
+
+  # ===========================================================================
+  # 11. RISKS & ASSUMPTIONS  -- the known unknowns to revisit at gates.
+  # ===========================================================================
+  - id: risks
+    prompt: "What are the biggest risks (technical, product, market, organisational) and, for each, how likely/severe is it and how will you mitigate it?"
+    type: list
+    feeds: "ROADMAP.md.tpl#Risks & Mitigations"
+    guidance: "Per risk: description, likelihood, impact, mitigation/early-signal. Revisited at each contract gate. Empty is rarely a truthful answer — probe."
+
+  - id: assumptions
+    prompt: "What assumptions is this plan resting on that, if wrong, would change the approach? List the load-bearing beliefs to validate early."
+    type: list
+    feeds: "ROADMAP.md.tpl#Assumptions"
+    guidance: "Beliefs taken on faith (about users, scale, dependencies, team). The synthesiser pairs each with how/when it gets validated."
+
+  - id: open_questions
+    prompt: "What is still undecided or unknown — the open questions that need answers before or during the build?"
+    type: list
+    feeds: "ROADMAP.md.tpl#Open Questions"
+    guidance: "Honest list of unresolved decisions. Each should name an owner and a 'decide-by' moment so it does not silently linger."

@@ -1,5 +1,5 @@
 {
-  "//": "ack:managed-keys json:hooks,env -- renderer owns ONLY these keys (O5). permissions and all other top-level keys are HUMAN-OWNED, never touched. ${CLAUDE_PROJECT_DIR} is preserved (uppercase, not matched by the lowercase ${var} regex).",
+  "//": "ack:managed-keys json:hooks,env -- renderer owns ONLY these keys (O5). permissions and all other top-level keys are HUMAN-OWNED, never touched. ${CLAUDE_PROJECT_DIR} is preserved (uppercase, not matched by the lowercase ${VAR} regex).",
 
   "//hooks": "Owned only when features.sdd_gate=true; renderer deletes only the matcher entry it wrote when sdd_gate=false.",
   "hooks": {

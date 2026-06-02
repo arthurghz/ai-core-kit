@@ -441,9 +441,15 @@ questions:
     writes_to: design_system.install
 
   - id: design_system_source
-    prompt: "Design-system template source directory"
+    prompt: "Design-system directory in the child repo"
+    # Child-relative location where the design-system subtree lands once
+    # rendered (the `_when.design_system.install/` guard is stripped, so the
+    # subtree materializes at `design-system/`). This value is echoed verbatim
+    # into child docs (CLAUDE.md, design-system/README.md); it MUST NOT be a
+    # kit-internal `templates/archetypes/...` path or the render-time path-hygiene
+    # assertion (§6, fail-closed) rejects the rendered child file.
     type: text
-    default: "templates/archetypes/fullstack/design-system"
+    default: "design-system"
     applies_to: [fullstack]
     ask_if: "design_system_install == true"
     writes_to: design_system.source

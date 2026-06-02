@@ -1,0 +1,20 @@
+# =============================================================================
+# Grafana datasource provisioning -- ai-core-kit cost-observability (META)
+# =============================================================================
+# Auto-wires the Prometheus datasource so the bundled dashboard works on first
+# boot with no manual setup. The URL is the in-network service name.
+# =============================================================================
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: ack-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST

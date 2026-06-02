@@ -1,0 +1,21 @@
+# =============================================================================
+# Grafana dashboard provider -- ${project_name} cost-observability
+# (shipped by ai-core-kit /ack-init)
+# =============================================================================
+# Loads every dashboard JSON under /var/lib/grafana/dashboards (bind-mounted
+# from ./grafana/dashboards) into the project folder on boot.
+# =============================================================================
+
+apiVersion: 1
+
+providers:
+  - name: ${project_slug}
+    orgId: 1
+    folder: ${project_name}
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

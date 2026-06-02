@@ -1,0 +1,60 @@
+/*
+ * Product docs — light polish layer.
+ *
+ * Loaded in pages/_app.jsx AFTER `nextra-theme-docs/style.css`, so every rule
+ * here is an intentional, low-specificity refinement on top of the theme.
+ * Typographic rules are scoped to `.nextra-content` (the article body) so the
+ * navbar, sidebar, search and TOC keep the stock theme.
+ */
+
+.nextra-content {
+  line-height: 1.7;
+}
+
+.nextra-content p,
+.nextra-content li {
+  line-height: 1.75;
+}
+
+.nextra-content h1 {
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.nextra-content h2 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin-top: 2.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--nextra-border, #e6e8f0);
+}
+
+.nextra-content h3 {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin-top: 2rem;
+}
+
+html.dark .nextra-content h2 {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.nextra-content :not(pre) > code {
+  font-size: 0.875em;
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  color: #4338ca;
+}
+
+html.dark .nextra-content :not(pre) > code {
+  background: rgba(129, 140, 248, 0.14);
+  border-color: rgba(129, 140, 248, 0.22);
+  color: #c7d2fe;
+}
+
+.nextra-content pre {
+  border-radius: 12px;
+}

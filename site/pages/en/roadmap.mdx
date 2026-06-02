@@ -43,7 +43,7 @@ The stable interface every downstream phase depends on. Four frozen artifacts:
 
 1. **Manifest schema** — `project.manifest.yaml` shape (`schema_version: 2`), with JSON-Schema validator. See [Manifest & Interview](/concepts/manifest-and-interview).
 2. **Question bank** — `templates/interview/questions.yaml`, 39 deterministic questions with `ask_if`/`skip_if` gating. See [Manifest & Interview](/concepts/manifest-and-interview).
-3. **Render-engine contract** — `${VAR}` substitution, `.when.*` conditional inclusion, structural idempotency. See [Render Engine Contract](/concepts/render-engine).
+3. **Render-engine contract** — `${VAR}` substitution, `_when.*` conditional inclusion, structural idempotency. See [Render Engine Contract](/concepts/render-engine).
 4. **`/ack-init`** — the producer command. See [Commands Reference](/reference/commands).
 
 Gate phase, marked `done`. **The contract is frozen; the engines that consume it are not all complete** — see Partial / Roadmap below.

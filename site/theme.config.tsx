@@ -63,6 +63,12 @@ const config: DocsThemeConfig = {
     defaultMenuCollapseLevel: 1,
     toggleButton: true
   },
+  // A back-to-top affordance on long docs pages — small trust signal.
+  // In Nextra 3 `toc.backToTop` is a ReactNode/FC label (not a boolean),
+  // so pass the link text it should render.
+  toc: {
+    backToTop: 'Back to top'
+  },
   // Language selector in the navbar. `locale` must match the folder names
   // under pages/ (pages/en, pages/pt) and the locales in next.config.mjs.
   i18n: [

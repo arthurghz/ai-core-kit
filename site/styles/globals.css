@@ -175,6 +175,76 @@ html.dark .nextra-content blockquote {
   background: rgba(129, 140, 248, 0.08);
 }
 
+/* ------------------------------------------------------------------ *
+ * Docs chrome polish — subtle, theme-correct refinements to the
+ * Nextra navbar, sidebar, body links, and fenced-code frames so the
+ * docs read modern and trustworthy. Kept low-specificity and scoped
+ * so it never bleeds into the raw-layout landing.
+ * ------------------------------------------------------------------ */
+
+/* Body links: a quiet indigo with an underline that thickens on hover,
+ * so prose links are obviously clickable without shouting. */
+.nextra-content a:not(.ack-card):not([class*="ack-"]) {
+  color: #4f46e5;
+  text-decoration-color: rgba(99, 102, 241, 0.4);
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s ease, color 0.15s ease;
+}
+
+.nextra-content a:not(.ack-card):not([class*="ack-"]):hover {
+  color: #4338ca;
+  text-decoration-color: #6366f1;
+}
+
+html.dark .nextra-content a:not(.ack-card):not([class*="ack-"]) {
+  color: #a5b4fc;
+  text-decoration-color: rgba(129, 140, 248, 0.45);
+}
+
+html.dark .nextra-content a:not(.ack-card):not([class*="ack-"]):hover {
+  color: #c7d2fe;
+  text-decoration-color: #818cf8;
+}
+
+/* Fenced code: a touch more depth + a hairline so blocks feel framed. */
+.nextra-content pre {
+  border: 1px solid #e6e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+html.dark .nextra-content pre {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Active sidebar item: a clear indigo pill so "you are here" reads at a
+ * glance, in both color modes. Nextra marks the active link with
+ * `aria-current="page"`; we style its rendered anchor/text. */
+.nextra-sidebar-container a[aria-current="page"],
+.nextra-sidebar-container .active > a {
+  color: #4338ca;
+  background: rgba(99, 102, 241, 0.1);
+  font-weight: 600;
+}
+
+html.dark .nextra-sidebar-container a[aria-current="page"],
+html.dark .nextra-sidebar-container .active > a {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.14);
+}
+
+/* TOC active anchor accent. */
+.nextra-toc a[aria-current="true"],
+.nextra-toc li.active a {
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+html.dark .nextra-toc a[aria-current="true"],
+html.dark .nextra-toc li.active a {
+  color: #a5b4fc;
+}
+
 /* ================================================================== *
  * LANDING PAGE
  *
@@ -192,7 +262,9 @@ html.dark .nextra-content blockquote {
   align-items: center;
   text-align: center;
   gap: 1.25rem;
-  padding: 4.5rem 1.5rem 3.5rem;
+  /* Horizontal padding comes from .ack-container; keep only the vertical
+   * rhythm here so the hero doesn't get a doubled side gutter. */
+  padding: 4rem 0 3rem;
   margin: 0 0 1rem;
 }
 
@@ -996,6 +1068,506 @@ html.dark .ack-footer-links a:hover {
   .ack-footer-inner {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+/* ================================================================== *
+ * LANDING — "what one interview gives you" FLOW (FlowDiagram.jsx)
+ *
+ * A 3-node input rail (interview -> manifest -> render) that fans down
+ * into a grid of spec-first outputs. Pure CSS/SVG, theme-aware.
+ * ================================================================== */
+.ack-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin: 0.5rem 0 2.5rem;
+}
+
+.ack-flow-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.ack-flow-node {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 1.05rem 1.2rem;
+  border-radius: 14px;
+  border: 1px solid var(--ack-border, #e6e8f0);
+  background: var(--ack-surface, #fbfcff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.ack-flow-node strong {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ack-ink, #1e1b4b);
+}
+
+.ack-flow-kicker {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ack-indigo-strong, #4f46e5);
+}
+
+html.dark .ack-flow-kicker {
+  color: var(--ack-indigo, #a5b4fc);
+}
+
+.ack-flow-sub {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ack-muted, #4b5563);
+}
+
+/* The manifest + render nodes get an indigo wash to read as the engine. */
+.ack-flow-node--manifest,
+.ack-flow-node--render {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.03));
+}
+
+html.dark .ack-flow-node--manifest,
+html.dark .ack-flow-node--render {
+  border-color: rgba(129, 140, 248, 0.4);
+  background: linear-gradient(180deg, rgba(129, 140, 248, 0.14), rgba(129, 140, 248, 0.05));
+}
+
+.ack-flow-node--render {
+  flex: 0 1 240px;
+  justify-content: center;
+}
+
+.ack-flow-arrow {
+  display: flex;
+  align-items: center;
+  color: rgba(99, 102, 241, 0.55);
+  flex: 0 0 auto;
+}
+
+html.dark .ack-flow-arrow {
+  color: rgba(129, 140, 248, 0.6);
+}
+
+/* On narrow screens the rail stacks; rotate the arrows to point down. */
+@media (max-width: 760px) {
+  .ack-flow-rail {
+    flex-direction: column;
+  }
+  .ack-flow-node,
+  .ack-flow-node--render {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .ack-flow-arrow svg {
+    transform: rotate(90deg);
+  }
+}
+
+/* The vertical connector between the rail and the outputs grid. */
+.ack-flow-fan {
+  width: 2px;
+  height: 2.25rem;
+  margin: 0.25rem 0 0.5rem;
+  background: linear-gradient(
+    180deg,
+    rgba(99, 102, 241, 0.55),
+    rgba(99, 102, 241, 0.12)
+  );
+  border-radius: 2px;
+}
+
+html.dark .ack-flow-fan {
+  background: linear-gradient(
+    180deg,
+    rgba(129, 140, 248, 0.6),
+    rgba(129, 140, 248, 0.12)
+  );
+}
+
+.ack-flow-outputs-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ack-muted, #4b5563);
+}
+
+.ack-flow-outputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .ack-flow-outputs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ack-flow-outputs {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ack-flow-out {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.95rem 1.05rem;
+  border-radius: 12px;
+  border: 1px solid var(--ack-border, #e6e8f0);
+  background: var(--ack-surface, #fbfcff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.ack-flow-out:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.1);
+}
+
+html.dark .ack-flow-out:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+.ack-flow-out-icon {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: none;
+  border-radius: 9px;
+  color: var(--ack-indigo-strong, #4f46e5);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+html.dark .ack-flow-out-icon {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+.ack-flow-out-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.ack-flow-out-body strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ack-ink, #1e1b4b);
+}
+
+/* ================================================================== *
+ * LANDING — Archetype showcase (ArchetypeCards.jsx)
+ * ================================================================== */
+.ack-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0.5rem 0 2.5rem;
+}
+
+@media (max-width: 640px) {
+  .ack-arch-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ack-arch-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--ack-border, #e6e8f0);
+  border-radius: 16px;
+  background: var(--ack-surface, #fbfcff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+a.ack-arch-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 14px 34px rgba(79, 70, 229, 0.14);
+}
+
+html.dark a.ack-arch-card:hover {
+  border-color: rgba(129, 140, 248, 0.55);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}
+
+.ack-arch-card--planned {
+  opacity: 0.82;
+  border-style: dashed;
+}
+
+.ack-arch-icon {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 11px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+}
+
+.ack-arch-card--planned .ack-arch-icon {
+  color: var(--ack-indigo-strong, #4f46e5);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: none;
+}
+
+html.dark .ack-arch-card--planned .ack-arch-icon {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.3);
+}
+
+.ack-arch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ack-arch-head strong {
+  font-size: 1.12rem;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  color: var(--ack-ink, #1e1b4b);
+}
+
+.ack-arch-go {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ack-indigo-strong, #4f46e5);
+  transition: transform 0.18s ease;
+}
+
+a.ack-arch-card:hover .ack-arch-go {
+  transform: translateX(3px);
+}
+
+html.dark .ack-arch-go {
+  color: var(--ack-indigo, #a5b4fc);
+}
+
+.ack-arch-badge {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  color: var(--ack-indigo-strong, #4f46e5);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  white-space: nowrap;
+}
+
+html.dark .ack-arch-badge {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+.ack-arch-desc {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ack-muted, #4b5563);
+}
+
+.ack-arch-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+.ack-chip {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 7px;
+  color: var(--ack-indigo-strong, #4338ca);
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  white-space: nowrap;
+}
+
+html.dark .ack-chip {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.14);
+  border-color: rgba(129, 140, 248, 0.22);
+}
+
+/* ================================================================== *
+ * LANDING — "Batteries included" grid (BatteryGrid.jsx)
+ * ================================================================== */
+.ack-batt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin: 0.5rem 0 2.5rem;
+}
+
+@media (max-width: 900px) {
+  .ack-batt-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ack-batt-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ack-batt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--ack-border, #e6e8f0);
+  border-radius: 13px;
+  background: var(--ack-surface, #fbfcff);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+a.ack-batt:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 10px 26px rgba(79, 70, 229, 0.1);
+}
+
+html.dark a.ack-batt:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+.ack-batt-icon {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: none;
+  border-radius: 9px;
+  color: var(--ack-indigo-strong, #4f46e5);
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+html.dark .ack-batt-icon {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.28);
+}
+
+.ack-batt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.ack-batt-body strong {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ack-ink, #1e1b4b);
+}
+
+.ack-batt-body span {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--ack-muted, #4b5563);
+}
+
+/* ================================================================== *
+ * LANDING — closing CTA band
+ * ================================================================== */
+.ack-cta-band {
+  margin: 1rem 0 0.5rem;
+}
+
+.ack-cta-band-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 2rem 2.25rem;
+  border-radius: 18px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background:
+    radial-gradient(40rem 18rem at 15% -4rem, rgba(99, 102, 241, 0.16), transparent 70%),
+    linear-gradient(180deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.05));
+  box-shadow: 0 10px 30px rgba(79, 70, 229, 0.1);
+}
+
+html.dark .ack-cta-band-inner {
+  border-color: rgba(129, 140, 248, 0.32);
+  background:
+    radial-gradient(40rem 18rem at 15% -4rem, rgba(129, 140, 248, 0.2), transparent 70%),
+    linear-gradient(180deg, rgba(129, 140, 248, 0.12), rgba(167, 139, 250, 0.06));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.ack-cta-band-inner h2 {
+  margin: 0 0 0.3rem;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ack-ink, #0f172a);
+}
+
+.ack-cta-band-inner p {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--ack-muted, #4b5563);
+}
+
+.ack-cta-band-inner .ack-cta {
+  margin-top: 0;
+  justify-content: flex-start;
+}
+
+@media (max-width: 640px) {
+  .ack-cta-band-inner {
+    padding: 1.5rem 1.4rem;
   }
 }
 

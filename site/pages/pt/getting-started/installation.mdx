@@ -1,72 +1,108 @@
 ---
 title: Instalação
-description: Faça o fork do ai-core-kit e prepare-se para inicializar um novo projeto filho.
+description: Pré-requisitos e as duas maneiras equivalentes de começar um novo projeto ai-core-kit — a CLI sem fork e a entrevista dentro do Claude.
 ---
 
 # Instalação
 
-`ai-core-kit` é consumido **fazendo fork** dele. Você não o instala como uma dependência;
-você faz o fork do meta-repositório e executa `/ack-init` uma vez dentro do fork para
-transformá-lo no seu novo projeto. Esta página cobre como deixar um fork pronto; o
-[Início rápido](/getting-started/quickstart) percorre a própria entrevista.
+Não há **nada para instalar** para começar um projeto. `ai-core-kit` é um padrão
+forkável, não uma dependência que você adiciona a um arquivo de pacotes. Você cria um
+projeto novo em folha diretamente dos templates congelados do kit — **sem precisar de
+fork** — com um único comando.
+
+Esta página cobre os pré-requisitos e os **dois pontos de entrada equivalentes**. O
+[Início rápido](/getting-started/quickstart) percorre uma execução completa de ponta a
+ponta.
 
 ## Pré-requisitos
 
-- **Claude Code** (a CLI / harness de IDE que expõe slash commands como `/ack-init`).
-- **git** e uma conta no GitHub (ou equivalente) para hospedar o fork.
-- **Python 3** no seu `PATH`. O hook do portão de contrato e o agregador de telemetria são
-  fixados em `python3` (apenas stdlib). Nenhum `pip install` e nenhuma toolchain Node são
-  necessários apenas para renderizar um filho — o motor de render tem **zero dependências
-  npm/pip**.
+Você precisa de muito pouco. O motor de render é determinístico e leve em dependências por
+design.
 
-> O kit deliberadamente evita um pré-requisito de runtime-Python-mais-dependências em todo
-> fork (a razão pela qual ele **não** usa copier/cookiecutter). Veja
+| Você quer… | Você precisa de |
+|---|---|
+| A CLI **`npx create-ack`** (caminho principal) | **Node.js ≥ 18** e um terminal. O `npx` vem com o npm. |
+| A entrevista **`/ack-init`** dentro do Claude (caminho equivalente) | **[Claude Code](https://docs.claude.com/en/docs/claude-code)** (a harness de CLI/IDE que expõe slash commands) |
+| **Escrever specs** com `/ack-spec` após o scaffold | **Claude Code** (a entrevista de specs é guiada pelo modelo) |
+| O **portão de contrato** + a **telemetria offline** (ambos opt-in) | **Python 3** no seu `PATH` — apenas stdlib, sem `pip install` |
+
+Essa é a lista inteira. Não há **`pip install`, nenhuma toolchain Node para construir um
+filho, e nenhum LLM no loop de render** — as mesmas respostas sempre produzem o mesmo
+projeto. O Python 3 é necessário *apenas em tempo de execução* se você optou pelo hook do
+portão de contrato ou pelo agregador de telemetria; você não precisa dele só para fazer o
+scaffold.
+
+> O kit deliberadamente evita um pré-requisito de "runtime Python + dependências em toda
+> máquina" — exatamente por isso ele **não** usa copier/cookiecutter. Veja
 > [Motor de render](/concepts/render-engine#why-not-copier-or-cookiecutter).
 
-## 1. Faça o fork do repositório
+## Os dois pontos de entrada (escolha um)
 
-Faça o fork do `ai-core-kit` para o seu próprio namespace, depois clone seu fork:
+Ambos rodam a **mesma entrevista que começa pelo arquétipo** e escrevem o **mesmo**
+`project.manifest.yaml`. Diferem apenas em *onde* você responde às perguntas.
+
+### A. `npx create-ack` — CLI sem fork (recomendado)
+
+O caminho principal. Inicia um projeto filho autônomo a partir dos templates congelados —
+sem fork, sem cópia da árvore `.claude/` da META, sem LLM no loop.
 
 ```bash
-# after forking on GitHub:
-git clone https://github.com/<you>/<your-new-project>.git
-cd <your-new-project>
+# faz o scaffold de um novo projeto em ./my-product/
+npx create-ack my-product --archetype fullstack
 ```
 
-O fork **é** o ponto de partida do seu novo projeto. Depois que `/ack-init` roda, o scaffold
-do arquétipo, a ferramenta `.claude/` e o `project.manifest.yaml` vivem neste mesmo
-repositório — você não copia arquivos do `ai-core-kit` à mão.
+`<product-name>` deve ser kebab-case minúsculo (`^[a-z][a-z0-9-]*$`). Flags úteis (todas
+reais — veja `create-ack --help`):
 
-## 2. Entenda o que você fez fork (META vs CHILD)
+| Flag | Efeito |
+|---|---|
+| `--archetype <name>` | `backend-api` \| `fullstack` \| `monorepo` \| `library-sdk` \| `infra-iac` (o eixo de ramificação) |
+| `--here` | Faz o scaffold no diretório atual em vez de `./<product-name>/` |
+| `--yes` / `-y` | Não interativo — usa os padrões de `questions.yaml` para tudo |
+| `--lang <language>` | Pré-define a linguagem (`python` \| `typescript` \| `go` \| `rust` \| `java`) |
+| `--framework <name>` | Pré-define o framework |
+| `--no-docs` | Pula o scaffold do site de docs Nextra local do produto (ligado por padrão) |
+| `-h, --help` / `-v, --version` | Uso / versão do kit |
 
-Um fork novo ainda se parece com o repositório META. As peças que importam:
+Omita `--archetype` (e os outros presets) para ser **perguntado interativamente** sobre
+cada um.
 
-| Caminho | Camada | Papel no momento do init |
-|---|---|---|
-| `templates/` | payload META → CHILD | As árvores de arquétipo, o schema do manifesto e o banco de perguntas **a partir do qual** `/ack-init` renderiza. |
-| `templates/manifest/project.manifest.schema.{yaml,json}` | contrato | O schema de manifesto congelado (`schema_version: 2`) contra o qual a entrevista valida. |
-| `templates/interview/questions.yaml` | contrato | O banco determinístico de perguntas que a entrevista percorre. |
-| `docs/RENDER-ENGINE.md` | contrato | O contrato de render que o renderizador obedece. |
-| `.claude/` (ferramenta META) | META | Ferramenta de build para o próprio kit. **Nunca** copiada para o seu filho. |
+### B. Fork + `/ack-init` — a entrevista dentro do Claude
 
-A regra mais importante de todas: **a árvore `.claude/` da META nunca é renderizada em um
-filho.** Somente arquivos sob `templates/` se tornam o seu projeto. Leia o porquê em
-[A fronteira META vs CHILD](/concepts/two-layer-model).
+O equivalente conversacional para quem já está trabalhando dentro do Claude Code. Faça o
+fork do kit, abra o fork e execute o slash command:
 
-## 3. A guarda do meta-repositório
+```bash
+# depois de fazer o fork do ai-core-kit no GitHub:
+git clone https://github.com/<you>/<your-new-project>.git
+cd <your-new-project>
+# então, dentro do Claude Code:
+/ack-init
+```
 
-`/ack-init` foi projetado para rodar **dentro de um fork**, produzindo um projeto filho. Se
-você o executar no meta-repositório `ai-core-kit` original, ele **recusa de forma rígida**:
-um meta-repositório não tem `project.manifest.yaml` nem instância de contrato por design, e
-renderizar um filho em cima do próprio kit corromperia os templates.
+`/ack-init` conduz a entrevista idêntica de forma conversacional e renderiza no mesmo
+repositório. Depois que ele roda, o scaffold, a ferramenta `.claude/` e o
+`project.manifest.yaml` vivem nesse repositório — você nunca copia arquivos do kit à mão.
 
-Esta é a metade **fail-closed** em tempo de autoria do modelo de segurança do kit: um estado
-inicial inválido aborta antes de qualquer coisa ser escrita (invariante **I6**). A metade de
-runtime é **fail-open** — um manifesto corrompido ou ausente no momento do *consumo* rebaixa
-o portão de contrato para o modo `off` e nunca trava uma sessão.
+> **Qual devo usar?** Prefira **`npx create-ack`** — é sem fork, mais rápido e o caminho
+> canônico. Recorra ao `/ack-init` quando você quiser especificamente que a entrevista
+> rode *dentro* de uma sessão do Claude Code (ou você já fez o fork do kit).
+
+## A guarda fail-closed
+
+Ambos os pontos de entrada **recusam fazer scaffold sobre o próprio kit**. O `create-ack`
+detecta os sentinelas da META (`templates/archetypes/`, `docs/BOOTSTRAP.md`,
+`bootstrap/ack.bootstrap.yaml`) e um `project.manifest.yaml` pré-existente, e aborta antes
+de escrever qualquer coisa; o `/ack-init` recusa de forma rígida se rodado no repositório
+`ai-core-kit` original.
+
+Esta é a metade **fail-closed** em tempo de autoria do modelo de segurança do kit: um
+estado inicial inválido aborta antes de um único byte ser escrito (invariante **I6**). A
+metade de runtime é **fail-open** — um manifesto corrompido ou ausente no momento do
+*consumo* rebaixa o portão de contrato para o modo `off` e nunca trava uma sessão.
 
 ## Próximo
 
-Você agora tem um fork em disco com `python3` disponível. Continue para o
-[Início rápido](/getting-started/quickstart) para rodar a entrevista que começa pelo
-arquétipo e renderizar seu projeto.
+Você tem o Node ≥ 18 (e, opcionalmente, o Claude Code / Python 3). Continue para o
+[Início rápido](/getting-started/quickstart) para rodar a entrevista e ver **o que chega
+primeiro: as specs**.

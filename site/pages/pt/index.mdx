@@ -1,6 +1,6 @@
 ---
 title: ai-core-kit
-description: Um padrão forkável para iniciar projetos Claude Code de nível de produção.
+description: Um padrão forkável para iniciar projetos Claude Code de nível de produção, spec-first.
 theme:
   layout: raw
   sidebar: false
@@ -12,18 +12,24 @@ theme:
 ---
 
 import TerminalCast from '../../components/TerminalCast'
+import FlowDiagram from '../../components/FlowDiagram'
+import ArchetypeCards from '../../components/ArchetypeCards'
+import BatteryGrid from '../../components/BatteryGrid'
 
 {/*
   Página de marketing LANDING independente — NÃO é uma página de docs.
-  Layout raw: navbar/sidebar/toc/breadcrumb/footer estão todos desligados no
-  frontmatter acima, então esta página é uma tela totalmente customizada. Como
-  o navbar do tema some, esta página traz o PRÓPRIO header (.ack-nav) e footer
-  (.ack-footer). Todas as classes vêm de styles/globals.css.
-  Todo CTA entra na documentação.
+  Espelha en/index.mdx em estrutura; só a cópia é traduzida. O layout raw
+  desliga toda a chrome do tema, então a página inteira fica embrulhada em
+  `.ack-landing` para o globals.css pintar fundo, vars de marca e chrome. A
+  página traz o PRÓPRIO header (.ack-nav) e footer (.ack-footer). O
+  <TerminalCast/> replayável continua sendo o centro do hero. As classes vêm
+  de styles/globals.css. Todo CTA entra na documentação.
 */}
 
+<div className="ack-landing">
+
 <header className="ack-nav">
-  <a className="ack-nav-logo" href="/pt">
+  <a className="ack-nav-brand" href="/pt">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect width="24" height="24" rx="6" fill="#6366f1" />
       <path d="M7 8.5 4.5 12 7 15.5M17 8.5 19.5 12 17 15.5M13.5 6l-3 12" stroke="#eef2ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -32,8 +38,8 @@ import TerminalCast from '../../components/TerminalCast'
   </a>
   <nav className="ack-nav-links">
     <a href="/pt/getting-started/quickstart">Docs</a>
+    <a href="/pt/archetypes/overview">Arquétipos</a>
     <a href="/pt/concepts/two-layer-model">Conceitos</a>
-    <a href="/pt/reference/skills">Referência</a>
     <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub ↗</a>
     <span className="ack-nav-lang"><a href="/en">EN</a> · <a href="/pt">PT</a></span>
   </nav>
@@ -41,20 +47,21 @@ import TerminalCast from '../../components/TerminalCast'
 
 <main>
 
-<section className="ack-hero">
-  <p className="ack-eyebrow">Padrão forkável · Claude Code</p>
+<section className="ack-hero ack-container">
+  <p className="ack-eyebrow">Padrão forkável · Claude Code · Spec-first</p>
 
-  # Entregue projetos Claude Code de nível de produção a partir de um único fork.
+  # Uma entrevista. Um repositório spec-first pronto para entregar.
 
   <p className="ack-hero-tagline">
-    Faça o fork do kit, rode uma entrevista que começa pelo arquétipo e o
-    `/ack-init` renderiza um repositório totalmente conectado — determinístico,
-    contract-first, com telemetria incluída.
+    Faça o fork do kit, rode uma única entrevista que começa pelo arquétipo e o
+    `/ack-init` renderiza um repositório completo — specs técnicas, um plano, um
+    `CLAUDE.md` de primeira, um design system, ferramentas `.claude/` conectadas
+    e telemetria de custo offline. Determinístico. Zero LLM no loop de render.
   </p>
 
   <div className="ack-cta">
     <a className="ack-btn-primary" href="/pt/getting-started/quickstart">Começar agora</a>
-    <a className="ack-btn-secondary" href="/pt/concepts/two-layer-model">Ler a documentação</a>
+    <a className="ack-btn-secondary" href="/pt/concepts/two-layer-model">Veja como funciona</a>
   </div>
 
   <TerminalCast />
@@ -65,71 +72,155 @@ import TerminalCast from '../../components/TerminalCast'
   </div>
 </section>
 
-<section className="ack-features">
-  <div className="ack-card">
-    ### Entrevista que começa pelo arquétipo
-    Escolha primeiro o formato do projeto e responda só as perguntas que se
-    aplicam. Sem LLM no loop de render — as mesmas respostas geram o mesmo repo.
-  </div>
-  <div className="ack-card">
-    ### Manifesto congelado e render
-    Um único `project.manifest.yaml` é a fonte de verdade, validado contra um
-    JSON-Schema congelado antes de o motor de render determinístico estampar algo.
-  </div>
-  <div className="ack-card">
-    ### Portão de contrato opcional
-    Um portão de contrato de design conservador, de 3 modos, é enviado como hook
-    para o filho — imposto onde você quiser, nunca forçado onde você não quiser.
-  </div>
-  <div className="ack-card">
-    ### Telemetria de custo offline + Grafana
-    Hooks não leem o custo de tokens ao vivo, então um agregador offline cruza
-    transcrições com um mapa de preços versionado para gasto por feature, modelo e agente.
-  </div>
-  <div className="ack-card">
-    ### Skills e agentes colhidos
-    Um catálogo curado de skills `.claude/`, agentes RPI e comandos nas camadas
-    META e CHILD — conectados de forma determinística pelo seu manifesto.
-  </div>
-  <div className="ack-card">
-    ### Design system + shadcn
-    Projetos fullstack podem optar por um payload de design-system: shadcn/ui,
-    diretrizes de marca, um MCP para descoberta de componentes e tokens de tema.
+<section className="ack-container">
+  <h2 className="ack-section-title">O que uma entrevista entrega</h2>
+  <p className="ack-section-sub">
+    Suas respostas congelam em um único manifesto. Um motor de render
+    determinístico o transforma em um repositório spec-first — as mesmas
+    respostas sempre geram o mesmo resultado.
+  </p>
+  <FlowDiagram
+    labels={{
+      interview: 'Entrevista pelo arquétipo',
+      interviewSub: 'Responda só o que se aplica',
+      manifest: 'project.manifest.yaml congelado',
+      manifestSub: 'Validado por JSON-Schema · fonte de verdade',
+      render: 'Render determinístico · zero LLM',
+      outputsTitle: 'Seu fork chega com',
+      specs: 'Specs técnicas',
+      specsSub: 'PRD · ARCHITECTURE · DOMAIN · REQUIREMENTS · NON-GOALS · ROADMAP',
+      plan: 'PLANO',
+      planSub: 'Roadmap de entrega sequenciado',
+      claudemd: 'CLAUDE.md de primeira',
+      claudemdSub: 'Context-engineered, não genérico',
+      design: 'Design system + requisitos',
+      designSub: 'Tokens · componentes · marca · MCP',
+      tooling: 'Ferramentas .claude/ conectadas',
+      toolingSub: 'Skills · agentes · comandos · hooks',
+    }}
+  />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">Comece pelo formato certo</h2>
+  <p className="ack-section-sub">
+    Escolha um arquétipo e responda só as perguntas que se aplicam. Mais stacks
+    estão no roadmap.
+  </p>
+  <ArchetypeCards
+    plannedLabel="No roadmap"
+    items={[
+      {
+        key: 'backend-api',
+        title: 'backend-api',
+        glyph: 'server',
+        href: '/pt/archetypes/backend-api',
+        desc: 'Um serviço tipado com um domínio limpo, testes e CI — pronto para entregar.',
+        stack: ['API', 'Domínio', 'Testes', 'CI'],
+      },
+      {
+        key: 'fullstack',
+        title: 'fullstack',
+        glyph: 'layers',
+        href: '/pt/archetypes/fullstack',
+        desc: 'Frontend + backend com design system opcional, MCP e o portão de contrato.',
+        stack: ['Web', 'API', 'Design system', 'MCP'],
+      },
+      {
+        key: 'saas',
+        title: 'SaaS starter',
+        glyph: 'rocket',
+        href: null,
+        desc: 'Um SaaS produtizado na Vercel: Next.js + React + shadcn/ui no Supabase.',
+        stack: ['Vercel', 'Next.js', 'shadcn/ui', 'Supabase'],
+      },
+      {
+        key: 'iac',
+        title: 'fullstack + IaC',
+        glyph: 'cloud',
+        href: null,
+        desc: 'Tudo do fullstack mais infraestrutura como código para AWS ou GCP.',
+        stack: ['AWS', 'GCP', 'Terraform', 'IaC'],
+      },
+    ]}
+  />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">Baterias incluídas</h2>
+  <p className="ack-section-sub">
+    Capacidades transversais chegam conectadas no fork — opcionais por projeto,
+    nunca impostas.
+  </p>
+  <BatteryGrid
+    items={[
+      { key: 'gate', glyph: 'shield', href: '/pt/features/contract-gate', title: 'Portão de contrato opcional', desc: 'Um hook de contrato de design conservador, de 3 modos — imposto só onde você pedir.' },
+      { key: 'mcp', glyph: 'plug', href: '/pt/features/mcp', title: 'MCP opcional', desc: 'Conecte servidores Model Context Protocol para descoberta de componentes e tools.' },
+      { key: 'cost', glyph: 'gauge', href: '/pt/features/cost-telemetry', title: 'Telemetria de custo offline', desc: 'Gasto por feature, modelo e agente a partir das transcrições — sem hooks ao vivo.' },
+      { key: 'catalog', glyph: 'grid', href: '/pt/features/skills-catalog', title: 'Catálogo de skills e agentes', desc: 'Skills `.claude/` curadas, agentes RPI e comandos nas duas camadas.' },
+      { key: 'render', glyph: 'cog', href: '/pt/concepts/render-engine', title: 'Render determinístico', desc: 'Zero LLM no loop — o mesmo manifesto sempre gera o mesmo repositório.' },
+      { key: 'design', glyph: 'sparkle', href: '/pt/features/design-system', title: 'Payload de design system', desc: 'shadcn/ui, diretrizes de marca, tokens de tema e um MCP de descoberta de componentes.' },
+    ]}
+  />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">Do zero ao deploy em três passos</h2>
+  <div className="ack-steps">
+    <div className="ack-step">
+      ### Faça o fork do padrão
+      Comece um repositório totalmente novo a partir do kit — sem movimentação
+      manual de arquivos, sem copiar e colar do projeto de outra pessoa.
+    </div>
+    <div className="ack-step">
+      ### Rode a entrevista
+      Uma entrevista que começa pelo arquétipo escreve um `project.manifest.yaml`
+      congelado e o motor determinístico renderiza seu repo a partir dele.
+    </div>
+    <div className="ack-step">
+      ### Chegue spec-first
+      Você chega com as specs, o plano, um `CLAUDE.md` testado em batalha, a
+      ferramenta `.claude/` certa — e código mínimo para manter.
+    </div>
   </div>
 </section>
 
-<section className="ack-steps">
-  <div className="ack-step">
-    <span className="ack-step-num">1</span>
-    ### Um repositório novo, sem fork
-    Comece um repositório totalmente novo a partir do padrão — sem movimentação
-    manual de arquivos, sem copiar e colar do projeto de outra pessoa.
-  </div>
-  <div className="ack-step">
-    <span className="ack-step-num">2</span>
-    ### Rode o create-ack
-    Uma entrevista que começa pelo arquétipo escreve um `project.manifest.yaml`
-    congelado e o motor determinístico renderiza seu repo a partir dele.
-  </div>
-  <div className="ack-step">
-    <span className="ack-step-num">3</span>
-    ### Specs + um CLAUDE.md de primeira
-    Você chega com as specs, a ferramenta `.claude/` certa e um `CLAUDE.md`
-    testado em batalha — e código mínimo para manter.
+<section className="ack-container ack-cta-band">
+  <div className="ack-cta-band-inner">
+    <div>
+      <h2>Pronto para entregar spec-first?</h2>
+      <p>Faça o fork do padrão e rode sua primeira entrevista em minutos.</p>
+    </div>
+    <div className="ack-cta">
+      <a className="ack-btn-primary" href="/pt/getting-started/quickstart">Começar agora</a>
+      <a className="ack-btn-secondary" href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">Estrela no GitHub ↗</a>
+    </div>
   </div>
 </section>
 
 </main>
 
 <footer className="ack-footer">
-  <div className="ack-footer-links">
-    <a href="/pt/getting-started/quickstart">Início rápido</a>
-    <a href="/pt/concepts/two-layer-model">Modelo de duas camadas</a>
-    <a href="/pt/reference/skills">Referência</a>
-    <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub</a>
+  <div className="ack-footer-inner">
+    <a className="ack-footer-brand" href="/pt">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="#6366f1" />
+        <path d="M7 8.5 4.5 12 7 15.5M17 8.5 19.5 12 17 15.5M13.5 6l-3 12" stroke="#eef2ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>ai-core-kit</span>
+    </a>
+    <div className="ack-footer-links">
+      <a href="/pt/getting-started/quickstart">Início rápido</a>
+      <a href="/pt/archetypes/overview">Arquétipos</a>
+      <a href="/pt/concepts/two-layer-model">Modelo de duas camadas</a>
+      <a href="/pt/reference/skills">Referência</a>
+      <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub</a>
+    </div>
   </div>
   <p className="ack-footer-meta">
     ai-core-kit — um padrão forkável para projetos Claude Code de nível de
-    produção. Licenciado sob MIT.
+    produção, spec-first. Licenciado sob MIT.
   </p>
 </footer>
+
+</div>

@@ -1,64 +1,84 @@
 ---
 title: Início rápido
-description: Execute /ack-init — a entrevista que começa pelo arquétipo e renderiza seu projeto.
+description: De zero a inicializado em minutos — uma entrevista que começa pelo arquétipo faz seu projeto nascer SPEC-FIRST, e então o scaffold conectado.
 ---
 
 # Início rápido
 
-Isto percorre o fluxo completo de `/ack-init` de ponta a ponta:
-**fork → `/ack-init` → entrevista que começa pelo arquétipo → `project.manifest.yaml` →
-render → conexão dos opt-ins.** Ele assume que você já fez o fork do repositório conforme a
-[Instalação](/getting-started/installation).
+Vá de um diretório vazio a um projeto **spec-first, totalmente conectado** em minutos. Uma
+entrevista que começa pelo arquétipo conduz tudo; **nenhum LLM no loop de render** significa
+que as mesmas respostas sempre produzem o mesmo projeto.
+
+Esta página assume que você tem os
+[pré-requisitos](/getting-started/installation#pré-requisitos) (Node ≥ 18; Claude Code e
+Python 3 são opcionais).
+
+## O que você ganha — e a ordem em que chega
+
+A tese central do kit: no momento-0 a saída de maior alavancagem é **contexto, não
+código**. Então um scaffold novo entrega as **specs primeiro**, e depois o scaffold
+conectado ao redor delas:
+
+1. **Specs técnicas completas** (skeletons, depois prosa escrita pelo modelo via
+   `/ack-spec`) — `PRD`, `ARCHITECTURE`, `DOMAIN`, `REQUIREMENTS`, `NON-GOALS`, `ROADMAP`
+   sob `specs/`.
+2. **Um `CLAUDE.md` de primeira linha** — um ponteiro enxuto e spec-first que o Claude lê
+   a cada turno (ele aponta para `specs/` e os contratos; não despeja conhecimento).
+3. **Um design system + requisitos claros** — para `fullstack`, os skills opt-in do
+   shadcn/ui, o `shadcn.mcp.json` e os tokens de tema.
+4. **A ferramenta `.claude/` certa** — hooks conservadores, skills e convenções de
+   command/agent para o seu arquétipo.
+5. **Um portão de contrato opt-in** — um hook PreToolUse de 3 modos (`block`/`warn`/`off`)
+   que mantém as edições honestas contra um contrato aprovado.
+6. **MCP opcional** e **telemetria de custo offline** — um `.mcp.json` de projeto e o
+   agregador de custo baseado em transcrições + mapa de preços.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#1e1b4b","secondaryColor":"#ecfeff","tertiaryColor":"#faf5ff","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":58,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
 flowchart TD
-  CLI["create-ack.mjs"]
-  GUARD["alvo da meta-guarda"]
-  ARCH["resolve arquétipo"]
-  INT["entrevista"]
-  ASM["valida manifesto"]
-  WRITE["project.manifest.yaml"]
-  RENDER["renderiza arquétipo"]
-  LEDGER["rendered_files[]"]
-  WIRE["conecta opt-ins"]
+  CLI["create-ack / ack-init"]
+  ARCH["escolha o arquétipo"]
+  INT["entrevista com escopo de arquétipo"]
+  ASM["valida manifesto (fail-closed)"]
+  SPEC["skeletons em specs/ + CLAUDE.md  (SPEC-FIRST)"]
+  RENDER["renderiza scaffold + conecta opt-ins"]
+  AUTHOR["/ack-spec → preenche as specs"]
   DONE["repo pronto"]
 
-  CLI --> GUARD --> ARCH --> INT --> ASM --> WRITE --> RENDER --> LEDGER --> WIRE --> DONE
+  CLI --> ARCH --> INT --> ASM --> SPEC --> RENDER --> AUTHOR --> DONE
   ASM -. "inválido" .-> ABORT["aborta, não escreve"]
 ```
 
-<small>`node bin/create-ack.mjs my-product --archetype X` inicia um filho autônomo a partir dos templates congelados — sem fork, sem árvore META, sem LLM no loop. A meta-guarda recusa fazer scaffold sobre o kit; o arquétipo é o eixo de ramificação; a entrevista cai para os padrões de `questions.yaml` sob `--yes`; o manifesto é montado e validado por `lib/manifest.mjs` contra o JSON-Schema (fail-closed) antes de `scripts/render.mjs` renderizar `templates/archetypes/X/` e gravar o livro-razão `rendered_files[]` de volta no manifesto, então os opt-ins (gate / telemetry / design-system) são conectados.</small>
+## 1. Execute a entrevista
 
-## O fluxo em uma olhada
+Escolha **um** dos pontos de entrada — eles rodam a mesma entrevista e escrevem o mesmo
+manifesto (veja
+[Instalação](/getting-started/installation#os-dois-pontos-de-entrada-escolha-um)).
 
-```
-/ack-init  (inside the fork)
-   1. meta-repo guard         → refuse if run in ai-core-kit itself
-   2. ask ARCHETYPE first     → the branch axis (narrows every later question)
-   3. deterministic interview → answers written to managed: paths
-   4. validate manifest       → against the frozen JSON-Schema (fail-closed)
-   5. render archetype tree   → ${VAR} substitution + _when.* conditional dirs
-   6. write rendered_files[]   → ownership ledger for idempotent re-runs
+**CLI sem fork (recomendado):**
+
+```bash
+npx create-ack my-product --archetype fullstack
 ```
 
-## 1. Execute o comando
+Omita `--archetype` para ser perguntado sobre ele. Adicione `--yes` para aceitar todos os
+padrões de forma não interativa (ótimo para uma olhada rápida ou CI):
 
-A partir da raiz do seu fork:
+```bash
+npx create-ack my-product --archetype backend-api --yes
+```
+
+**Ou a entrevista dentro do Claude** — dentro de um repositório com fork, execute:
 
 ```text
 /ack-init
 ```
 
-`/ack-init` é o **único escritor** do manifesto. Ele semeia `user:` uma vez na primeira
-execução e, então, nunca mais o toca; em toda execução ele regenera por completo a subárvore
-`managed:` a partir das suas respostas.
-
 ## 2. Escolha um arquétipo (perguntado primeiro, obrigatório)
 
 A primeira pergunta de todas é o **arquétipo** — o eixo de ramificação (invariante **I3**).
-Sua resposta seleciona tanto o subconjunto de perguntas que você responderá quanto o conjunto
-de templates que será renderizado.
+Ele seleciona tanto as perguntas que você responde a seguir quanto o conjunto de templates
+que será renderizado.
 
 | Arquétipo | Profundidade v1 | O que renderiza |
 |---|---|---|
@@ -68,49 +88,44 @@ de templates que será renderizado.
 | `library-sdk` | Núcleo mínimo | apenas o núcleo seguro |
 | `infra-iac` | Núcleo mínimo | apenas o núcleo seguro |
 
-Como o arquétipo é o eixo de ramificação, **um projeto `infra-iac` nunca recebe perguntas
-de banco de dados**, e a **instalação de design-system só é oferecida para `fullstack`**.
-Isto é gating determinístico a partir de `templates/interview/questions.yaml` — não um
-palpite de LLM.
+Como o arquétipo é o eixo de ramificação, um projeto `infra-iac` **nunca recebe perguntas
+de banco de dados**, e a instalação de design-system é **oferecida apenas para
+`fullstack`**. Esse gating é determinístico, lido de
+`templates/interview/questions.yaml` — não um palpite de LLM.
+
+> Arquétipos planejados incluem um stack SaaS **Vercel + Next.js + React + shadcn +
+> Supabase** e um shape **fullstack + IaC** (AWS/GCP). Veja o [roadmap](/roadmap).
 
 ## 3. Responda apenas as perguntas que se aplicam
 
-A entrevista percorre `questions.yaml` em ordem, pulando qualquer pergunta cujo `applies_to`
-exclua o seu arquétipo ou cujo `ask_if`/`skip_if` avalie como falso contra respostas
-anteriores. As 39 perguntas cobrem:
+A entrevista percorre `questions.yaml` em ordem, pulando qualquer pergunta cujo
+`applies_to` exclua o seu arquétipo ou cujo `ask_if`/`skip_if` seja falso dadas as
+respostas anteriores. As perguntas cobrem:
 
-- **Identidade do projeto + stack**: nome, descrição, linguagem, runtime, gerenciador de
-  pacotes, framework (enum com escopo de arquétipo), arquitetura.
-- **Recursos** (alternâncias opt-in, desligadas por padrão exceto hooks/gate): `hooks`,
-  `mcp`, `agent_teams`, `sdd_gate` (a chave-mestra do portão de contrato).
-- **Persistência** (`backend-api`/`fullstack` apenas): engine de DB, ORM, migrations.
-- **Portão de contrato**: modo (`block`/`warn`/`off`), caminhos protegidos, escopo, globs
+- **Identidade + stack** — nome, descrição, linguagem, runtime, gerenciador de pacotes,
+  framework (um enum com escopo de arquétipo), arquitetura.
+- **Recursos** (alternâncias opt-in) — `hooks`, `mcp`, `agent_teams`, `sdd_gate` (a
+  chave-mestra do portão de contrato).
+- **Persistência** (`backend-api`/`fullstack` apenas) — engine de DB, ORM, migrations.
+- **Portão de contrato** — modo (`block`/`warn`/`off`), caminhos protegidos, escopo, globs
   isentos.
-- **Design system** (`fullstack` apenas): instala os skills Apache-2.0 incluídos.
-- **Telemetria**: habilita atribuição offline, modo de atribuição, caminho do mapa de preços.
-- **Discovery** e alvo de **CI/CD**.
+- **Design system** (`fullstack` apenas) — instala os skills Apache-2.0 incluídos.
+- **Telemetria** — atribuição offline, modo de atribuição, caminho do mapa de preços.
 
-Cada resposta é escrita em um caminho pontilhado `writes_to` sob `managed:`. O banco completo
-está documentado em [Entrevista → Manifesto → Render](/concepts/manifest-and-interview).
+A CLI pergunta as poucas respostas-chave interativamente; todo o resto cai para os padrões
+de `questions.yaml`. Com `--yes`, *todas* as respostas vêm desses padrões.
 
-### Execuções não interativas
+## 4. O manifesto é escrito e validado (fail-closed)
 
-Você pode conduzir a entrevista a partir de um conjunto de respostas preparado em vez de
-digitar. Os padrões em `questions.yaml` são o que as execuções não interativas usam, e o
-`default` de um `select` é sempre uma de suas `options` declaradas.
-
-## 4. O manifesto é escrito e validado
-
-As respostas coletadas são escritas por completo na subárvore `managed:` de
-`project.manifest.yaml` (a **única fonte de verdade**), depois validadas contra o
-JSON-Schema congelado **antes** de qualquer arquivo ser renderizado.
+Suas respostas são escritas por completo na subárvore `managed:` de
+`project.manifest.yaml` — a **única fonte de verdade** — depois validadas contra o
+JSON-Schema congelado **antes de qualquer arquivo ser renderizado**.
 
 - **Manifesto inválido → aborta, não escreve nada** (fail-closed em tempo de autoria,
-  invariante **I6**). Uma chave com erro de digitação é um erro de validação rígido, não um
-  descarte silencioso (`additionalProperties: false`, invariante **I5**).
-- **Mesmas respostas → manifesto byte a byte idêntico.** As chaves são emitidas na ordem de
-  declaração do schema; a subárvore `managed:` é canonicalizada e hasheada em `manifest_hash`.
-  Não há LLM no loop (invariante **I2**).
+  invariante **I6**). Uma chave com erro de digitação é um erro rígido, não um descarte
+  silencioso (`additionalProperties: false`, invariante **I5**).
+- **Mesmas respostas → manifesto byte a byte idêntico.** A subárvore `managed:` é
+  canonicalizada e hasheada em `manifest_hash`. Nenhum LLM no loop (invariante **I2**).
 
 ```yaml
 # project.manifest.yaml  (excerpt — a backend-api result)
@@ -131,42 +146,86 @@ user:
   overrides: {}
 ```
 
-## 5. O conjunto de templates do arquétipo é renderizado
+## 5. O scaffold chega — specs primeiro
 
-O motor de render percorre `templates/archetypes/<archetype>/`, substitui variáveis
-`${dotted.path}` de `managed:` e inclui ou omite arquivos com base nas guardas de diretório
-`_when.*` e em `render.map.yaml`. Ele escreve de volta um livro-razão de propriedade
-`rendered_files[]` para que as re-execuções sejam idempotentes. Detalhes:
-[Contrato do motor de render](/concepts/render-engine).
+Agora o renderizador estampa o seu projeto. Para um arquétipo **profundo** ele entrega, em
+ordem:
 
-## 6. Os extras opt-in são conectados
+- os **skeletons de `specs/`** (PRD/ARCHITECTURE/DOMAIN/REQUIREMENTS/ROADMAP/NON-GOALS + um
+  diretório `adr/`) — cada seção carrega um prompt de autoria inline;
+- o **ponteiro `CLAUDE.md` enxuto e spec-first** (ele substitui o stub do arquétipo);
+- o **scaffold do arquétipo** com variáveis `${dotted.path}` substituídas de `managed:` e
+  guardas de diretório `_when.*` incluindo/omitindo arquivos;
+- os **opt-ins que você ligou** — portão de contrato (`.claude/hooks/contract-gate`,
+  totalmente omitido quando `sdd_gate` é falso), MCP (`.mcp.json`), telemetria e o bundle
+  de design-system do `fullstack`;
+- um **site de docs local do produto** sob `docs/` (pule com `--no-docs`).
 
-Tudo que você alternou para ligado é conectado no filho:
-
-- **Hooks** (`features.hooks`): hooks conservadores de PreToolUse/PostToolUse.
-- **Portão de contrato** (`features.sdd_gate`): o hook PreToolUse de 3 modos
-  (`.claude/hooks/contract-gate`); totalmente omitido quando `sdd_gate` é falso.
-- **MCP** (`features.mcp`): um `.mcp.json` de projeto.
-- **Telemetria** (`telemetry.enabled`): o agregador offline + mapa de preços.
-- **Design system** (`fullstack` + `design_system.install`): os skills shadcn/ui,
-  `shadcn.mcp.json` e tokens de tema.
-
-Os hooks do filho referenciam os artefatos do filho por meio do literal
-`${CLAUDE_PROJECT_DIR}` — nunca um caminho absoluto e nunca um caminho relativo a
+Cada arquivo é registrado em um livro-razão de propriedade `rendered_files[]` para que as
+re-execuções sejam idempotentes. Os hooks do filho referenciam os artefatos do filho por
+meio do literal `${CLAUDE_PROJECT_DIR}` — nunca um caminho absoluto ou relativo a
 `templates/` (forkabilidade, invariante **I7**).
 
-## Re-executando `/ack-init`
+> Arquétipos de núcleo mínimo (`monorepo`/`library-sdk`/`infra-iac`) ainda não trazem uma
+> árvore de templates profunda, então recebem um manifesto válido + apenas o núcleo seguro;
+> o `/ack-spec` escreve as specs e o `CLAUDE.md` deles do zero no filho.
 
-Uma segunda execução com **respostas idênticas** é um no-op: `manifest_hash` coincide e todo
-caminho em `rendered_files[]` permanece inalterado em disco, então o comando sai com 0 e zero
-escritas. Edições manuais **fora** das regiões gerenciadas pelo ack sobrevivem — o
-renderizador é dono apenas de blocos gerenciados delimitados em arquivos compartilhados (por
-exemplo, `CLAUDE.md`, `settings.json`) e nunca toca em arquivos ausentes do livro-razão. Veja
-[Motor de render — idempotência](/concepts/render-engine#idempotent-re-renders).
+## 6. Escreva as specs com `/ack-spec` — o próximo passo principal
 
-## Próximo
+O scaffold te deu **skeletons** de spec. A coisa de maior alavancagem que você pode fazer a
+seguir é preenchê-los com intenção real. Abra o projeto no Claude Code e execute:
 
-- Entenda a fronteira dentro da qual você está trabalhando:
-  [A fronteira META vs CHILD](/concepts/two-layer-model).
-- Veja os contratos que a entrevista obedece:
-  [Entrevista → Manifesto → Render](/concepts/manifest-and-interview).
+```text
+/ack-spec
+```
+
+`/ack-spec` roda uma entrevista de descoberta profunda e narrativa (visão → usuários →
+casos de uso → não-objetivos → domínio → arquitetura → NFRs → marcos → riscos) e **escreve
+as specs em Markdown preenchidas** — PRD, ARCHITECTURE, DOMAIN, REQUIREMENTS, ROADMAP,
+NON-GOALS — além de um `CLAUDE.md` atualizado, e semeia um primeiro contrato em rascunho
+(`docs/contracts/C-001-…`) quando o portão está ligado. Ele emite **prosa, não código**: as
+specs lideram, o código segue.
+
+É idempotente e re-executável — `--review` reporta o que ainda é skeleton ou está
+desatualizado, `--from <prd>` o semeia a partir de um documento existente, `--only
+PRD,DOMAIN` o limita a docs específicos.
+
+## Uma primeira execução completa (copiar e colar)
+
+```bash
+# 1. faz o scaffold de um projeto fullstack spec-first
+npx create-ack acme-app --archetype fullstack
+
+# 2. entre e revise o que chegou
+cd acme-app
+ls                       # CLAUDE.md  project.manifest.yaml  specs/  .claude/  docs/  ...
+cat project.manifest.yaml   # managed: é de propriedade da máquina; edite apenas user:
+
+# 3. abra no Claude Code e escreva as specs
+#    → execute  /ack-spec   (preenche specs/, atualiza CLAUDE.md, rascunha C-001 se o portão estiver ligado)
+
+# 4. (opcional) pré-visualize o site de docs local do produto
+cd docs && npm install && npm run dev
+```
+
+## O que fazer a seguir
+
+- **Escreva as specs** — execute `/ack-spec` (acima). Este é o ponto do kit.
+- **Revise e aprove o primeiro contrato** — se você habilitou o portão, defina
+  `docs/contracts/C-001-….contract.md` como `status: approved` antes de editar os caminhos
+  protegidos. Um humano o aprova; o modelo nunca o vira.
+- **Implemente contra a spec** — as specs lideram, o código segue. Construa a primeira
+  fatia com o portão observando os caminhos protegidos.
+- **Re-execute quando o stack mudar** — `/ack-init` (ou `create-ack` em um diretório novo)
+  re-renderiza o scaffold derivado do manifesto; `/ack-spec` mantém as specs atualizadas.
+  Ambos são **idempotentes**: respostas idênticas → um no-op com zero escritas, e edições
+  manuais *fora* das regiões gerenciadas pelo ack sempre sobrevivem.
+
+## Aprenda o modelo
+
+- [A fronteira META vs CHILD](/concepts/two-layer-model) — a única coisa para nunca
+  confundir.
+- [Entrevista → Manifesto → Render](/concepts/manifest-and-interview) — os contratos que a
+  entrevista obedece.
+- [Motor de render](/concepts/render-engine) — variáveis, diretórios `_when.*`,
+  idempotência.

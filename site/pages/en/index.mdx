@@ -1,6 +1,6 @@
 ---
 title: ai-core-kit
-description: A forkable standard for spinning up production-grade Claude Code projects.
+description: A forkable standard for spinning up production-grade, spec-first Claude Code projects.
 theme:
   layout: raw
   sidebar: false
@@ -12,18 +12,24 @@ theme:
 ---
 
 import TerminalCast from '../../components/TerminalCast'
+import FlowDiagram from '../../components/FlowDiagram'
+import ArchetypeCards from '../../components/ArchetypeCards'
+import BatteryGrid from '../../components/BatteryGrid'
 
 {/*
   Standalone marketing LANDING page — NOT a docs page.
   Raw layout: navbar/sidebar/toc/breadcrumb/footer are all disabled in the
-  frontmatter above, so this page is a full custom canvas. Because the theme
-  navbar is gone, this page ships its OWN header (.ack-nav) and footer
-  (.ack-footer). All classes are defined in styles/globals.css.
-  Every CTA enters the docs.
+  frontmatter above, so this page is a full custom canvas. The whole page is
+  wrapped in `.ack-landing` so globals.css paints its own background, brand
+  CSS vars, and chrome. The page ships its OWN header (.ack-nav) and footer
+  (.ack-footer). All classes are defined in styles/globals.css. The replayable
+  <TerminalCast/> stays the hero centerpiece. Every CTA enters the docs.
 */}
 
+<div className="ack-landing">
+
 <header className="ack-nav">
-  <a className="ack-nav-logo" href="/en">
+  <a className="ack-nav-brand" href="/en">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <rect width="24" height="24" rx="6" fill="#6366f1" />
       <path d="M7 8.5 4.5 12 7 15.5M17 8.5 19.5 12 17 15.5M13.5 6l-3 12" stroke="#eef2ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -32,8 +38,8 @@ import TerminalCast from '../../components/TerminalCast'
   </a>
   <nav className="ack-nav-links">
     <a href="/en/getting-started/quickstart">Docs</a>
+    <a href="/en/archetypes/overview">Archetypes</a>
     <a href="/en/concepts/two-layer-model">Concepts</a>
-    <a href="/en/reference/skills">Reference</a>
     <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub ↗</a>
     <span className="ack-nav-lang"><a href="/en">EN</a> · <a href="/pt">PT</a></span>
   </nav>
@@ -41,19 +47,21 @@ import TerminalCast from '../../components/TerminalCast'
 
 <main>
 
-<section className="ack-hero">
-  <p className="ack-eyebrow">Forkable standard · Claude Code</p>
+<section className="ack-hero ack-container">
+  <p className="ack-eyebrow">Forkable standard · Claude Code · Spec-first</p>
 
-  # Ship production-grade Claude Code projects from one fork.
+  # One interview. A spec-first repo that ships.
 
   <p className="ack-hero-tagline">
-    Fork the kit, run one archetype-first interview, and `/ack-init` renders a
-    fully wired repo — deterministic, contract-first, telemetry included.
+    Fork the kit, run a single archetype-first interview, and `/ack-init`
+    renders a complete repo — tech specs, a plan, a best-in-class `CLAUDE.md`,
+    a design system, wired `.claude/` tooling, and offline cost telemetry.
+    Deterministic. Zero LLM in the render loop.
   </p>
 
   <div className="ack-cta">
     <a className="ack-btn-primary" href="/en/getting-started/quickstart">Get started</a>
-    <a className="ack-btn-secondary" href="/en/concepts/two-layer-model">Read the docs</a>
+    <a className="ack-btn-secondary" href="/en/concepts/two-layer-model">See how it works</a>
   </div>
 
   <TerminalCast />
@@ -64,71 +72,91 @@ import TerminalCast from '../../components/TerminalCast'
   </div>
 </section>
 
-<section className="ack-features">
-  <div className="ack-card">
-    ### Archetype-first interview
-    Pick your project shape first, then answer only the questions that apply.
-    No LLM in the render loop — the same answers always produce the same repo.
-  </div>
-  <div className="ack-card">
-    ### Frozen manifest & render
-    A single `project.manifest.yaml` is the source of truth, validated against a
-    frozen JSON-Schema before the deterministic render engine stamps anything out.
-  </div>
-  <div className="ack-card">
-    ### Opt-in contract gate
-    A conservative 3-mode design-contract gate ships as a hook into the child —
-    enforced where you want it, never imposed where you don't.
-  </div>
-  <div className="ack-card">
-    ### Offline cost telemetry + Grafana
-    Hooks can't read token cost live, so an offline aggregator joins transcripts
-    against a versioned pricing map for per-feature, per-model, per-agent spend.
-  </div>
-  <div className="ack-card">
-    ### Harvested skills & agents
-    A curated catalog of `.claude/` skills, RPI agents, and commands across the
-    META and CHILD layers — wired deterministically by your manifest.
-  </div>
-  <div className="ack-card">
-    ### Design system + shadcn
-    Fullstack projects can opt into a design-system payload: shadcn/ui, brand
-    guidelines, an MCP for component discovery, and theme tokens.
+<section className="ack-container">
+  <h2 className="ack-section-title">What one interview gives you</h2>
+  <p className="ack-section-sub">
+    Your answers freeze into a single manifest. A deterministic render engine
+    turns it into a spec-first repo — the same answers always produce the same
+    output.
+  </p>
+  <FlowDiagram />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">Start from the right shape</h2>
+  <p className="ack-section-sub">
+    Pick an archetype and answer only the questions that apply. More stacks are
+    on the roadmap.
+  </p>
+  <ArchetypeCards />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">Batteries included</h2>
+  <p className="ack-section-sub">
+    Cross-cutting capabilities ship wired into the fork — opt in per project,
+    never imposed.
+  </p>
+  <BatteryGrid />
+</section>
+
+<section className="ack-container">
+  <h2 className="ack-section-title">From zero to shipping in three steps</h2>
+  <div className="ack-steps">
+    <div className="ack-step">
+      ### Fork the standard
+      Start a brand-new repository from the kit — no manual file shuffling, no
+      copy-paste from someone else's project.
+    </div>
+    <div className="ack-step">
+      ### Run the interview
+      One archetype-first interview writes a frozen `project.manifest.yaml`,
+      then the deterministic engine renders your repo from it.
+    </div>
+    <div className="ack-step">
+      ### Land spec-first
+      You arrive with the specs, the plan, a battle-tested `CLAUDE.md`, the
+      right `.claude/` tooling — and minimal code to maintain.
+    </div>
   </div>
 </section>
 
-<section className="ack-steps">
-  <div className="ack-step">
-    <span className="ack-step-num">1</span>
-    ### A fork-free new repo
-    Start a brand-new repository from the standard — no manual file shuffling,
-    no copy-paste from someone else's project.
-  </div>
-  <div className="ack-step">
-    <span className="ack-step-num">2</span>
-    ### Run create-ack
-    One archetype-first interview writes a frozen `project.manifest.yaml`, then
-    the deterministic engine renders your repo from it.
-  </div>
-  <div className="ack-step">
-    <span className="ack-step-num">3</span>
-    ### Specs + a best-in-class CLAUDE.md
-    You land with the specs, the right `.claude/` tooling, and a battle-tested
-    `CLAUDE.md` — and minimal code to maintain.
+<section className="ack-container ack-cta-band">
+  <div className="ack-cta-band-inner">
+    <div>
+      <h2>Ready to ship spec-first?</h2>
+      <p>Fork the standard and run your first interview in minutes.</p>
+    </div>
+    <div className="ack-cta">
+      <a className="ack-btn-primary" href="/en/getting-started/quickstart">Get started</a>
+      <a className="ack-btn-secondary" href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">Star on GitHub ↗</a>
+    </div>
   </div>
 </section>
 
 </main>
 
 <footer className="ack-footer">
-  <div className="ack-footer-links">
-    <a href="/en/getting-started/quickstart">Quickstart</a>
-    <a href="/en/concepts/two-layer-model">Two-layer model</a>
-    <a href="/en/reference/skills">Reference</a>
-    <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub</a>
+  <div className="ack-footer-inner">
+    <a className="ack-footer-brand" href="/en">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="#6366f1" />
+        <path d="M7 8.5 4.5 12 7 15.5M17 8.5 19.5 12 17 15.5M13.5 6l-3 12" stroke="#eef2ff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>ai-core-kit</span>
+    </a>
+    <div className="ack-footer-links">
+      <a href="/en/getting-started/quickstart">Quickstart</a>
+      <a href="/en/archetypes/overview">Archetypes</a>
+      <a href="/en/concepts/two-layer-model">Two-layer model</a>
+      <a href="/en/reference/skills">Reference</a>
+      <a href="https://github.com/stallae/ai-core-kit" target="_blank" rel="noreferrer">GitHub</a>
+    </div>
   </div>
   <p className="ack-footer-meta">
-    ai-core-kit — a forkable standard for production-grade Claude Code projects.
-    MIT licensed.
+    ai-core-kit — a forkable standard for production-grade, spec-first Claude
+    Code projects. MIT licensed.
   </p>
 </footer>
+
+</div>

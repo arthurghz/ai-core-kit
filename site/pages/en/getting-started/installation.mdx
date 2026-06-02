@@ -1,71 +1,102 @@
 ---
 title: Installation
-description: Fork ai-core-kit and prepare to initialize a new child project.
+description: Prerequisites and the two equivalent ways to start a new ai-core-kit project — the fork-free CLI and the in-Claude interview.
 ---
 
 # Installation
 
-`ai-core-kit` is consumed by **forking** it. You do not install it as a dependency; you
-fork the meta-repo and run `/ack-init` once inside the fork to turn it into your new
-project. This page covers getting a fork ready; [Quickstart](/getting-started/quickstart)
-walks the interview itself.
+There is **nothing to install** to start a project. `ai-core-kit` is a forkable
+standard, not a dependency you add to a package file. You scaffold a brand-new project
+straight from the kit's frozen templates — **no fork required** — with a single command.
+
+This page covers the prerequisites and the **two equivalent entry points**.
+[Quickstart](/getting-started/quickstart) then walks a full run end to end.
 
 ## Prerequisites
 
-- **Claude Code** (the CLI / IDE harness that exposes slash commands like `/ack-init`).
-- **git** and a GitHub (or equivalent) account to host the fork.
-- **Python 3** on your `PATH`. The contract-gate hook and the telemetry aggregator are
-  `python3`-pinned (stdlib only). No `pip install` and no Node toolchain are required
-  just to render a child — the render engine has **zero npm/pip dependencies**.
+You need very little. The render engine is deterministic and dependency-light by design.
 
-> The kit deliberately avoids a Python-runtime-plus-dependencies precondition on every
-> fork (the reason it does **not** use copier/cookiecutter). See
+| You want… | You need |
+|---|---|
+| The **`npx create-ack`** CLI (primary path) | **Node.js ≥ 18** and a terminal. `npx` ships with npm. |
+| The **`/ack-init`** in-Claude interview (equivalent path) | **[Claude Code](https://docs.claude.com/en/docs/claude-code)** (the CLI/IDE harness that exposes slash commands) |
+| To **author specs** with `/ack-spec` after scaffolding | **Claude Code** (the spec interview is model-driven) |
+| The **contract gate** + **offline telemetry** (both opt-in) | **Python 3** on your `PATH` — stdlib only, no `pip install` |
+
+That's the whole list. There is **no `pip install`, no Node toolchain to build a child,
+and no LLM in the render loop** — the same answers always produce the same project. Python
+3 is needed *only at runtime* if you opted into the contract-gate hook or the telemetry
+aggregator; you do not need it just to scaffold.
+
+> The kit deliberately avoids a "Python runtime + dependencies on every machine"
+> precondition — that is exactly why it does **not** use copier/cookiecutter. See
 > [Render engine](/concepts/render-engine#why-not-copier-or-cookiecutter).
 
-## 1. Fork the repo
+## The two entry points (pick one)
 
-Fork `ai-core-kit` into your own namespace, then clone your fork:
+Both run the **same archetype-first interview** and write the **same**
+`project.manifest.yaml`. They differ only in *where* you answer the questions.
+
+### A. `npx create-ack` — fork-free CLI (recommended)
+
+The primary path. Spins up a standalone child project from the frozen templates — no
+fork, no copy of the META `.claude/` tree, no LLM in the loop.
 
 ```bash
-# after forking on GitHub:
-git clone https://github.com/<you>/<your-new-project>.git
-cd <your-new-project>
+# scaffold a new project in ./my-product/
+npx create-ack my-product --archetype fullstack
 ```
 
-The fork **is** your new project's starting point. After `/ack-init` runs, the
-archetype scaffold, `.claude/` tooling, and `project.manifest.yaml` live in this same
-repo — you do not copy files out of `ai-core-kit` by hand.
+`<product-name>` must be lowercase kebab-case (`^[a-z][a-z0-9-]*$`). Useful flags
+(all real — see `create-ack --help`):
 
-## 2. Understand what you forked (META vs CHILD)
+| Flag | Effect |
+|---|---|
+| `--archetype <name>` | `backend-api` \| `fullstack` \| `monorepo` \| `library-sdk` \| `infra-iac` (the branch axis) |
+| `--here` | Scaffold into the current directory instead of `./<product-name>/` |
+| `--yes` / `-y` | Non-interactive — use the `questions.yaml` defaults for everything |
+| `--lang <language>` | Pre-set the language (`python` \| `typescript` \| `go` \| `rust` \| `java`) |
+| `--framework <name>` | Pre-set the framework |
+| `--no-docs` | Skip the product-local Nextra docs scaffold (on by default) |
+| `-h, --help` / `-v, --version` | Usage / kit version |
 
-A fresh fork still looks like the META repo. The pieces that matter:
+Omit `--archetype` (and the other presets) to be **prompted interactively** for each.
 
-| Path | Layer | Role at init time |
-|---|---|---|
-| `templates/` | META → CHILD payload | The archetype trees, manifest schema, and question bank `/ack-init` renders **from**. |
-| `templates/manifest/project.manifest.schema.{yaml,json}` | contract | The frozen manifest schema (`schema_version: 2`) the interview validates against. |
-| `templates/interview/questions.yaml` | contract | The deterministic question bank the interview walks. |
-| `docs/RENDER-ENGINE.md` | contract | The render contract the renderer obeys. |
-| `.claude/` (META tooling) | META | Build-tooling for the kit itself. **Never** copied into your child. |
+### B. Fork + `/ack-init` — the in-Claude interview
 
-The single most important rule: **the META `.claude/` tree is never rendered into a
-child.** Only files under `templates/` become your project. Read why in
-[The META vs CHILD boundary](/concepts/two-layer-model).
+The conversational equivalent for people already working inside Claude Code. Fork the
+kit, open the fork, and run the slash command:
 
-## 3. The meta-repo guard
+```bash
+# after forking ai-core-kit on GitHub:
+git clone https://github.com/<you>/<your-new-project>.git
+cd <your-new-project>
+# then, inside Claude Code:
+/ack-init
+```
 
-`/ack-init` is designed to run **inside a fork**, producing a child project. If you run
-it in the original `ai-core-kit` meta-repo, it **hard-refuses**: a meta-repo has no
-`project.manifest.yaml` and no contract instance by design, and rendering a child on top
-of the kit itself would corrupt the templates.
+`/ack-init` drives the identical interview conversationally and renders into the same
+repo. After it runs, the scaffold, `.claude/` tooling, and `project.manifest.yaml` live
+in that repo — you never copy files out of the kit by hand.
+
+> **Which should I use?** Prefer **`npx create-ack`** — it is fork-free, faster, and the
+> canonical path. Reach for `/ack-init` when you specifically want the interview to run
+> *inside* a Claude Code session (or you already forked the kit).
+
+## The fail-closed guard
+
+Both entry points **refuse to scaffold over the kit itself**. `create-ack` detects the
+META sentinels (`templates/archetypes/`, `docs/BOOTSTRAP.md`, `bootstrap/ack.bootstrap.yaml`)
+and a pre-existing `project.manifest.yaml`, and aborts before writing anything; `/ack-init`
+hard-refuses if run in the original `ai-core-kit` repo.
 
 This is the author-time **fail-closed** half of the kit's safety model: an invalid
-starting state aborts before anything is written (invariant **I6**). The runtime half is
-**fail-open** — a corrupt or missing manifest at *consumption* time degrades the contract
-gate to mode `off` and never wedges a session.
+starting state aborts before a single byte is written (invariant **I6**). The runtime
+half is **fail-open** — a corrupt or missing manifest at *consumption* time degrades the
+contract gate to mode `off` and never wedges a session.
 
 ## Next
 
-You now have a fork on disk with `python3` available. Continue to the
-[Quickstart](/getting-started/quickstart) to run the archetype-first interview and render
-your project.
+You have Node ≥ 18 (and optionally Claude Code / Python 3). Continue to the
+[Quickstart](/getting-started/quickstart) to run the interview and see **what lands
+first: the specs**.

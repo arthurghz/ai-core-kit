@@ -43,7 +43,7 @@ A interface estável da qual toda fase a jusante depende. Quatro artefatos conge
 
 1. **Schema do manifesto** — formato do `project.manifest.yaml` (`schema_version: 2`), com validador JSON-Schema. Veja [Manifesto e Entrevista](/concepts/manifest-and-interview).
 2. **Banco de perguntas** — `templates/interview/questions.yaml`, 39 perguntas determinísticas com gating `ask_if`/`skip_if`. Veja [Manifesto e Entrevista](/concepts/manifest-and-interview).
-3. **Contrato do render engine** — substituição `${VAR}`, inclusão condicional `.when.*`, idempotência estrutural. Veja [Contrato do Render Engine](/concepts/render-engine).
+3. **Contrato do render engine** — substituição `${VAR}`, inclusão condicional `_when.*`, idempotência estrutural. Veja [Contrato do Render Engine](/concepts/render-engine).
 4. **`/ack-init`** — o comando produtor. Veja [Referência de Comandos](/reference/commands).
 
 Fase de gate, marcada como `done`. **O contrato está congelado; os engines que o consomem não estão todos completos** — veja Parcial / Roadmap abaixo.

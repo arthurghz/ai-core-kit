@@ -54,6 +54,7 @@ import {
   readdirSync,
   statSync,
   copyFileSync,
+  realpathSync,
 } from "node:fs";
 import { join, resolve, basename, dirname } from "node:path";
 import { createInterface } from "node:readline";
@@ -1849,8 +1850,20 @@ async function main() {
 
 // Guard: only auto-run when invoked as the CLI binary, NOT when imported by a test
 // (so scripts/cli.test.mjs can import the dispatcher's helpers without side effects).
-const INVOKED_AS_CLI =
-  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// Resolve symlinks on BOTH sides: when installed from npm, the binary is run via
+// a `node_modules/.bin/create-ack` symlink, so process.argv[1] is the symlink
+// while import.meta.url is the real file. Without realpath they never match and
+// main() would silently never run (the v0.2.0 bug). realpathSync collapses both
+// to the real path so npx / global installs work.
+function invokedAsCli() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+const INVOKED_AS_CLI = invokedAsCli();
 
 if (INVOKED_AS_CLI) {
   main().catch((e) => {

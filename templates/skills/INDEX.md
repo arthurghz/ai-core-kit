@@ -40,6 +40,7 @@
 
 | Skill | Source repo | License | Provenance | Wiring trigger |
 |---|---|---|---|---|
+| `spec-first` | author-new | Apache-2.0 (kit) | Original to the kit | **Always** — the always-available *method* skill (specs lead, code follows). Pairs with the `/ack-spec` command (the *action*) and the `create-ack spec` CLI entry. |
 | `coding-standards` | author-new | MIT | Original to the kit | **Always** (every archetype) — shared cross-language quality floor. |
 | `error-handling` | author-new | MIT | Original (TS/Python/Go examples in `references/python-go.md`) | **Always** for code archetypes (`backend-api`, `fullstack`, `cli`, `library`). |
 | `code-tour` | author-new | MIT | Original to the kit | **Always** — onboarding/PR/RCA walkthroughs; emits `.tours/`. |
@@ -97,6 +98,7 @@ claude-code-best-practice supplies the RPI-flow agents.
 
 | Command | Source repo | License | Wiring trigger |
 |---|---|---|---|
+| `/ack-spec` | author-new | Apache-2.0 (kit) | **Always** — the moment-0 spec-authoring command. Run once after `create-ack` / `/ack-init`, before the first contract gate. CHILD-correct sibling of the META `.claude/commands/ack-spec.md`; `disable-model-invocation: true` (human/CLI invoked only). The `create-ack spec` CLI entry shells to this exact command; the `spec-first` skill is its always-available method form. |
 | `/rpi/research` | claude-code-best-practice (`rpi/`) | MIT | Render when `features.rpi == true`. RPI step 1 (GO/NO-GO). |
 | `/rpi/plan` | claude-code-best-practice (`rpi/`) | MIT | Render when `features.rpi == true`. RPI step 2 (planning docs). |
 | `/rpi/implement` | claude-code-best-practice (`rpi/`) | MIT | Render when `features.rpi == true`. RPI step 3 (phased exec + gate). |

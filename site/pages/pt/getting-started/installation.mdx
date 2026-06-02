@@ -53,8 +53,14 @@ sem fork, sem cópia da árvore `.claude/` da META, sem LLM no loop.
 
 ```bash
 # faz o scaffold de um novo projeto em ./my-product/
-npx @arthurghz/create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack@latest my-product --archetype fullstack
 ```
+
+> Fixe `@latest` para que cada execução baixe a CLI publicada mais nova. Prefere
+> instalada? `npm i -g @arthurghz/create-ack@latest` coloca um binário `create-ack` no
+> seu `PATH`, e `create-ack update` verifica sozinho se há uma versão mais nova. A CLI é a
+> espinha dorsal — o scaffold **e** toda visão de telemetria vivem atrás dela (veja
+> [Comandos](/reference/commands#a-cli-create-ack--a-espinha-dorsal)).
 
 `<product-name>` deve ser kebab-case minúsculo (`^[a-z][a-z0-9-]*$`). Flags úteis (todas
 reais — veja `create-ack --help`):

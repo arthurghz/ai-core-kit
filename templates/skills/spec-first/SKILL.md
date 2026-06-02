@@ -50,7 +50,9 @@ behavior without touching `specs/` is incomplete.
 | `specs/ARCHITECTURE.md` | System shape: components, boundaries, data flow | human + `/ack-spec` |
 | `specs/DOMAIN.md` | Entities, relationships, **invariants that never break** | human + `/ack-spec` |
 | `specs/REQUIREMENTS.md` | Functional + non-functional reqs; the testable "done" | human + `/ack-spec` |
+| `specs/PLAN.md` | Build order, first slice, validation gates, first-contract proposal | human + `/ack-spec` |
 | `specs/ROADMAP.md` | Sequence, milestones, this-slice vs. deferred | human + `/ack-spec` |
+| `specs/DESIGN.md` | Visual + UX intent, brand palette (design-bearing archetypes only) | human + `/ack-spec` |
 | `specs/NON-GOALS.md` | Explicitly out of scope (stops scope creep) | human |
 | `docs/contracts/*.contract.md` | The gate's *approved?* oracle | human approves |
 | `CLAUDE.md` | Lean pointer into all of the above | mixed (see below) |
@@ -76,6 +78,21 @@ spec is the intent and the code is the bug — reconcile, do not silently diverg
 
 Full step-by-step, including arguments and review checklist, is in
 `references/ack-spec-workflow.md`.
+
+## Three forms of one workflow: skill, command, CLI
+
+There is one spec-authoring workflow with three entry points — keep them straight:
+
+- **`spec-first` (this skill)** — the always-available *method*: when to write a
+  spec vs. code, how specs and `CLAUDE.md` stay in sync, the review discipline. It is
+  the surrounding philosophy, not a generator.
+- **`/ack-spec` (the command)** — the *action*: the human- or CLI-invoked procedure
+  that runs the discovery interview and authors the spec set. It carries
+  `disable-model-invocation: true`, so the model never fires it on its own — a human
+  (or the CLI) starts it. The full procedure lives in `.claude/commands/ack-spec.md`.
+- **`create-ack spec` (the CLI)** — the *terminal entry*: it launches Claude Code and
+  runs `/ack-spec`. Behavior is identical to typing `/ack-spec` in the editor; the
+  command file is the single source of the procedure.
 
 ## Running /ack-spec
 
@@ -136,6 +153,8 @@ tax by `@`-importing the specs rather than inlining them. Keep it that way:
 
 ## Cross-references
 
+- `/ack-spec` — the command this skill's method drives; authors the full spec set
+  (also reachable as `create-ack spec` from the CLI).
 - `/prd` — author a single product requirements doc (feeds `specs/PRD.md`).
 - `spec-to-repo` — one-shot generate a runnable starter from a prose spec.
 - `coding-standards` — the quality floor the implementation step is held to.

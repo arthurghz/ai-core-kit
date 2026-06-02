@@ -79,7 +79,8 @@ def write_cast(name, title, script):
 
 # ── Cast 1 — HERO: fork-free bootstrap → enter the repo → spec-first → commit ──
 BOOTSTRAP = [
-    ("type", "npx @arthurghz/create-ack acme --archetype fullstack"),
+    ("type", "npx @arthurghz/create-ack@latest --archetype fullstack"),
+    ("out", [cyan("?") + " Project name " + dim("›") + " " + bold("acme")], 0.4),
     ("out", [dim("◐ validating answers → frozen manifest → deterministic render…")], 0.5),
     ("wait", 0.4),
     ("out", [green("✓") + " scaffolded " + bold("acme") + dim("  (fullstack · zero-LLM render · 32 files)")], 0.2),
@@ -127,7 +128,7 @@ ACK_SPEC = [
 
 # ── Cast 3 — backend-api archetype ──
 BACKEND = [
-    ("type", "npx @arthurghz/create-ack orders-api --archetype backend-api --yes"),
+    ("type", "npx @arthurghz/create-ack@latest orders-api --archetype backend-api --yes"),
     ("out", [green("✓") + " scaffolded " + bold("orders-api") + dim("  (backend-api · deep · 21 files)")], 0.3),
     ("wait", 0.4),
     ("type", "tree -L 1 orders-api"),
@@ -144,7 +145,7 @@ BACKEND = [
 
 # ── Cast 4 — fullstack archetype ──
 FULLSTACK = [
-    ("type", "npx @arthurghz/create-ack acme --archetype fullstack --yes"),
+    ("type", "npx @arthurghz/create-ack@latest acme --archetype fullstack --yes"),
     ("out", [green("✓") + " scaffolded " + bold("acme") + dim("  (fullstack · deep · 46 files)")], 0.3),
     ("wait", 0.4),
     ("type", "tree -L 1 acme"),
@@ -161,7 +162,7 @@ FULLSTACK = [
 
 # ── Cast 5 — saas archetype ──
 SAAS = [
-    ("type", "npx @arthurghz/create-ack orbit --archetype saas --yes"),
+    ("type", "npx @arthurghz/create-ack@latest orbit --archetype saas --yes"),
     ("out", [
         green("✓") + " scaffolded " + bold("orbit") + dim("  (saas · deep)"),
         "  " + cyan("Next.js") + " · " + cyan("React") + " · " + cyan("shadcn") + " · " + cyan("Clerk") + " · " + cyan("Supabase") + " · " + cyan("Drizzle") + " · " + cyan("Stripe") + " · " + cyan("Vercel"),
@@ -182,7 +183,7 @@ SAAS = [
 
 # ── Cast 6 — minimal-core (monorepo / library-sdk / infra-iac) ──
 MINIMAL = [
-    ("type", "npx @arthurghz/create-ack toolkit --archetype library-sdk --yes"),
+    ("type", "npx @arthurghz/create-ack@latest toolkit --archetype library-sdk --yes"),
     ("out", [green("✓") + " scaffolded " + bold("toolkit") + dim("  (minimal-core — the always-on safe core)")], 0.3),
     ("wait", 0.4),
     ("type", "tree toolkit"),
@@ -203,7 +204,7 @@ INSTALL = [
     ("type", "node -v"),
     ("out", [dim("v20.11.0") + dim("   # Node >= 18 — that's the only prerequisite")], 0.25),
     ("wait", 0.35),
-    ("type", "npx @arthurghz/create-ack --help"),
+    ("type", "npx @arthurghz/create-ack@latest --help"),
     ("out", [
         bold("create-ack") + dim(" — scaffold a spec-first Claude Code project (zero-LLM)"), "",
         "  " + green("npx @arthurghz/create-ack") + " <name> --archetype <type>", "",
@@ -652,6 +653,44 @@ WATCH = [
     ("wait", 0.6),
 ]
 
+# ── reference/commands — the CLI is the spine: one binary, many subcommands ──
+CLI = [
+    ("type", "create-ack --help"),
+    ("out", [
+        bold("create-ack") + dim(" — the ai-core-kit CLI (everything reachable here)"), "",
+        "  " + green("create-ack new") + dim(" <name> --archetype <t>   scaffold a child (alias: scaffold)"),
+        "  " + green("create-ack cost") + dim("   --by feature|model|agent     offline USD (aggregate.py)"),
+        "  " + green("create-ack dora") + dim("   --deploy-mode merge          DORA four keys (dora.py)"),
+        "  " + green("create-ack report  dashboard  watch  monitor") + dim("   telemetry views"),
+        "  " + green("create-ack feature  migrate  update") + dim("            attribute · bump · self-update"),
+    ], 0.12),
+    ("wait", 0.4),
+    ("type", "create-ack cost --by feature --since 2026-06-01"),
+    ("out", [
+        dim("→ wraps telemetry/aggregate.py (OFFLINE: transcripts × pricing.json)"),
+        bold("## by feature") + dim("                        turns      cost USD"),
+        "C-001-order-intake                    1181      " + green(" 191.2487"),
+        "unattributed                         11490      " + green(" 983.1053"),
+        dim("GRAND TOTAL ") + green("$1174.3541") + dim("   reconciled across axes: ") + green("YES"),
+    ], 0.11),
+    ("wait", 0.35),
+    ("type", "create-ack feature C-001-order-intake"),
+    ("out", [
+        green("✓") + " opened sidecar window  " + cyan("C-001-order-intake") + dim("  (from=now, to=null)"),
+        dim("# sidecar_map: timestamp → contract → cost attributes per-feature,"),
+        dim("# not just per git branch (branch_prefix is the zero-setup default)"),
+    ], 0.12),
+    ("wait", 0.35),
+    ("type", "create-ack update"),
+    ("out", [
+        dim("checking npm for @arthurghz/create-ack@latest …"),
+        green("✓") + dim(" up to date — or:  ") + cyan("npm i -g @arthurghz/create-ack@latest"),
+        "",
+        bold("one binary, every capability") + dim("  — not only Claude Code or the site"),
+    ], 0.13),
+    ("wait", 0.6),
+]
+
 CASTS = {
     "ack-usage.cast": ("create-ack — bootstrap a spec-first repo", BOOTSTRAP),
     "ack-watch.cast": ("live terminal monitor — tokens/cost per feature", WATCH),
@@ -678,6 +717,7 @@ CASTS = {
     "ack-build.cast": ("/ack-build — META orchestrator, phase by phase", ACK_BUILD),
     "ack-bootstrap-config.cast": ("ack.bootstrap.yaml validated vs schema", BOOTSTRAP_CFG),
     "ack-commands.cast": ("commands — META trio + the RPI loop", COMMANDS),
+    "ack-cli.cast": ("create-ack CLI — one binary, every capability", CLI),
 }
 
 if __name__ == "__main__":

@@ -58,14 +58,21 @@ Pick **either** entry point — they run the same interview and write the same m
 **Fork-free CLI (recommended):**
 
 ```bash
-npx @arthurghz/create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack@latest my-product --archetype fullstack
 ```
+
+The `@latest` tag means every `npx` run pulls the newest published CLI without a
+cached stale copy. Working on the kit a lot? Install it once
+(`npm i -g @arthurghz/create-ack@latest`) and keep it current with `create-ack update`.
+The CLI is the spine — scaffolding and the telemetry views (`cost`, `dora`, `report`,
+`dashboard`, …) all live behind one binary; see
+[Commands](/reference/commands#the-create-ack-cli--the-spine).
 
 Omit `--archetype` to be prompted for it. Add `--yes` to take every default
 non-interactively (great for a quick look or CI):
 
 ```bash
-npx @arthurghz/create-ack my-product --archetype backend-api --yes
+npx @arthurghz/create-ack@latest my-product --archetype backend-api --yes
 ```
 
 **Or the in-Claude interview** — inside a forked repo, run:
@@ -189,7 +196,7 @@ docs.
 
 ```bash
 # 1. scaffold a spec-first fullstack project
-npx @arthurghz/create-ack acme-app --archetype fullstack
+npx @arthurghz/create-ack@latest acme-app --archetype fullstack
 
 # 2. step in and review what landed
 cd acme-app

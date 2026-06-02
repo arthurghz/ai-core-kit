@@ -16,6 +16,46 @@ ai-core-kit ships two kinds of slash command, split along the [META vs CHILD bou
 
 User-invocable skills (`skill-creator`, `skill-validator`, `mcp-builder`, `cost-telemetry`) are model- or human-invoked rather than slash commands; they are listed at the end for completeness and detailed in the [Skills Catalog](/features/skills-catalog).
 
+Slash commands are not the only surface, though — the **`create-ack` CLI is the spine**. Anything you can do from Claude Code or the site you can also do from one binary, in any terminal or CI runner.
+
+---
+
+## The `create-ack` CLI — the spine
+
+The kit's guiding principle is that **everything is reachable from the CLI**, not only from Claude Code slash commands or this site. `create-ack` is a single binary (the `@arthurghz/create-ack` npm package) that you run with `npx @arthurghz/create-ack@latest …`, or install once with `npm i -g @arthurghz/create-ack@latest`.
+
+<TerminalCast src="/demo/ack-cli.cast" />
+
+It groups its work into **subcommands**. Scaffolding is the original command; the telemetry subcommands are thin wrappers over the stdlib-Python tools in `telemetry/` — the same code documented in [Observability](/reference/observability), surfaced under one CLI so you never have to remember a `python3 telemetry/<script>.py` invocation.
+
+| Subcommand | What it does | Wraps |
+|---|---|---|
+| `create-ack new <name>` (alias `scaffold`) | Scaffold a child project — the archetype-first interview → frozen `project.manifest.yaml` → deterministic render. The fork-free entry point. | the render engine (`lib/`, `templates/`) |
+| `create-ack cost [--by feature\|model\|agent\|session\|day]` | Offline USD spend from local transcripts × `pricing.json`, attributed across axes. Honors `--since/--until`, budgets, and the manifest's telemetry block. | `telemetry/aggregate.py` |
+| `create-ack dora [--deploy-mode tag\|merge]` | The four DORA keys computed **exactly** from local git history (deploy frequency, lead time, change-fail rate, MTTR). | `telemetry/dora.py` |
+| `create-ack report [--format md\|html]` | One self-contained Tier-0 file combining offline cost/tokens **and** DORA — a view, no new math. | `telemetry/report.py` |
+| `create-ack dashboard [--serve] [--watch N]` | A self-contained interactive HTML cost dashboard; `--serve` runs it on `localhost`, recomputing offline each request. | `telemetry/dashboard.py` |
+| `create-ack watch [--by feature]` | A live in-terminal token/cost monitor, refreshed in place, with an optional advisory `--budget` bar. | `telemetry/watch.py` |
+| `create-ack monitor [BUDGET_USD]` | Local budget **alert**: exits non-zero (and fires a desktop notification) when offline spend crosses the cap — schedule it on your machine. | `telemetry/monitor.sh` |
+| `create-ack feature <name>` | Open/close a **sidecar attribution window** so cost is attributed per-feature (per contract), not just per git branch. See below. | `telemetry/aggregate.py` sidecar map |
+| `create-ack migrate` | Bump an existing child to the current manifest schema / template revision via the idempotent managed-block merge. | the render engine |
+| `create-ack update` | Self-check npm for a newer release; suggests `npm i -g @arthurghz/create-ack@latest`. | npm registry |
+
+> **Status, honestly.** Scaffolding (`new`/`scaffold`) ships today (`@arthurghz/create-ack@0.1.0`). The telemetry **engines** under `telemetry/` are real and run today via `python3 telemetry/<script>.py …` — the table shows the unified `create-ack <verb>` surface that wraps them so the CLI is the single spine. Until a subcommand is wired in your installed version, call the underlying tool directly; the flags and behavior are identical. Track parity in the [roadmap](/roadmap).
+
+### Why the CLI, not just slash commands
+
+Slash commands need a Claude Code session; the site is read-only. The CLI needs neither. A CI job, a cron entry, a teammate without Claude Code, or a quick `create-ack cost --by feature` between turns all reach the same capabilities. Cost stays **offline** everywhere — it is derived from local transcripts × a versioned pricing map, never a live API (there is no live cost API in hooks; issue #11008). DORA stays **exact** everywhere — it reads git history.
+
+### Per-feature vs per-branch cost attribution
+
+`create-ack cost` (and `aggregate.py`) can attribute spend to a *feature* two ways, and the choice is yours:
+
+- **`branch_prefix` (the default, zero setup).** A turn's feature is inferred from the git branch it ran on: with `--branch-prefix feat/`, work on `feat/order-intake` buckets to `order-intake`. Nothing to maintain — but it is only as granular as your branches, and turns on `main` (or any non-prefixed branch) fall into the `--default-bucket` (e.g. `unattributed`).
+- **`sidecar_map` (precise, opt-in via `create-ack feature`).** `create-ack feature <contract-id>` writes a sidecar entry `{from: <now>, to: null, bucket: <contract-id>}`; running it again (or with the feature finished) closes the open window. `aggregate.py --sidecar-map <file>` then attributes each turn by **timestamp → contract**, independent of branch. This is the only thing a session hook *can* record honestly — a timestamp→contract mapping, never a cost — so it pairs naturally with the contract gate's `C-NNN` IDs.
+
+Pick `branch_prefix` when your branches already track features; reach for `create-ack feature` when you want spend pinned to specific contracts regardless of how you branch. The two are mutually exclusive per run — a provided `--sidecar-map` overrides `--branch-prefix`.
+
 ---
 
 ## META commands

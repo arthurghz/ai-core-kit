@@ -17,6 +17,46 @@ O ai-core-kit oferece dois tipos de comando de barra, divididos ao longo da [fro
 
 As skills invocáveis pelo usuário (`skill-creator`, `skill-validator`, `mcp-builder`, `cost-telemetry`) são invocadas pelo modelo ou por humanos, em vez de serem comandos de barra; elas estão listadas no final por completude e detalhadas no [Catálogo de Skills](/features/skills-catalog).
 
+Mas os comandos de barra não são a única superfície — a **CLI `create-ack` é a espinha dorsal**. Tudo que você faz no Claude Code ou no site, você também faz a partir de um único binário, em qualquer terminal ou runner de CI.
+
+---
+
+## A CLI `create-ack` — a espinha dorsal
+
+O princípio que guia o kit é que **tudo é alcançável pela CLI**, não apenas pelos comandos de barra do Claude Code ou por este site. `create-ack` é um único binário (o pacote npm `@arthurghz/create-ack`) que você roda com `npx @arthurghz/create-ack@latest …`, ou instala uma vez com `npm i -g @arthurghz/create-ack@latest`.
+
+<TerminalCast src="/demo/ack-cli.cast" />
+
+Ela agrupa seu trabalho em **subcomandos**. O scaffold é o comando original; os subcomandos de telemetria são invólucros finos sobre as ferramentas Python (stdlib) em `telemetry/` — o mesmo código documentado em [Observabilidade](/reference/observability), exposto sob uma única CLI para que você nunca precise lembrar de uma invocação `python3 telemetry/<script>.py`.
+
+| Subcomando | O que faz | Envolve |
+|---|---|---|
+| `create-ack new <nome>` (alias `scaffold`) | Faz o scaffold de um projeto filho — a entrevista que começa pelo arquétipo → `project.manifest.yaml` congelado → render determinístico. O ponto de entrada sem fork. | o render engine (`lib/`, `templates/`) |
+| `create-ack cost [--by feature\|model\|agent\|session\|day]` | Gasto offline em USD a partir das transcrições locais × `pricing.json`, atribuído por eixos. Respeita `--since/--until`, orçamentos e o bloco de telemetria do manifesto. | `telemetry/aggregate.py` |
+| `create-ack dora [--deploy-mode tag\|merge]` | As quatro chaves DORA computadas **exatamente** do histórico git local (frequência de deploy, lead time, taxa de falha de mudança, MTTR). | `telemetry/dora.py` |
+| `create-ack report [--format md\|html]` | Um único arquivo Tier-0 autocontido combinando custo/tokens offline **e** DORA — uma visão, sem matemática nova. | `telemetry/report.py` |
+| `create-ack dashboard [--serve] [--watch N]` | Um dashboard de custo HTML interativo e autocontido; `--serve` o roda no `localhost`, recomputando offline a cada requisição. | `telemetry/dashboard.py` |
+| `create-ack watch [--by feature]` | Um monitor de token/custo ao vivo no terminal, atualizado no lugar, com uma barra de `--budget` consultiva opcional. | `telemetry/watch.py` |
+| `create-ack monitor [BUDGET_USD]` | **Alerta** de orçamento local: sai com código diferente de zero (e dispara uma notificação de desktop) quando o gasto offline cruza o teto — agende-o na sua máquina. | `telemetry/monitor.sh` |
+| `create-ack feature <nome>` | Abre/fecha uma **janela de atribuição sidecar** para que o custo seja atribuído por feature (por contrato), não apenas por branch git. Veja abaixo. | sidecar map do `telemetry/aggregate.py` |
+| `create-ack migrate` | Atualiza um filho existente para o schema de manifesto / revisão de template atual via o merge idempotente de bloco gerenciado. | o render engine |
+| `create-ack update` | Verifica sozinho no npm se há uma versão mais nova; sugere `npm i -g @arthurghz/create-ack@latest`. | registro npm |
+
+> **Status, honestamente.** O scaffold (`new`/`scaffold`) já é entregue hoje (`@arthurghz/create-ack@0.1.0`). Os **motores** de telemetria sob `telemetry/` são reais e rodam hoje via `python3 telemetry/<script>.py …` — a tabela mostra a superfície unificada `create-ack <verbo>` que os envolve para que a CLI seja a espinha dorsal única. Até que um subcomando esteja conectado na sua versão instalada, chame a ferramenta subjacente diretamente; as flags e o comportamento são idênticos. Acompanhe a paridade no [roadmap](/roadmap).
+
+### Por que a CLI, e não só comandos de barra
+
+Comandos de barra precisam de uma sessão do Claude Code; o site é somente leitura. A CLI não precisa de nenhum dos dois. Um job de CI, uma entrada de cron, um colega sem Claude Code, ou um rápido `create-ack cost --by feature` entre turnos — todos alcançam as mesmas capacidades. O custo permanece **offline** em todo lugar — é derivado das transcrições locais × um mapa de preços versionado, nunca uma API ao vivo (não há API de custo ao vivo em hooks; issue #11008). O DORA permanece **exato** em todo lugar — ele lê o histórico git.
+
+### Atribuição de custo por feature vs por branch
+
+O `create-ack cost` (e o `aggregate.py`) pode atribuir o gasto a uma *feature* de duas maneiras, e a escolha é sua:
+
+- **`branch_prefix` (o padrão, zero configuração).** A feature de um turno é inferida da branch git em que ele rodou: com `--branch-prefix feat/`, o trabalho em `feat/order-intake` é agrupado em `order-intake`. Nada para manter — mas é tão granular quanto suas branches, e turnos na `main` (ou em qualquer branch sem o prefixo) caem no `--default-bucket` (ex.: `unattributed`).
+- **`sidecar_map` (preciso, opt-in via `create-ack feature`).** O `create-ack feature <id-do-contrato>` escreve uma entrada sidecar `{from: <agora>, to: null, bucket: <id-do-contrato>}`; rodá-lo de novo (ou com a feature finalizada) fecha a janela aberta. O `aggregate.py --sidecar-map <arquivo>` então atribui cada turno por **timestamp → contrato**, independentemente da branch. Isso é a única coisa que um hook de sessão *pode* registrar honestamente — um mapeamento timestamp→contrato, nunca um custo — então combina naturalmente com os IDs `C-NNN` do portão de contrato.
+
+Escolha `branch_prefix` quando suas branches já acompanham features; recorra ao `create-ack feature` quando quiser o gasto fixado em contratos específicos, independentemente de como você cria branches. As duas são mutuamente exclusivas por execução — um `--sidecar-map` fornecido sobrescreve o `--branch-prefix`.
+
 ---
 
 ## Comandos META

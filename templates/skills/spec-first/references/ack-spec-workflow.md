@@ -4,17 +4,20 @@ This is the end-to-end spec-first flow for this project. The headline rule:
 **specs lead, code follows.** Each stage produces or refines *context*; code is
 written only at the end, guided by the approved specs.
 
-## The four moments
+## The moments
 
 | Moment | What happens | Determinism | Output |
 |---|---|---|---|
-| 0. Discover | Free-text capture of vision, domain, requirements, non-goals | model + human | `specs/` skeletons seeded |
-| 1. Specify | `/ack-spec` authors specs from the vision; human reviews | model-driven | filled `specs/*.md` |
+| 0. Scaffold | `create-ack` / `/ack-init` write the manifest + spec SKELETONS + the DRAFT marker | deterministic | `project.manifest.yaml`, `specs/*` skeletons |
+| 1. Specify (headline) | `/ack-spec` (or `create-ack spec`) runs the discovery interview and authors the spec set + a lean `CLAUDE.md`; human reviews | model-driven | filled `specs/*.md` |
+| 1b. Finalize design | design-bearing archetypes: re-run `/ack-init` to merge the confirmed brand color and re-materialise the theme | deterministic | refreshed `design-system/theme/` |
 | 2. Contract | Seed + approve a contract for any protected path | human approves | `docs/contracts/<id>.contract.md` at `approved` |
 | 3. Implement | Write the **least code** that satisfies the spec | human + model | code + updated specs |
 
-Discovery (moment 0) is **optional**. If you already have a PRD or a written
-spec, skip it and point `/ack-spec` at the existing document.
+Moment 1 is the **headline** — the LLM island between two deterministic bookends
+(scaffold before, finalize after). Discovery (moment 0's free-text capture) is
+**optional**: if you already have a PRD or a written spec, point `/ack-spec --from`
+at it and skip straight to authoring.
 
 ## Running /ack-spec
 
@@ -26,16 +29,21 @@ spec, skip it and point `/ack-spec` at the existing document.
    (non-functional)? what is explicitly out of scope?
 3. **Author** the spec set, filling the skeletons while preserving their
    headings — `specs/PRD.md`, `ARCHITECTURE.md`, `DOMAIN.md`, `REQUIREMENTS.md`,
-   `ROADMAP.md`, and proposing `NON-GOALS.md`.
+   `PLAN.md`, `ROADMAP.md`, `NON-GOALS.md` — plus `DESIGN.md` for the
+   design-bearing archetypes (`fullstack`, `saas`) only.
 4. **Seed** an initial contract (`C-001-<slug>`) with a `scope` inferred from the
    spec, left at `draft`/`proposed` for human approval.
 5. **Summarize** what it wrote and the next step (review, then approve a contract,
-   then implement).
+   then implement). For design-bearing archetypes that confirmed a brand color, the
+   next step is to **re-run `/ack-init`** to finalize the design system (it merges the
+   confirmed `design_system.tokens.color_brand` and re-materialises the theme).
 
-Typical invocations:
+Typical invocations (all equivalent to the `create-ack spec` CLI entry, which shells
+to `/ack-spec`):
 
 - `/ack-spec` — author from the discovery docs already in the repo.
 - `/ack-spec --from <path-to-PRD>` — author from an existing PRD/spec, skipping discovery.
+- `/ack-spec --only PRD,DOMAIN` — author only the named docs; leave the rest untouched.
 - `/ack-spec --review` — re-read the specs and flag gaps/contradictions without rewriting.
 
 `/ack-spec` does **not** write application code. It produces context; code is

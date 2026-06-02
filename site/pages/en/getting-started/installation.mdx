@@ -49,8 +49,14 @@ fork, no copy of the META `.claude/` tree, no LLM in the loop.
 
 ```bash
 # scaffold a new project in ./my-product/
-npx @arthurghz/create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack@latest my-product --archetype fullstack
 ```
+
+> Pin `@latest` so every run pulls the newest published CLI. Prefer it installed?
+> `npm i -g @arthurghz/create-ack@latest` puts a `create-ack` binary on your `PATH`,
+> and `create-ack update` self-checks for a newer release. The CLI is the spine —
+> scaffolding **and** every telemetry view live behind it (see
+> [Commands](/reference/commands#the-create-ack-cli--the-spine)).
 
 `<product-name>` must be lowercase kebab-case (`^[a-z][a-z0-9-]*$`). Useful flags
 (all real — see `create-ack --help`):

@@ -62,14 +62,21 @@ manifesto (veja
 **CLI sem fork (recomendado):**
 
 ```bash
-npx @arthurghz/create-ack my-product --archetype fullstack
+npx @arthurghz/create-ack@latest my-product --archetype fullstack
 ```
+
+A tag `@latest` faz cada execução do `npx` baixar a CLI publicada mais nova, sem uma cópia
+em cache desatualizada. Trabalha muito no kit? Instale-a uma vez
+(`npm i -g @arthurghz/create-ack@latest`) e mantenha-a atualizada com `create-ack update`.
+A CLI é a espinha dorsal — o scaffold e as visões de telemetria (`cost`, `dora`, `report`,
+`dashboard`, …) vivem todas atrás de um único binário; veja
+[Comandos](/reference/commands#a-cli-create-ack--a-espinha-dorsal).
 
 Omita `--archetype` para ser perguntado sobre ele. Adicione `--yes` para aceitar todos os
 padrões de forma não interativa (ótimo para uma olhada rápida ou CI):
 
 ```bash
-npx @arthurghz/create-ack my-product --archetype backend-api --yes
+npx @arthurghz/create-ack@latest my-product --archetype backend-api --yes
 ```
 
 **Ou a entrevista dentro do Claude** — dentro de um repositório com fork, execute:
@@ -198,7 +205,7 @@ PRD,DOMAIN` o limita a docs específicos.
 
 ```bash
 # 1. faz o scaffold de um projeto fullstack spec-first
-npx @arthurghz/create-ack acme-app --archetype fullstack
+npx @arthurghz/create-ack@latest acme-app --archetype fullstack
 
 # 2. entre e revise o que chegou
 cd acme-app

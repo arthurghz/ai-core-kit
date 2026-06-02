@@ -2,21 +2,30 @@
 // =============================================================================
 // bin/create-ack.mjs
 // -----------------------------------------------------------------------------
-// create-ack — scaffold a NEW ai-core-kit CHILD project from the frozen archetype
-// templates shipped inside this package. Zero kit fork, zero LLM in the loop.
+// create-ack — the ai-core-kit CLI. Principle: EVERYTHING the kit can do must be
+// reachable from this binary, not only from Claude Code slash commands or the
+// site. The CLI is a thin SUBCOMMAND DISPATCHER:
 //
-//   create-ack <product-name> [options]
+//   create-ack [new] <product-name> [options]   scaffold a CHILD project (default)
+//   create-ack cost      [...]                   offline cost/token aggregator
+//   create-ack dora      [...]                   DORA "four keys" from local git
+//   create-ack report    [...]                   delivery & AI-cost report (md/html)
+//   create-ack dashboard [...]                   interactive offline-cost dashboard
+//   create-ack watch     [...]                   live per-feature cost TUI
+//   create-ack monitor   [...]                   budget alert monitor
+//   create-ack spec      [...]                   author specs (LLM step → /ack-spec)
+//   create-ack feature <name> [--end]            branch-free per-feature cost window
+//   create-ack update                            cached @latest version check
+//   create-ack migrate                           manifest v2 -> v3 (stub)
+//   create-ack --help | --version
 //
-// Options:
-//   --archetype <backend-api|fullstack|saas|monorepo|library-sdk|infra-iac>
-//   --here                Scaffold into the current directory (else <product-name>/)
-//   --yes                 Non-interactive: use questions.yaml defaults for everything
-//   --lang <language>     Pre-set project.language (python|typescript|go|rust|java)
-//   --framework <name>    Pre-set project.framework
-//   -h, --help            Show usage
-//   -v, --version         Show version
+// DISPATCH RULE: argv[1] is matched against the known subcommand table. If it is
+// a known subcommand it routes there; OTHERWISE the WHOLE argv is treated as the
+// classic scaffold invocation, so historic usage is byte-for-byte unchanged:
+//   npx @arthurghz/create-ack my-app --archetype fullstack   (still scaffolds)
+// `new` is an explicit alias for the scaffold so `create-ack new my-app …` works.
 //
-// Pipeline:
+// SCAFFOLD pipeline (zero kit fork, zero LLM in the loop):
 //   1. parse args            6. assemble + validate manifest (lib/manifest.mjs)
 //   2. resolve kit root      7. write project.manifest.yaml into target
 //   3. meta-guard target     8. render templates/archetypes/<archetype>/ -> target
@@ -25,7 +34,12 @@
 //                           10. render templates/docs-site/ -> <target>/docs/ (default-on)
 //                           11. print next steps
 //
-// HARD INVARIANTS:
+// TELEMETRY subcommands shell out to the stdlib-python tools under telemetry/
+// (resolved cwd/telemetry first, else the package-bundled telemetry/), passing
+// args through with stdio:'inherit'. The heavy logic stays in Python; the CLI is
+// only the front door.
+//
+// HARD INVARIANTS (scaffold):
 //   * Refuses to scaffold over the kit (templates/archetypes/ or docs/BOOTSTRAP.md
 //     present in the target) or over a non-empty target that already owns a manifest.
 //   * NEVER copies the META .claude/ tree or docs/BOOTSTRAP.md into a child.
@@ -41,9 +55,11 @@ import {
   statSync,
   copyFileSync,
 } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, dirname } from "node:path";
 import { createInterface } from "node:readline";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import { tmpdir, homedir } from "node:os";
 
 import yaml from "js-yaml";
 
@@ -877,6 +893,46 @@ function copyTelemetry({ kitRoot, targetDir }) {
 }
 
 // -----------------------------------------------------------------------------
+// Child slash-command copy — drop the SHARED, child-correct commands from
+// templates/commands/ into the child's .claude/commands/. These are the action
+// primitives a fork runs in Claude Code: /ack-spec (the moment-0 spec author the
+// `create-ack spec` CLI also shells to), the RPI trio, prd, rice. They are NOT in
+// the per-archetype tree (which only carries hooks + settings) because they are
+// archetype-agnostic; this mirrors copyTelemetry's shared-payload model.
+//
+// Hard rules: the META .claude/ tree is never copied (these come from templates/,
+// the CHILD authoring root). We copy *.md verbatim — these commands are already
+// CHILD-correct (literal ${CLAUDE_PROJECT_DIR} in any hook refs; no META vars).
+// .tpl is skipped (none today) so we never emit a raw template into a child.
+// -----------------------------------------------------------------------------
+function copyChildCommands({ kitRoot, targetDir }) {
+  const src = join(kitRoot, "templates", "commands");
+  if (!existsSync(src)) return [];
+  const dstRoot = join(targetDir, ".claude", "commands");
+  const copied = [];
+  const walk = (relDir) => {
+    const abs = join(src, relDir);
+    for (const entry of readdirSync(abs)) {
+      if (entry === "__pycache__") continue;
+      const rel = relDir ? join(relDir, entry) : entry;
+      const sp = join(src, rel);
+      const st = statSync(sp);
+      if (st.isDirectory()) {
+        walk(rel);
+        continue;
+      }
+      if (!st.isFile() || !entry.endsWith(".md")) continue;
+      const dp = join(dstRoot, rel);
+      mkdirSync(dirname(dp), { recursive: true });
+      copyFileSync(sp, dp);
+      copied.push(join(".claude", "commands", rel));
+    }
+  };
+  walk("");
+  return copied;
+}
+
+// -----------------------------------------------------------------------------
 // project.manifest.yaml writer — schema_version, generator (provenance, leading
 // comment), managed (machine-owned), user (human-owned).
 // -----------------------------------------------------------------------------
@@ -895,10 +951,13 @@ function writeManifest(manifestPath, manifest) {
 }
 
 // -----------------------------------------------------------------------------
-// main
+// runScaffold — the classic create-ack scaffold pipeline. `argv` is the slice
+// AFTER the binary name (i.e. process.argv.slice(2), with a leading `new` alias
+// already stripped by the dispatcher). Preserved verbatim from the original
+// single-command CLI so every historic flag + the interview behave identically.
 // -----------------------------------------------------------------------------
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
+async function runScaffold(argv) {
+  const opts = parseArgs(argv);
   const kitRoot = kitRootFromHere();
   const toolVersion = readKitVersion();
 
@@ -924,12 +983,13 @@ async function main() {
     );
   }
 
-  // Resolve product name + target dir.
-  if (!opts.productName && opts.here) {
+  // Resolve product name + target dir. Name is OPTIONAL: interactive runs prompt
+  // for it (after the archetype, questions.yaml `project_name`); non-interactive
+  // runs (--here or --yes) fall back to the current folder's name. So
+  // `create-ack --archetype fullstack` drops you into the interview, and
+  // `--archetype fullstack --yes` scaffolds using the folder name.
+  if (!opts.productName && (opts.here || opts.yes)) {
     opts.productName = basename(resolve(process.cwd()));
-  }
-  if (!opts.productName && opts.yes) {
-    usageError("a <product-name> is required (or run interactively without --yes)");
   }
   // When neither a product name nor --here is given, the interactive path collects
   // the name and the target dir is derived from it after the interview.
@@ -1031,6 +1091,24 @@ async function main() {
     telemetryCopied = copyTelemetry({ kitRoot, targetDir });
   }
 
+  // Ship the shared child slash commands (/ack-spec + RPI trio + prd/rice) into
+  // the child's .claude/commands/. Always-on: every fork needs /ack-spec (the
+  // `create-ack spec` CLI shells to it). Record in the ledger so /ack-init sees
+  // them; they are ack:managed (the kit owns the command text).
+  const commandsCopied = copyChildCommands({ kitRoot, targetDir });
+  if (commandsCopied.length) {
+    if (!Array.isArray(finalManifest.managed.rendered_files)) {
+      finalManifest.managed.rendered_files = [];
+    }
+    const known = new Set(finalManifest.managed.rendered_files.map((e) => e.path));
+    for (const p of commandsCopied) {
+      if (!known.has(p)) {
+        finalManifest.managed.rendered_files.push({ path: p, managed_block: null });
+      }
+    }
+    writeManifest(manifestPath, finalManifest);
+  }
+
   // MOMENT-0 SPEC SCAFFOLD: lay the narrative spec SKELETONS + the lean spec-first
   // CLAUDE.md (CONTEXT, not code). Deep archetypes only (minimal-core skips; the
   // printed note tells the user `/ack-spec` will author them in the child). Reuses
@@ -1101,6 +1179,7 @@ async function main() {
     manifest: finalManifest,
     here: opts.here,
     telemetryCopied,
+    commandsCopied,
     treeAbsent: Boolean(renderResult && renderResult.treeAbsent),
     docsWritten: docsResult && Array.isArray(docsResult.written) ? docsResult.written.length : 0,
     docsSkipped: !opts.docs,
@@ -1120,6 +1199,7 @@ function printNextSteps({
   manifest,
   here,
   telemetryCopied,
+  commandsCopied = [],
   treeAbsent,
   docsWritten = 0,
   docsSkipped = false,
@@ -1159,6 +1239,8 @@ function printNextSteps({
   if (specStatusMarker) out.write(`  status        ${specStatusMarker}  (the spec-first banner)\n`);
   if (claudeWritten) out.write(`  CLAUDE.md     spec-first pointer written\n`);
   if (telemetryCopied.length) out.write(`  telemetry     ${telemetryCopied.length} file(s)\n`);
+  if (commandsCopied.length)
+    out.write(`  commands      ${commandsCopied.length} -> .claude/commands/  (incl. /ack-spec)\n`);
   if (docsWritten) out.write(`  docs scaffolded: ${docsWritten} files -> docs/\n`);
   else if (docsSkipped) out.write(`  docs          skipped (--no-docs)\n`);
   out.write(c.dim("  ─────────────────────────────────────────\n"));
@@ -1261,6 +1343,537 @@ function printNextSteps({
   out.write("\n");
 }
 
-main().catch((e) => {
-  fail(e?.stack || String(e));
-});
+// =============================================================================
+// SUBCOMMAND DISPATCHER
+// -----------------------------------------------------------------------------
+// Telemetry subcommands -> the stdlib-python tool that owns the logic. monitor.sh
+// is bash; the rest are python3 scripts under telemetry/.
+// =============================================================================
+const TELEMETRY_SUBCOMMANDS = {
+  cost: { script: "aggregate.py", runner: "python3" },
+  dora: { script: "dora.py", runner: "python3" },
+  report: { script: "report.py", runner: "python3" },
+  dashboard: { script: "dashboard.py", runner: "python3" },
+  watch: { script: "watch.py", runner: "python3" },
+  monitor: { script: "monitor.sh", runner: "bash" },
+};
+
+// All recognized subcommands (telemetry + the kit-native ones). `new` aliases the
+// scaffold. Anything NOT here makes argv fall through to the scaffold unchanged.
+const KNOWN_SUBCOMMANDS = new Set([
+  "new",
+  ...Object.keys(TELEMETRY_SUBCOMMANDS),
+  "spec",
+  "feature",
+  "update",
+  "migrate",
+]);
+
+const DISPATCH_USAGE = `${c.bold("create-ack")} — the ai-core-kit CLI
+
+${c.bold("Usage:")}
+  create-ack [new] <product-name> [options]   scaffold a new child project (default)
+
+${c.bold("Subcommands:")}
+  ${c.cyan("new")} <name> [options]   scaffold a child project (alias of the default)
+  ${c.cyan("cost")} [...]             offline cost & token aggregator (telemetry/aggregate.py)
+  ${c.cyan("dora")} [...]             DORA four-keys from local git (telemetry/dora.py)
+  ${c.cyan("report")} [...]           delivery & AI-cost report, md/html (telemetry/report.py)
+  ${c.cyan("dashboard")} [...]        interactive offline-cost dashboard (telemetry/dashboard.py)
+  ${c.cyan("watch")} [...]            live per-feature cost TUI (telemetry/watch.py)
+  ${c.cyan("monitor")} [...]          budget-alert monitor (telemetry/monitor.sh)
+  ${c.cyan("spec")} [...]             author specs — the LLM step (runs /ack-spec)
+  ${c.cyan("feature")} <name> [--end] branch-free per-feature cost window (sidecar map)
+  ${c.cyan("update")}                 check for a newer @arthurghz/create-ack
+  ${c.cyan("migrate")}                manifest v2 -> v3 (stub)
+
+${c.bold("Scaffold options:")} (run ${c.cyan("create-ack new --help")} for the full list)
+  --archetype <name>   backend-api | fullstack | saas | monorepo | library-sdk | infra-iac
+  --here  --yes  --lang <l>  --framework <f>  --no-docs
+
+${c.bold("Global:")}
+  -h, --help           Show this help
+  -v, --version        Show version`;
+
+// Resolve the telemetry/ dir: the consuming project's cwd/telemetry first (so a
+// CHILD repo with copied telemetry uses ITS scripts), else the package's bundled
+// telemetry/ (so a bare `npx create-ack cost` still works from the kit).
+function resolveTelemetryDir() {
+  const cwdTel = join(process.cwd(), "telemetry");
+  if (existsSync(cwdTel)) return cwdTel;
+  const pkgTel = join(kitRootFromHere(), "telemetry");
+  if (existsSync(pkgTel)) return pkgTel;
+  return null;
+}
+
+// Is an executable resolvable on PATH? (used for python3 / claude hints.)
+function hasOnPath(cmd) {
+  const probe = process.platform === "win32" ? "where" : "command";
+  const args = process.platform === "win32" ? [cmd] : ["-v", cmd];
+  try {
+    const r = spawnSync(probe, args, { stdio: "ignore" });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+// Shell out to a telemetry tool, forwarding args + inheriting stdio. Exits with
+// the child's status code. Prints a clear hint when python3 or the script is gone.
+function runTelemetry(name, args) {
+  const spec = TELEMETRY_SUBCOMMANDS[name];
+  const telDir = resolveTelemetryDir();
+  if (!telDir) {
+    fail(
+      `telemetry directory not found.\n` +
+        `  Looked in: ${join(process.cwd(), "telemetry")} and the create-ack package.\n` +
+        `  Run this from a project that has a telemetry/ dir, or reinstall create-ack.`,
+    );
+  }
+  const scriptPath = join(telDir, spec.script);
+  if (!existsSync(scriptPath)) {
+    fail(
+      `telemetry tool not found: ${spec.script}\n` +
+        `  Expected: ${scriptPath}\n` +
+        `  Reinstall ai-core-kit or run from a project that ships telemetry/${spec.script}.`,
+    );
+  }
+  if (!hasOnPath(spec.runner)) {
+    fail(
+      `'${spec.runner}' is required for \`create-ack ${name}\` but was not found on PATH.\n` +
+        (spec.runner === "python3"
+          ? "  Install Python 3 (https://www.python.org/downloads/) and re-run.\n" +
+            `  Or run it directly: python3 ${scriptPath} ${args.join(" ")}`
+          : `  Install bash, or run it directly: bash ${scriptPath} ${args.join(" ")}`),
+    );
+  }
+  const child = spawnSync(spec.runner, [scriptPath, ...args], { stdio: "inherit" });
+  if (child.error) fail(`failed to run ${spec.script}: ${child.error.message}`);
+  process.exit(child.status === null ? 1 : child.status);
+}
+
+// -----------------------------------------------------------------------------
+// `spec` — spec authoring is the LLM island. The CLI stays THIN: it shells to
+// Claude Code headless (`claude -p`) to drive /ack-spec when `claude` is on PATH,
+// else it tells the user to run /ack-spec in their Claude Code session. The heavy
+// logic lives in the /ack-spec command + skill, not here.
+// -----------------------------------------------------------------------------
+function runSpec(args) {
+  process.stdout.write(
+    c.bold("create-ack spec") +
+      " — authoring specs is the LLM step (the narrative interview).\n",
+  );
+  if (hasOnPath("claude")) {
+    process.stdout.write(
+      c.dim("  Driving Claude Code headless to run ") + c.cyan("/ack-spec") + c.dim("…\n"),
+    );
+    // Pass through any extra args; default prompt invokes the slash command.
+    const promptArgs = args.length ? args : ["-p", "/ack-spec"];
+    const child = spawnSync("claude", promptArgs, { stdio: "inherit" });
+    if (child.error) fail(`failed to launch claude: ${child.error.message}`);
+    process.exit(child.status === null ? 1 : child.status);
+  }
+  process.stdout.write(
+    "\n  The " +
+      c.cyan("claude") +
+      " CLI is not on PATH. Open this project in Claude Code and run " +
+      c.cyan(c.bold("/ack-spec")) +
+      "\n  (you have the subscription). It runs the deep narrative interview and authors\n" +
+      "  the filled specs + best CLAUDE.md before any code is written.\n",
+  );
+  process.exit(0);
+}
+
+// -----------------------------------------------------------------------------
+// `feature <name> [--end]` — the BRANCH-FREE per-feature cost tracker. Maintains
+// telemetry/sidecar.local.json in the exact shape aggregate.py's sidecar_map mode
+// reads: {"entries": [{"from": ISO, "to": ISO|null, "bucket": <name>}]}. Starting
+// a feature appends an OPEN window (to:null) after CLOSING any currently-open one.
+// `--end` just closes the open window. Cost is then attributable per feature with
+//   create-ack cost --sidecar-map telemetry/sidecar.local.json --by feature
+// without any branch naming convention.
+// -----------------------------------------------------------------------------
+const SIDECAR_FILE = "sidecar.local.json";
+
+function sidecarPath() {
+  // Prefer the cwd's telemetry/ (the project being measured). If the project has
+  // no telemetry/ yet, create one in cwd so attribution is local to that repo.
+  const cwdTel = join(process.cwd(), "telemetry");
+  return join(cwdTel, SIDECAR_FILE);
+}
+
+function loadSidecar(p) {
+  if (!existsSync(p)) return { entries: [] };
+  try {
+    const data = JSON.parse(readFileSync(p, "utf8"));
+    if (!data || !Array.isArray(data.entries)) return { entries: [] };
+    return data;
+  } catch {
+    return { entries: [] };
+  }
+}
+
+function saveSidecar(p, data) {
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify(data, null, 2) + "\n", "utf8");
+}
+
+function closeOpenWindow(entries, iso) {
+  for (const e of entries) {
+    if (e && (e.to === null || e.to === undefined || e.to === "")) e.to = iso;
+  }
+}
+
+function runFeature(args) {
+  let end = false;
+  const positionals = [];
+  for (const a of args) {
+    if (a === "--end") end = true;
+    else if (a === "-h" || a === "--help") {
+      process.stdout.write(
+        "create-ack feature <name>   start a branch-free cost window for <name>\n" +
+          "create-ack feature --end    close the currently-open window\n\n" +
+          "Windows are written to telemetry/" +
+          SIDECAR_FILE +
+          " (sidecar_map shape).\n" +
+          "Attribute with: create-ack cost --sidecar-map telemetry/" +
+          SIDECAR_FILE +
+          " --by feature\n",
+      );
+      process.exit(0);
+    } else if (a.startsWith("-")) {
+      usageError(`unknown option for feature: ${a}`);
+    } else positionals.push(a);
+  }
+
+  const p = sidecarPath();
+  const data = loadSidecar(p);
+  const now = new Date().toISOString();
+
+  if (end) {
+    const hadOpen = data.entries.some((e) => e && (e.to === null || e.to === undefined || e.to === ""));
+    closeOpenWindow(data.entries, now);
+    saveSidecar(p, data);
+    if (hadOpen) {
+      process.stdout.write(c.green("✓ ") + `closed the active feature window at ${now}\n`);
+    } else {
+      process.stdout.write(c.yellow("no active feature window to close.\n"));
+    }
+    process.stdout.write(c.dim(`  ${p}\n`));
+    return;
+  }
+
+  const name = positionals[0];
+  if (!name) {
+    usageError("create-ack feature <name>  (or --end to close the current window)");
+  }
+  // Close any open window, then append a fresh open one for <name>.
+  closeOpenWindow(data.entries, now);
+  data.entries.push({ from: now, to: null, bucket: name });
+  saveSidecar(p, data);
+
+  process.stdout.write(c.green("✓ ") + `tracking feature ${c.bold(name)} from ${now}\n`);
+  process.stdout.write(c.dim(`  ${p}\n`));
+  process.stdout.write(
+    c.dim(
+      `  Cost for this feature: create-ack cost --sidecar-map ${join("telemetry", SIDECAR_FILE)} --by feature\n`,
+    ),
+  );
+}
+
+// =============================================================================
+// UPDATE CHECK — both the explicit `update` subcommand and the passive notifier
+// share this cached @latest lookup. The package is published as
+// @arthurghz/create-ack; the registry's dist-tags/latest gives the newest version.
+// =============================================================================
+const PKG_NAME = "@arthurghz/create-ack";
+const REGISTRY_URL = "https://registry.npmjs.org/@arthurghz%2Fcreate-ack/latest";
+const UPDATE_TTL_MS = 24 * 60 * 60 * 1000; // notifier: at most once per 24h
+
+function cacheFilePath() {
+  const base =
+    process.env.XDG_CACHE_HOME ||
+    (process.platform === "darwin"
+      ? join(homedir(), "Library", "Caches")
+      : join(homedir(), ".cache"));
+  try {
+    const dir = join(base, "create-ack");
+    return join(dir, "update-check.json");
+  } catch {
+    return join(tmpdir(), "create-ack-update-check.json");
+  }
+}
+
+function readUpdateCache() {
+  try {
+    return JSON.parse(readFileSync(cacheFilePath(), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeUpdateCache(obj) {
+  try {
+    const p = cacheFilePath();
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, JSON.stringify(obj), "utf8");
+  } catch {
+    /* fail-silent: the cache is a nicety, never load-bearing */
+  }
+}
+
+// Fetch dist-tags/latest with a hard timeout. Resolves to the version string, or
+// null on ANY failure (no network, timeout, non-200, bad JSON). NEVER throws.
+async function fetchLatestVersion(timeoutMs = 3000) {
+  if (typeof fetch !== "function") return null; // very old Node; skip silently
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(REGISTRY_URL, {
+      signal: ac.signal,
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body?.version === "string" ? body.version : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Compare dotted semver-ish strings. Returns true iff `latest` > `current`.
+function isNewer(latest, current) {
+  if (!latest || !current) return false;
+  const norm = (v) => String(v).replace(/^v/, "").split("-")[0].split(".").map((n) => parseInt(n, 10) || 0);
+  const a = norm(latest);
+  const b = norm(current);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0;
+    const y = b[i] || 0;
+    if (x > y) return true;
+    if (x < y) return false;
+  }
+  return false;
+}
+
+function upgradeHint() {
+  return (
+    "  npm i -g " +
+    PKG_NAME +
+    "@latest        (global install)\n" +
+    "  npx " +
+    PKG_NAME +
+    "@latest         (one-off)\n"
+  );
+}
+
+// Explicit `update` subcommand — does the live (cached) check and PRINTS a result.
+async function runUpdate() {
+  const current = readKitVersion();
+  const latest = await fetchLatestVersion(3000);
+  if (latest) writeUpdateCache({ checkedAt: Date.now(), latest });
+  if (latest === null) {
+    process.stdout.write(
+      c.dim("could not reach the npm registry (offline?). ") +
+        `Installed: ${current}.\n`,
+    );
+    process.exit(0);
+  }
+  if (isNewer(latest, current)) {
+    process.stdout.write(
+      c.yellow("update available ") + c.bold(`${current} → ${latest}`) + "\n" + upgradeHint(),
+    );
+  } else {
+    process.stdout.write(c.green("✓ ") + `up to date (${current}).\n`);
+  }
+  process.exit(0);
+}
+
+// PASSIVE notifier — runs after a command, at most once per 24h, async +
+// non-blocking + fail-silent. Prints one stderr line if an update exists. Never
+// blocks (unref'd timer + detached promise), never errors the command. Skipped
+// under --yes / CI / non-tty.
+function maybeNotifyUpdate(argv) {
+  try {
+    const suppress =
+      process.env.CI ||
+      process.env.NO_UPDATE_NOTIFIER ||
+      !process.stderr.isTTY ||
+      argv.includes("--yes") ||
+      argv.includes("-y");
+    if (suppress) return;
+
+    const current = readKitVersion();
+    const cache = readUpdateCache();
+    const fresh = cache && Date.now() - (cache.checkedAt || 0) < UPDATE_TTL_MS;
+
+    const announce = (latest) => {
+      if (isNewer(latest, current)) {
+        process.stderr.write(
+          c.yellow(`\nupdate available ${current} → ${latest} `) +
+            c.dim(`(run \`create-ack update\`)\n`),
+        );
+      }
+    };
+
+    if (fresh) {
+      // Use the cached latest; no network this run.
+      if (cache.latest) announce(cache.latest);
+      return;
+    }
+
+    // Stale/absent cache: refresh in the background. Do NOT await — let the event
+    // loop drain naturally. Unref the abort timer inside fetch isn't needed since
+    // the promise itself keeps no handle the caller waits on.
+    fetchLatestVersion(2500)
+      .then((latest) => {
+        if (latest) {
+          writeUpdateCache({ checkedAt: Date.now(), latest });
+          announce(latest);
+        }
+      })
+      .catch(() => {
+        /* fail-silent */
+      });
+  } catch {
+    /* the notifier must NEVER affect the command's outcome */
+  }
+}
+
+// -----------------------------------------------------------------------------
+// `migrate` — manifest schema v2 -> v3. The frozen schema is already v3, so this
+// is a forward-looking stub: it detects a v2 manifest and explains the path. It
+// never mutates the schema (META rule) and is safe to call as a no-op.
+// -----------------------------------------------------------------------------
+function runMigrate(args) {
+  const target = args.find((a) => !a.startsWith("-")) || process.cwd();
+  const manifestPath = existsSync(join(target, "project.manifest.yaml"))
+    ? join(target, "project.manifest.yaml")
+    : target.endsWith(".yaml")
+      ? target
+      : join(target, "project.manifest.yaml");
+
+  if (!existsSync(manifestPath)) {
+    process.stdout.write(
+      c.yellow("create-ack migrate: ") +
+        `no project.manifest.yaml found at ${manifestPath}.\n` +
+        c.dim("  Run this inside a scaffolded child project.\n"),
+    );
+    process.exit(0);
+  }
+
+  let manifest;
+  try {
+    manifest = yaml.load(readFileSync(manifestPath, "utf8")) || {};
+  } catch (e) {
+    fail(`could not parse ${manifestPath}: ${e.message}`);
+  }
+
+  const v = manifest.schema_version;
+  if (v === 3) {
+    process.stdout.write(c.green("✓ ") + `manifest is already schema_version 3 (no migration needed).\n`);
+    process.exit(0);
+  }
+  if (v === 2) {
+    process.stdout.write(
+      c.yellow("create-ack migrate: ") +
+        "manifest is schema_version 2.\n" +
+        c.dim(
+          "  v2 -> v3 migration is not yet automated. Re-scaffold with the current\n" +
+            "  create-ack, or re-run /ack-init in the child to regenerate the managed block.\n",
+        ),
+    );
+    process.exit(0);
+  }
+  process.stdout.write(
+    c.yellow("create-ack migrate: ") +
+      `unrecognized schema_version: ${JSON.stringify(v)} — nothing to do.\n`,
+  );
+  process.exit(0);
+}
+
+// =============================================================================
+// main — the dispatcher.
+// =============================================================================
+async function main() {
+  const argv = process.argv.slice(2);
+  const first = argv[0];
+
+  // Top-level --version / --help only when they are the FIRST token (so a scaffold
+  // like `create-ack my-app --help` still reaches parseArgs' per-flag help).
+  if (first === "-v" || first === "--version") {
+    process.stdout.write(readKitVersion() + "\n");
+    return;
+  }
+  if (first === "-h" || first === "--help") {
+    process.stdout.write(DISPATCH_USAGE + "\n");
+    return;
+  }
+
+  // Telemetry passthroughs — shell out to the python/bash tool. These never
+  // return (they process.exit with the child's status).
+  if (first in TELEMETRY_SUBCOMMANDS) {
+    runTelemetry(first, argv.slice(1));
+    return;
+  }
+
+  // Kit-native subcommands.
+  if (first === "spec") {
+    runSpec(argv.slice(1));
+    return;
+  }
+  if (first === "feature") {
+    runFeature(argv.slice(1));
+    maybeNotifyUpdate(argv);
+    return;
+  }
+  if (first === "update") {
+    await runUpdate();
+    return;
+  }
+  if (first === "migrate") {
+    runMigrate(argv.slice(1));
+    return;
+  }
+
+  // Scaffold — either the explicit `new` alias or the fall-through (unknown first
+  // arg == the classic positional product-name). Strip `new` if present.
+  const scaffoldArgv = first === "new" ? argv.slice(1) : argv;
+  await runScaffold(scaffoldArgv);
+
+  // Passive, fail-silent, non-blocking update notice after a successful scaffold.
+  maybeNotifyUpdate(argv);
+}
+
+// Guard: only auto-run when invoked as the CLI binary, NOT when imported by a test
+// (so scripts/cli.test.mjs can import the dispatcher's helpers without side effects).
+const INVOKED_AS_CLI =
+  process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (INVOKED_AS_CLI) {
+  main().catch((e) => {
+    fail(e?.stack || String(e));
+  });
+}
+
+// Exported for tests (no side effects on import).
+export {
+  main,
+  runScaffold,
+  runFeature,
+  runUpdate,
+  runMigrate,
+  fetchLatestVersion,
+  isNewer,
+  resolveTelemetryDir,
+  loadSidecar,
+  saveSidecar,
+  sidecarPath,
+  closeOpenWindow,
+  cacheFilePath,
+  maybeNotifyUpdate,
+  KNOWN_SUBCOMMANDS,
+  TELEMETRY_SUBCOMMANDS,
+};

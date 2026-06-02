@@ -358,6 +358,36 @@ TELEMETRY = [
     ("wait", 1.1),
 ]
 
+# ── reference/observability — DORA four keys (git, exact) + AI usage (offline) ──
+METRICS = [
+    ("type", "python3 telemetry/dora.py --deploy-mode merge"),
+    ("out", [
+        dim("ai-core-kit DORA report  (OFFLINE, from local git history)"),
+        dim("deploy proxy: first-parent commits on 'main'  |  window: 30.0 days"),
+        "",
+        bold("1. Deployment frequency") + dim("   1.000/day · 7.000/wk   ") + green("elite"),
+        bold("2. Lead time for changes") + dim("  median 12.6h            ") + green("elite"),
+        bold("3. Change failure rate") + dim("    0.0%  (0/30 deploys)   ") + green("elite/high"),
+        bold("4. Mean time to restore") + dim("   n/a  (0 failures)       ") + dim("n/a"),
+    ], 0.16),
+    ("wait", 0.5),
+    ("type", "python3 telemetry/aggregate.py --by session"),
+    ("out", [
+        dim("ai-core-kit AI usage report  (OFFLINE) — tokens AND cost, reconciled"),
+        bold("## by session") + dim("        turns   cost USD    in+out tok    cache tok"),
+        "e3b61498-3313-49..    3872    " + green("441.4824") + "   3,546,105  446,558,196",
+        "a29e493f-f2aa-4d..    5496    " + green("340.2362") + "   3,670,522  442,059,374",
+        "d3b5b093-294a-47..    1936    " + green("286.2857") + "   3,139,672  277,760,307",
+    ], 0.14),
+    ("wait", 0.4),
+    ("out", [
+        dim("──────────────────────────────────────────────────────────────────"),
+        dim("# DORA = EXACT (git); AI cost = OFFLINE transcript×pricing, no live API"),
+        dim("# both feed Grafana: ack-dora + ack-ai-usage dashboards (#11008)"),
+    ], 0.16),
+    ("wait", 1.1),
+]
+
 # ── features/design-system — confirmed brand hex → globals.css + tokens ──
 DESIGN = [
     ("type", "/ack-init", cprompt()),
@@ -533,6 +563,7 @@ CASTS = {
     "ack-render.cast": ("render engine — deterministic, render twice", RENDER),
     "ack-gate.cast": ("contract gate — block, then allow on approval", GATE),
     "ack-telemetry.cast": ("offline cost telemetry — per-model / feature", TELEMETRY),
+    "ack-metrics.cast": ("DORA four keys (exact) + AI usage (offline)", METRICS),
     "ack-design.cast": ("design system — brand hex → tokens + globals.css", DESIGN),
     "ack-discovery.cast": ("discovery (planned) — propose, never adopt", DISCOVERY),
     "ack-mcp.cast": (".mcp.json wiring — gated by features.mcp", MCP),

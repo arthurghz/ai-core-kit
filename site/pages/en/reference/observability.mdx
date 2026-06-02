@@ -1,6 +1,6 @@
 ---
 title: Observability Reference
-description: Every telemetry and observability primitive ai-core-kit ships — the offline aggregate.py cost aggregator, the versioned pricing.json map, the Prometheus ack-cost-exporter, and the Prometheus + Grafana docker-compose stack that visualizes the offline cost of building the kit.
+description: Every telemetry and observability primitive ai-core-kit ships — the offline aggregate.py cost-and-token aggregator, the versioned pricing.json map, advisory budgets, the DORA four-keys module (dora.py), the Prometheus exporter, and the Prometheus + Grafana docker-compose stack with the ack-cost, ack-ai-usage and ack-dora dashboards.
 ---
 
 import TerminalCast from '../../../components/TerminalCast'
@@ -9,33 +9,44 @@ import TerminalCast from '../../../components/TerminalCast'
 
 <TerminalCast src="/demo/ack-telemetry.cast" />
 
-ai-core-kit measures the USD cost of a Claude Code run **offline** — there is no
-live cost API for Claude Code spend (issue
-[#11008](https://github.com/anthropics/claude-code/issues/11008)). This page is
-the complete, no-omissions list of the telemetry primitives: the aggregator, the
-pricing map, the Prometheus exporter, and the docker-compose stack. The
-attribution model is detailed in [Offline Cost Telemetry](/features/cost-telemetry).
+ai-core-kit gives you two honest, complementary views of a Claude Code build:
+
+1. **AI usage** — the USD **and token** cost of the run, derived **offline** from
+   the transcript. There is no live cost API for Claude Code spend (issue
+   [#11008](https://github.com/anthropics/claude-code/issues/11008)), so this is
+   accurate after-the-fact accounting, **never a live meter**.
+2. **DORA** — the four delivery "keys" (deployment frequency, lead time, change
+   failure rate, time to restore), computed from your **local git history** (and
+   `gh` when present). This is **exact**, not a transcript estimate.
+
+This page is the complete, no-omissions list of those primitives: the aggregator,
+the pricing map, budgets, the DORA module, the Prometheus exporter, and the
+docker-compose stack with its three dashboards. The cost attribution model is
+detailed in [Offline Cost Telemetry](/features/cost-telemetry).
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#eef2ff","primaryBorderColor":"#6366f1","primaryTextColor":"#1e1b4b","secondaryColor":"#ecfeff","tertiaryColor":"#faf5ff","lineColor":"#94a3b8","fontSize":"14px"},"flowchart":{"htmlLabels":true,"curve":"basis","nodeSpacing":48,"rankSpacing":58,"padding":10},"fontFamily":"ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"}}%%
 flowchart LR
-  TR["transcripts<br/>~/.claude/projects"] --> AGG["aggregate.py"]
+  TR["transcripts<br/>~/.claude/projects"] --> AGG["aggregate.py<br/>(cost + tokens)"]
   PR["pricing.json"] --> AGG
+  GIT["local git<br/>(+ gh)"] --> DORA["dora.py<br/>(4 keys)"]
   AGG --> CLI["CLI report<br/>(table/JSON)"]
   AGG --> EXP["ack-cost-exporter<br/>/metrics"]
+  DORA --> CLI2["CLI report<br/>(text/JSON/prom)"]
   EXP --> PROM["Prometheus<br/>:9090"]
-  PROM --> GRAF["Grafana<br/>:3001"]
+  PROM --> GRAF["Grafana<br/>:3001<br/>cost · ai-usage · dora"]
 ```
-<small>`aggregate.py` x `pricing.json` is the single cost engine. It serves a CLI report directly, and the `ack-cost-exporter` re-uses it (no re-implementation) to expose Prometheus gauges that Prometheus scrapes and Grafana dashboards. All cost is OFFLINE-derived — near-real-time at best (TTL-bounded), never a live token meter.</small>
+<small>Two engines, one stack. <code>aggregate.py</code> × <code>pricing.json</code> prices transcript token-usage (OFFLINE — near-real-time at best, never a live meter). <code>dora.py</code> reads local git (+ <code>gh</code>) for the four keys (EXACT). Both surface in the same Prometheus + Grafana stack via three folder-provisioned dashboards.</small>
 
 ## The primitives at a glance
 
-| Primitive | Kind | Layer | What it does | Trigger / when |
-|---|---|---|---|---|
-| `aggregate.py` | telemetry | META | Offline cost & token aggregator — stdlib-only post-run tool that reads Claude Code transcripts and multiplies token counts by the versioned pricing map. | `python3 aggregate.py [--project-dir DIR] [--since YYYY-MM-DD] [--pricing PATH]`. |
-| `pricing.json` | telemetry | META | Versioned pricing map (USD per MTok) — model pricing for input/output/cache operations, `unknown_model_policy=error`. | `schema_version 1`, `as_of 2026-06-01`; unknown models make `aggregate.py` fail loud. |
-| `ack-cost-exporter` | telemetry | META | Prometheus exporter for offline cost — a thin wrapper around `aggregate.py` that exposes cost buckets as Prometheus gauges on `/metrics`. | Near-real-time cost monitoring via Prometheus scrape (TTL-cached by `ACK_SCRAPE_TTL`, default 30s). |
-| `observability-stack` | telemetry | META | Prometheus + Grafana + `ack_cost_exporter` stack — visualizes the offline cost of building ai-core-kit with near-real-time dashboards. | `docker compose up` to stand up the full stack. |
+| Primitive | Kind | Layer | What it does |
+|---|---|---|---|
+| `aggregate.py` | telemetry | META | Offline **cost + token** aggregator — reads transcripts, multiplies token counts by the versioned pricing map, attributes by `model`/`feature`/`agent`/`session`/`day`, and compares totals to advisory budgets. |
+| `pricing.json` | telemetry | META | Versioned `model → USD/MTok` map, `unknown_model_policy=error`. |
+| `dora.py` | telemetry | META | The DORA **four keys** from local git history (+ optional `gh`), with a self-test. Text / JSON / Prometheus output. |
+| `ack-cost-exporter` | telemetry | META | Thin Prometheus wrapper that **imports** `aggregate.py` (no re-implementation) and exposes cost/token gauges on `/metrics`. |
+| `observability-stack` | telemetry | META | Prometheus + Grafana + exporter docker-compose stack with three dashboards. |
 
 Paths:
 
@@ -43,44 +54,132 @@ Paths:
 |---|---|
 | `aggregate.py` | `telemetry/aggregate.py` |
 | `pricing.json` | `telemetry/pricing.json` |
+| `dora.py` | `telemetry/dora.py` |
 | `ack-cost-exporter` | `telemetry/observability/exporter/ack_cost_exporter.py` |
 | `observability-stack` | `telemetry/observability/docker-compose.yml` |
+| dashboards | `telemetry/observability/grafana/dashboards/{ack-cost,ack-ai-usage,ack-dora}.json` |
 
-## `aggregate.py` — the offline aggregator
+Every one of these lives in the META `telemetry/` and is mirrored to the CHILD
+payload under `templates/telemetry/`, wired by `/ack-init` when
+`telemetry.enabled: true`.
+
+---
+
+## AI usage — `aggregate.py` (cost **and** tokens)
 
 A stdlib-only post-run tool. For each `assistant` line it reads `message.usage`
 (present on every assistant turn, tool or not, so it captures 100% of spend) and
-prices it against `pricing.json`, bucketing by `model`, `feature`, `agent`, and
-`session`. It is **fail-loud**: an unknown model, a missing/invalid `pricing.json`,
-or a bucket-sum that does not reconcile to the grand total exits non-zero. A
-single malformed JSONL line is skipped (not fatal).
+prices it against `pricing.json`. **Every bucket carries token counts —
+`input` / `output` / `cache_read` / `cache_write_5m` / `cache_write_1h` —
+alongside its USD cost**, so this is true token-usage accounting, not just a
+dollar figure. It is **fail-loud**: an unknown model, a missing/invalid
+`pricing.json`, or a bucket-sum that does not reconcile to the grand total exits
+non-zero. A single malformed JSONL line is skipped (not fatal).
 
 ```bash
-# whole machine, all four axes, table + JSON:
+# whole machine, all axes, the AI-usage table (cost + tokens) + JSON:
 python3 telemetry/aggregate.py
 
-# this build only, since a date, feature + model + agent, JSON only:
-python3 telemetry/aggregate.py --project-dir ~/.claude/projects \
-  --since 2026-06-01 --by feature,model,agent --branch-prefix feat/ --format json
+# per-session usage, this build only:
+python3 telemetry/aggregate.py --by session --since 2026-06-01
 ```
 
-Key flags: `--project-dir`, `--since YYYY-MM-DD`, `--pricing PATH`, `--by`
-(`model,feature,agent,session`), `--branch-prefix`, `--default-bucket` (default
-`unattributed`), `--sidecar-map`, `--manifest` (CHILD only), `--format
-table|json|both`. The same engine lives in the META `telemetry/` and ships to
-forks under `templates/telemetry/`, wired by `/ack-init` when
-`telemetry.enabled: true`.
+```
+## by session                turns   cost USD    in+out tok    cache tok
+e3b61498-3313-49..            3872    441.4824     3,546,105   446,558,196
+a29e493f-f2aa-4d..            5496    340.2362     3,670,522   442,059,374
+```
+
+### Attribution axes — now including `day`
+
+`--by` selects one or more of `model,feature,agent,session,day`:
+
+- **model / session** — keyed on the exact `message.model` / `sessionId`. Always exact.
+- **agent** — `isSidechain` splits `main` from `subagent:<requestId>` spend.
+- **feature** — supplied by `--branch-prefix` (feature = branch after the prefix)
+  or a `--sidecar-map` (timestamp → bucket); anything unmatched lands in the
+  `--default-bucket` (never silently dropped).
+- **day** — each turn buckets to its **UTC calendar day** (`YYYY-MM-DD`);
+  timestamp-less turns land in an explicit `undated` bucket. This powers the
+  per-day token + cost time series the `ack-ai-usage` dashboard charts.
+
+Every axis **reconciles**: the per-bucket sum is proven equal to the grand total,
+or the run exits non-zero.
+
+### Budgets are advisory
+
+`pricing.json` produces **actuals**. **Budgets** (advisory USD ceilings) flag
+overage — they never enforce or block anything live. Two ways to set them:
+
+- **CHILD manifest** — `telemetry.budgets[]` (scope `project|feature|contract|agent`),
+  read by `aggregate.py --manifest` and by the exporter (`ACK_MANIFEST`).
+- **Ad-hoc on the CLI** — `--budget USD` for the grand total, or
+  `--budget-axis AXIS` + repeated `--bucket-budget NAME=USD` for per-bucket caps.
+  Overage is **reported**; `--budget-strict` makes overage exit non-zero
+  (reconciliation failure **always** exits non-zero, independent of budgets).
 
 ## `pricing.json` — the versioned price map
 
-A `model → USD/MTok` map with `schema_version: 1`, an `as_of` date, and
+A `model → USD/MTok` map with `schema_version`, an `as_of` date, and
 `unknown_model_policy: error`. Per-model keys: `input`, `output`,
 `cache_write_5m`, `cache_write_1h`, `cache_read`. An `aliases` block maps
 bare/aliased ids to a priced id (dated `-YYYYMMDD` suffixes are stripped
-automatically); `skip_models` lists non-billable pseudo-models (e.g.
-`<synthetic>`) skipped entirely. A `message.model` absent from the map is a hard
-error naming the offending id — cost is never silently under-counted. The fix is
-to add a row (copy a same-tier row, set USD/MTok values, bump `as_of`).
+automatically); `skip_models` lists non-billable pseudo-models. A `message.model`
+absent from the map is a hard error naming the offending id — cost is never
+silently under-counted. The fix: add a row (copy a same-tier row, set the
+USD/MTok values, bump `as_of`).
+
+---
+
+## DORA — `dora.py` (the four keys, exact from git)
+
+<TerminalCast src="/demo/ack-metrics.cast" />
+
+A stdlib-only sibling of `aggregate.py` that reads **local git history** — no
+servers, no pip — and computes the four DORA keys over a window
+(`--since 30d|12w|6m|1y|YYYY-MM-DD`, default 30d). Unlike cost, this is **exact**,
+not a transcript estimate.
+
+```bash
+python3 telemetry/dora.py                       # tag mode (release tags = deploys)
+python3 telemetry/dora.py --deploy-mode merge   # trunk/CD repos (first-parent = deploy)
+python3 telemetry/dora.py --selftest            # pin the math on a synthetic fixture
+python3 telemetry/dora.py --prom                # Prometheus exposition text
+```
+
+| Key | Definition (in this tool) | Rating bands |
+|---|---|---|
+| **Deployment frequency** | deploys in the window ÷ days. | elite ≥1/day · high ≥weekly · medium ≥monthly · low |
+| **Lead time for changes** | median(commit **authored** → first deploy that contains it). | elite &lt;1d · high &lt;1w · medium &lt;1m · low |
+| **Change failure rate** | failed_deploys ÷ deploys. | elite/high ≤15% · medium ≤30% · low |
+| **Mean time to restore** | median(failure marker → next deploy that resolves it). | elite &lt;1h · high &lt;1d · medium &lt;1w · low |
+
+**Deploys and failures are PROXIES — `dora.py` is honest about it.** A git repo
+has no real deployment stream, so a *deploy* is either a release **tag**
+(`--deploy-tag-glob`, default `v*`; the default mode) or a **first-parent
+commit** on the default branch (`--deploy-mode merge`, for trunk/CD repos). A
+*failure* is a deploy that contains a **revert** (`Revert …` / `This reverts
+commit …`) or **hotfix** commit (`--hotfix-glob`, default `*hotfix*`; also
+`fix!:` / `[hotfix]`), or — only with `--use-gh` — a deploy whose commit SHA has
+a failed CI run. Squash/rebase/force-push histories and tag-less flows will
+mis-estimate; pick the `--deploy-mode` that matches how you ship and read the
+heuristic note the report prints.
+
+`gh` enrichment is **best-effort**: missing, unauthenticated, or offline `gh`
+silently skips CI-based failure detection (revert/hotfix detection still runs);
+the report states which path it took. The **`--selftest`** asserts the exact
+four-key math on a synthetic, git-free fixture (and the edge cases: no deploys,
+windowing, CI-only failure, the window grammar) — it is part of the test gate.
+
+`--prom` emits these gauges (so the exporter can surface DORA without
+re-implementing the math): `ack_dora_deploys_total`,
+`ack_dora_deploy_frequency_per_day`, `ack_dora_deploy_frequency_per_week`,
+`ack_dora_lead_time_seconds`, `ack_dora_change_failure_rate`,
+`ack_dora_failed_deploys_total`, `ack_dora_mttr_seconds`,
+`ack_dora_window_span_days`. A metric with no data is emitted as `NaN` (Prometheus
+records "no sample" rather than a misleading `0`).
+
+---
 
 ## `ack-cost-exporter` — Prometheus gauges
 
@@ -113,8 +212,7 @@ supplies budgets), `ACK_BRANCH_PREFIX` (default `feat/`), `ACK_DEFAULT_BUCKET`,
 
 ## `observability-stack` — Prometheus + Grafana
 
-`telemetry/observability/docker-compose.yml` stands up three services that watch
-the offline cost of building ai-core-kit itself:
+`telemetry/observability/docker-compose.yml` stands up three services:
 
 | Service | Image | Port | Role |
 |---|---|---|---|
@@ -128,17 +226,32 @@ open http://localhost:3001  # Grafana (anonymous Viewer)
 docker compose down         # stop (add -v to wipe stored series)
 ```
 
+### Three dashboards (folder-provisioned)
+
+Grafana auto-loads **every** `*.json` under `grafana/dashboards/` via the
+`ack.yml` provider — a new dashboard needs no provisioning edit.
+
+| Dashboard | UID | What it shows |
+|---|---|---|
+| **Cost Observability** (`ack-cost.json`) | `ack-cost-observability` | Total cost, turns, exporter health; cost by feature/model/agent; cost-share pie; top sessions; budget gauges. |
+| **AI Usage** (`ack-ai-usage.json`) | `ack-ai-usage` | **Token** counts (not just USD) — tokens-over-time by kind, cache-read share, a feature×kind token ledger, tokens by feature/agent, per-session spend, budget gauges, and an OFFLINE recompute-age "Data Freshness" stat. |
+| **DORA** (`ack-dora.json`) | `ack-dora-metrics` | The four keys as stat panels + trend timeseries (deploy frequency, lead time/MTTR, change-failure rate, failed-vs-total deploys), sourced from the `ack_dora_*` gauges. |
+
 Copy `.env.example` to `.env` to override ports, project dir, and Grafana creds.
-The numbers are **near-real-time** (refreshed every scrape, bounded by
+The cost/token numbers are **near-real-time** (refreshed every scrape, bounded by
 `ACK_SCRAPE_TTL`), not a live per-token meter.
 
-## The hard constraint and the two cost skills
+---
+
+## The hard constraint, and what is exact
 
 > There is no live cost meter for Claude Code spend, and there never can be —
-> hooks carry no token or cost fields (#11008). State this before promising any
-> real-time number.
+> hooks carry no token or cost fields ([#11008](https://github.com/anthropics/claude-code/issues/11008)).
+> State this before promising any real-time number.
 
-Two CHILD payload skills sit on top of this engine (both MIT):
+So **AI cost is offline** (transcript × pricing, near-real-time at best). **DORA
+is exact** (derived from git, not the transcript). Two CHILD payload skills sit
+on top of the cost engine (both MIT):
 
 - **`cost-telemetry`** — runs `aggregate.py` and interprets its output; the
   single source of truth for *the numbers*. Rendered when

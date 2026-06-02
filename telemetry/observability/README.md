@@ -72,7 +72,18 @@ docker compose down           # stop (keeps stored series)
 docker compose down -v        # stop AND wipe prometheus_data + grafana_data
 ```
 
-## Dashboard panels
+## Dashboards
+
+Three dashboards ship in the `ai-core-kit` Grafana folder; all are auto-loaded by
+the folder provisioner (`grafana/provisioning/dashboards/ack.yml` loads **every**
+`*.json` under `grafana/dashboards/`, so dropping a new dashboard JSON needs no
+provisioning edit) and all read the same `ack-prometheus` datasource.
+
+- **`ack-cost.json`** — dollar cost (detailed below).
+- **`ack-ai-usage.json`** — token usage + cost over time, by model / feature / agent / session, with budget gauges.
+- **`ack-dora.json`** — the four DORA delivery metrics (deployment frequency, lead time for changes, change-failure rate, MTTR). Panels read `ack_dora_*` gauges from `telemetry/dora.py --prom`; wiring those into the live exporter is a follow-up — for now run `python3 telemetry/dora.py` (text/`--json`) directly.
+
+### `ai-core-kit Cost Observability` (`ack-cost.json`) — dollars
 
 | Panel | PromQL |
 |---|---|
@@ -88,12 +99,83 @@ docker compose down -v        # stop AND wipe prometheus_data + grafana_data
 | Budget vs Actual (project gauge) | `ack_total_cost_usd / clamp_min(ack_budget_usd{feature="__project__"}, 1)` |
 | Per-Feature Budget Utilization | `sum by (feature) (ack_cost_usd{feature!="*"}) / clamp_min(ack_budget_usd{feature!="__project__"}, 1)` |
 
-The exporter emits `ack_cost_usd` one axis at a time — the active axis carries
-its label and the other two are the literal `*`. The per-axis panels select a
-single axis by filtering the other two to `="*"` (e.g. cost-by-feature keeps
-`agent="*", model="*"`). The budget gauge needs a manifest: set `ACK_MANIFEST=/manifest/project.manifest.yaml`
-and uncomment the matching read-only mount in `docker-compose.yml` (otherwise
-`ack_budget_usd` is empty and the gauge reads 0).
+### `ai-core-kit AI / Token Usage` (`ack-ai-usage.json`) — tokens + budgets
+
+The token-usage companion: it charts **tokens** (input / output / cache_read /
+cache_write_5m / cache_write_1h) alongside USD, broken out by model, feature,
+agent and session, plus advisory budget thresholds. Same `ack-prometheus`
+datasource, same offline/near-real-time caveat as above.
+
+| Panel | PromQL |
+|---|---|
+| Total Tokens (all kinds) | `sum(ack_tokens_total{feature!="*", agent="*"})` |
+| Cache-Read Share of Tokens | `sum(ack_tokens_total{kind="cache_read", feature!="*", agent="*"}) / clamp_min(sum(ack_tokens_total{feature!="*", agent="*"}), 1)` |
+| Total Cost (USD) | `ack_total_cost_usd` |
+| Assistant Turns | `ack_assistant_turns_total` |
+| Exporter Health (0=OK,1=Error) | `ack_scrape_error` |
+| Tokens Over Time by Kind | `sum by (kind) (ack_tokens_total{feature!="*", agent="*"})` |
+| Cost Over Time by Model | `ack_cost_usd{model!="*", agent="*", feature="*"}` |
+| Tokens by Feature (top 10 donut) | `topk(10, sum by (feature) (ack_tokens_total{feature!="*", agent="*"}))` |
+| Tokens by Agent (top 15 bars) | `topk(15, sum by (agent) (ack_tokens_total{agent!="*", feature="*"}))` |
+| Token Ledger by Feature × Kind (table) | `ack_tokens_total{feature!="*", agent="*"}` (pivoted kind→columns) |
+| Output Tokens per Turn | `sum(ack_tokens_total{kind="output", feature!="*", agent="*"}) / clamp_min(ack_assistant_turns_total, 1)` |
+| Spend by Session / Agent (table) | `topk(20, ack_cost_usd{agent!="*", model="*", feature="*"})` |
+| Project Budget Utilization (gauge) | `ack_total_cost_usd / clamp_min(ack_budget_usd{feature="__project__"}, 1)` |
+| Per-Feature Budget Utilization (threshold=100%) | `sum by (feature) (ack_cost_usd{feature!="*", agent="*", model="*"}) / clamp_min(ack_budget_usd{feature!="__project__"}, 1) and on (feature) ack_budget_usd{feature!="__project__"}` |
+| Data Freshness (recompute age) | `time() - ack_last_scrape_unixtime` |
+
+The "session / agent" axis is the exporter's `ack_cost_usd{agent}` series: the
+exporter buckets a turn to `main` or `subagent:<requestId>` (transcripts carry no
+agent *name*; `isSidechain` is the only signal). For the full **per-session**
+ledger keyed by `sessionId`, run the aggregator with `--by session` (see below) —
+that report is the source of truth the dashboard approximates.
+
+The exporter emits `ack_cost_usd` / `ack_tokens_total` one axis at a time — the
+active axis carries its label and the other axes are the literal `*`. The
+per-axis panels select a single axis by filtering the others to `="*"` (e.g.
+tokens-by-feature keeps `agent="*"`). The budget panels need a manifest: set
+`ACK_MANIFEST=/manifest/project.manifest.yaml` and uncomment the matching
+read-only mount in `docker-compose.yml` (otherwise `ack_budget_usd` is empty and
+the budget gauge/bars read 0).
+
+> **Honest about offline.** Both dashboards are near-real-time recomputes, not a
+> live token meter. The *Data Freshness* panel on the AI-usage dashboard shows
+> seconds since the last recompute precisely so a stale read is visible: cost and
+> tokens are derived after the fact from transcript usage (claude-code#11008),
+> never streamed live per token.
+
+## CLI: session reports & budgets (the offline source of truth)
+
+The dashboards chart what `aggregate.py` computes; the CLI gives the exact,
+reconciled numbers and a few axes the Prometheus exporter does not surface
+(notably a real per-`sessionId` breakdown and a per-day time series):
+
+```bash
+# Per-session token + cost ledger (sorted by spend), reconciled, fail-loud.
+python3 ../aggregate.py --by session
+
+# Per-UTC-day time series of tokens + cost, each day split by model
+# (also accepts --daily-by feature|agent|session).
+python3 ../aggregate.py --by day --daily --daily-by model
+
+# Advisory budget: total ceiling + per-session caps. Reports headroom/overage;
+# add --budget-strict to exit non-zero when ANY ceiling is exceeded.
+python3 ../aggregate.py --by session \
+  --budget 250.00 \
+  --budget-axis session --bucket-budget <session-id>=20.00 \
+  --budget-strict
+
+# Window a billing period with --since / --until (UTC, --until exclusive).
+python3 ../aggregate.py --by day --since 2026-06-01 --until 2026-07-01
+```
+
+Every bucket — on every axis, in both the table and the JSON — now carries token
+counts (`input` / `output` / `cache_read` / `cache_write_5m` / `cache_write_1h`)
+next to its USD cost, so this is true token-usage accounting, not just a dollar
+total. The `day` axis and `--daily` series reconcile to the grand total exactly
+like the other axes (turns with no parseable timestamp fall into an explicit
+`undated` bucket). Reconciliation failure is the only *unconditional* non-zero
+exit; budget overage is reported and only fatal under `--budget-strict`.
 
 ## Pointing at a different project dir
 
@@ -142,5 +224,6 @@ telemetry/observability/
     │   ├── datasources/prometheus.yml         # auto-wire the Prometheus datasource
     │   └── dashboards/ack.yml                 # dashboard provider
     └── dashboards/
-        └── ack-cost.json                      # the cost dashboard
+        ├── ack-cost.json                      # the cost (USD) dashboard
+        └── ack-ai-usage.json                  # the AI/token-usage + budget dashboard
 ```

@@ -1,0 +1,485 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "DORA 'four keys' for ${project_name}, computed OFFLINE from local git history (telemetry/dora.py). Deploys/failures are git-derived PROXIES (release tags or first-parent merges; reverts/hotfixes/CI), not a live deployment stream -- treat the ratings as directional. Requires the exporter to surface ack_dora_* (run dora.py --prom or wire it into the exporter).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "DORA Four Keys (OFFLINE, git-derived proxies)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Number of deploys (release tags, or first-parent merges) in the window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.0333 },
+              { "color": "green", "value": 0.1428 }
+            ]
+          },
+          "unit": "short",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_deploy_frequency_per_day",
+          "legendFormat": "deploys/day",
+          "refId": "A"
+        }
+      ],
+      "title": "1. Deployment Frequency (per day)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Median time from a commit being authored to the first deploy that contains it. DORA elite < 1 day.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 86400 },
+              { "color": "orange", "value": 604800 },
+              { "color": "red", "value": 2592000 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_lead_time_seconds",
+          "legendFormat": "median lead time",
+          "refId": "A"
+        }
+      ],
+      "title": "2. Lead Time for Changes (median)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Share of deploys followed by a revert/hotfix commit (or a failed CI run when gh is wired). DORA elite/high <= 15%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 15 },
+              { "color": "red", "value": 30 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_change_failure_rate",
+          "legendFormat": "change failure rate",
+          "refId": "A"
+        }
+      ],
+      "title": "3. Change Failure Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Median time from a failure marker (revert/hotfix/failed CI) to the next deploy that resolves it. DORA elite < 1 hour.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3600 },
+              { "color": "orange", "value": 86400 },
+              { "color": "red", "value": 604800 }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_mttr_seconds",
+          "legendFormat": "median MTTR",
+          "refId": "A"
+        }
+      ],
+      "title": "4. Mean Time to Restore (median)",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 101,
+      "panels": [],
+      "title": "Trends",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Deploy frequency over time (per day & per week as recomputed each scrape).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "deploys",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "id": 5,
+      "options": {
+        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_deploy_frequency_per_day",
+          "legendFormat": "per day",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_deploy_frequency_per_week",
+          "legendFormat": "per week",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_deploys_total",
+          "legendFormat": "deploys in window",
+          "refId": "C"
+        }
+      ],
+      "title": "Deployment Frequency (trend)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Lead time and MTTR over time. Both are medians in seconds; lower is better.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "duration",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_lead_time_seconds",
+          "legendFormat": "lead time (median)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_mttr_seconds",
+          "legendFormat": "MTTR (median)",
+          "refId": "B"
+        }
+      ],
+      "title": "Lead Time & MTTR (trend)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Change failure rate over time vs the DORA 15% elite/high band.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "rate",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 15,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.15 }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_change_failure_rate",
+          "legendFormat": "change failure rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Change Failure Rate (trend)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Failed vs total deploys in the window (absolute counts behind the rate).",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "deploys",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": { "tooltip": false, "viz": false, "legend": false },
+            "lineInterpolation": "stepAfter",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "auto",
+            "spanNulls": true,
+            "stacking": { "group": "A", "mode": "none" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_failed_deploys_total",
+          "legendFormat": "failed deploys",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_deploys_total",
+          "legendFormat": "total deploys",
+          "refId": "B"
+        }
+      ],
+      "title": "Failed vs Total Deploys",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+      "description": "Analysis window span (days). Confirms the --since/--window the exporter ran dora.py with -- the four keys are relative to this window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "d",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 26 },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "12.4.3",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "ack-prometheus" },
+          "expr": "ack_dora_window_span_days",
+          "legendFormat": "analysis window",
+          "refId": "A"
+        }
+      ],
+      "title": "Analysis Window (days)",
+      "type": "stat"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-core-kit", "dora", "delivery", "telemetry"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["30s", "1m", "5m", "15m", "30m", "1h"]
+  },
+  "timezone": "browser",
+  "title": "${project_name} DORA Metrics",
+  "uid": "ack-dora-metrics",
+  "version": 1,
+  "weekStart": ""
+}

@@ -436,6 +436,29 @@ MONITOR = [
     ("wait", 1.1),
 ]
 
+# ── reference/observability Tier 0 — interactive HTML dashboard (file + --serve) ──
+DASHBOARD = [
+    ("type", "python3 telemetry/dashboard.py --out cost-dashboard.html"),
+    ("out", [
+        dim("Tier 0 (zero infra): import aggregate.py × dora.py → ONE interactive file"),
+        green("✓") + " cost-dashboard.html  " + dim("self-contained · charts inlined · no network"),
+        dim("  filter by feature/model/agent · drill into sessions · the Grafana-free way"),
+    ], 0.16),
+    ("wait", 0.5),
+    ("type", "python3 telemetry/dashboard.py --serve --watch 5"),
+    ("out", [
+        dim("serving the dashboard locally; re-aggregating every 5s (OFFLINE recompute)"),
+        green("➜") + dim("  open  ") + cyan("http://localhost:8787") + dim("   ⌃C to quit"),
+        dim("  charts move as transcripts grow — near-real-time, never a live meter"),
+    ], 0.16),
+    ("wait", 0.4),
+    ("out", [
+        dim("──────────────────────────────────────────────────────────────────"),
+        dim("# the dashboard is a VIEW; aggregate.py is the one source of truth (#11008)"),
+    ], 0.16),
+    ("wait", 1.1),
+]
+
 # ── features/design-system — confirmed brand hex → globals.css + tokens ──
 DESIGN = [
     ("type", "/ack-init", cprompt()),
@@ -646,6 +669,7 @@ CASTS = {
     "ack-telemetry.cast": ("offline cost telemetry — per-model / feature", TELEMETRY),
     "ack-metrics.cast": ("DORA four keys (exact) + AI usage (offline)", METRICS),
     "ack-report.cast": ("Tier 0 — self-contained report + CLI", REPORT),
+    "ack-dashboard.cast": ("Tier 0 — interactive HTML cost dashboard", DASHBOARD),
     "ack-monitor.cast": ("Tier 1 — local cost ALERT + DORA-in-CI", MONITOR),
     "ack-design.cast": ("design system — brand hex → tokens + globals.css", DESIGN),
     "ack-discovery.cast": ("discovery (planned) — propose, never adopt", DISCOVERY),

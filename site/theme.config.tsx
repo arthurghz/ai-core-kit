@@ -52,6 +52,8 @@ const config: DocsThemeConfig = {
   head: (
     <>
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="canonical" href="https://ai-kit.unbund.com" />
+      <meta property="og:url" content="https://ai-kit.unbund.com" />
       <meta property="og:title" content="ai-core-kit docs" />
       <meta
         property="og:description"

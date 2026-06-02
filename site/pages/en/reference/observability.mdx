@@ -1,6 +1,6 @@
 ---
 title: Observability Reference
-description: Every telemetry and observability primitive ai-core-kit ships — the offline aggregate.py cost-and-token aggregator, the versioned pricing.json map, advisory budgets, the DORA four-keys module (dora.py), the Prometheus exporter, and the Prometheus + Grafana docker-compose stack with the ack-cost, ack-ai-usage and ack-dora dashboards.
+description: Every telemetry and observability primitive ai-core-kit ships — the offline aggregate.py cost-and-token aggregator, the versioned pricing.json map, advisory budgets, the DORA four-keys module (dora.py), the self-contained report.py and the interactive dashboard.py, the Prometheus exporter, and the Prometheus + Grafana docker-compose stack with the ack-cost, ack-ai-usage and ack-dora dashboards.
 ---
 
 import TerminalCast from '../../../components/TerminalCast'
@@ -60,6 +60,7 @@ flowchart LR
 | `pricing.json` | telemetry | META | Versioned `model → USD/MTok` map, `unknown_model_policy=error`. |
 | `dora.py` | telemetry | META | **Tier 0.** The DORA **four keys** from local git history (+ optional `gh`), with a self-test. Text / JSON / Prometheus output. |
 | `report.py` | telemetry | META | **Tier 0.** Self-contained HTML/Markdown report — imports the two engines into one standalone, no-network artifact. |
+| `dashboard.py` | telemetry | META | **Tier 0.** Self-contained **interactive** HTML cost dashboard — open the `.html`, or `--serve` for a local live view. The Grafana-free way to get charts. |
 | `monitor.sh` | telemetry | META | **Tier 1.** Local cost/budget monitor — runs `aggregate.py` against local transcripts and ALERTs on a manifest-budget overage. |
 | `ack-cost-exporter` | telemetry | META | **Tier 2.** Thin Prometheus wrapper that **imports** `aggregate.py` (no re-implementation) and exposes cost/token gauges on `/metrics`. |
 | `observability-stack` | telemetry | META | **Tier 2 (opt-in).** Prometheus + Grafana + exporter docker-compose stack with three dashboards. |
@@ -72,6 +73,7 @@ Paths:
 | `pricing.json` | `telemetry/pricing.json` |
 | `dora.py` | `telemetry/dora.py` |
 | `report.py` | `telemetry/report.py` |
+| `dashboard.py` | `telemetry/dashboard.py` |
 | `monitor.sh` | `telemetry/monitor.sh` |
 | `ack-cost-exporter` | `telemetry/observability/exporter/ack_cost_exporter.py` |
 | `observability-stack` | `telemetry/observability/docker-compose.yml` |
@@ -164,6 +166,29 @@ the two engines.
 python3 telemetry/report.py --format html --out report.html   # open / attach to a PR
 python3 telemetry/report.py --format md   --out report.md     # comment / commit body
 ```
+
+---
+
+## Tier 0 — `dashboard.py` (interactive HTML cost dashboard)
+
+<TerminalCast src="/demo/ack-dashboard.cast" />
+
+`telemetry/dashboard.py` is **a self-contained interactive cost dashboard** — the
+**Grafana-free way to get charts**. Where `report.py` emits a static document,
+this emits a single HTML file with **interactive** charts (filter by
+feature / model / agent, drill into sessions, toggle token kinds) and all CSS/JS
+**inlined** — no external assets, no network. Open the `.html`, or run `--serve`
+for a **local live view** that re-aggregates on an interval:
+
+```bash
+python3 telemetry/dashboard.py --out cost-dashboard.html   # one self-contained file
+python3 telemetry/dashboard.py --serve --watch 5           # local live view, recompute 5s
+```
+
+Like `report.py`, it **imports** `aggregate.py` and `dora.py` — it is a *view*,
+not a second source of truth, and even under `--serve` it is an **OFFLINE
+recompute** (near-real-time as transcripts grow, never a live token meter —
+[#11008](https://github.com/anthropics/claude-code/issues/11008)).
 
 ---
 

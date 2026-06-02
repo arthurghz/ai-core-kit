@@ -64,6 +64,27 @@ python3 ../report.py --format md --out report.md
 The report imports the same `aggregate.py` and `dora.py` engines — it is a
 *view*, not a second source of truth.
 
+### The interactive dashboard — the Grafana-free way to get charts
+
+`dashboard.py` is **a self-contained interactive cost dashboard** — the
+**Grafana-free way to get charts**. Where `report.py` emits a *static* document,
+`dashboard.py` emits a single HTML file with **interactive** charts (filter by
+feature / model / agent, drill into sessions, toggle token kinds), all CSS/JS
+**inlined** — no external assets, no network. Open the `.html`, or run `--serve`
+for a **local live view** that re-aggregates on an interval:
+
+```bash
+# one self-contained interactive HTML file you can open or attach to a PR
+python3 ../dashboard.py --out cost-dashboard.html
+
+# or a local live view — re-aggregates every 5s and prints the localhost URL
+python3 ../dashboard.py --serve --watch 5
+```
+
+Like the report, it **imports** `aggregate.py` and `dora.py` — a *view*, not a
+second source of truth. Even under `--serve` it is an **OFFLINE recompute**
+(near-real-time as transcripts grow, never a live token meter — claude-code#11008).
+
 ### The CLI — the exact, reconciled numbers
 
 ```bash
@@ -305,6 +326,7 @@ telemetry/
 ├── aggregate.py                              # Tier 0 cost+token engine (CLI)
 ├── dora.py                                   # Tier 0 DORA four-keys engine (CLI)
 ├── report.py                                 # Tier 0 self-contained HTML/MD report
+├── dashboard.py                              # Tier 0 self-contained interactive HTML dashboard
 ├── monitor.sh                                # Tier 1 LOCAL cost/budget monitor (ALERTs)
 ├── pricing.json                              # versioned price map
 └── observability/                            # Tier 2 (opt-in) Grafana stack

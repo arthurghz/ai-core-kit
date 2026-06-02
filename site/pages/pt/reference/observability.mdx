@@ -1,6 +1,6 @@
 ---
 title: Referência de Observabilidade
-description: Todo o ferramental de telemetria e observabilidade do ai-core-kit — o agregador offline aggregate.py (custo E tokens), o pricing.json versionado, orçamentos consultivos, o módulo DORA das quatro chaves (dora.py), o exportador Prometheus e a stack Prometheus + Grafana com os dashboards ack-cost, ack-ai-usage e ack-dora.
+description: Todo o ferramental de telemetria e observabilidade do ai-core-kit — o agregador offline aggregate.py (custo E tokens), o pricing.json versionado, orçamentos consultivos, o módulo DORA das quatro chaves (dora.py), o report.py autocontido e o dashboard.py interativo, o exportador Prometheus e a stack Prometheus + Grafana com os dashboards ack-cost, ack-ai-usage e ack-dora.
 ---
 
 import TerminalCast from '../../../components/TerminalCast'
@@ -65,6 +65,7 @@ flowchart LR
 | `pricing.json` | telemetria | META | Mapa versionado `model → USD/MTok`, `unknown_model_policy=error`. |
 | `dora.py` | telemetria | META | **Tier 0.** As **quatro chaves** DORA a partir do histórico git local (+ `gh` opcional), com self-test. Saída text / JSON / Prometheus. |
 | `report.py` | telemetria | META | **Tier 0.** Relatório HTML/Markdown autocontido — importa os dois motores num único artefato standalone, sem rede. |
+| `dashboard.py` | telemetria | META | **Tier 0.** Dashboard de custo HTML **interativo** autocontido — abra o `.html`, ou `--serve` para uma visão ao vivo local. O jeito sem-Grafana de obter gráficos. |
 | `monitor.sh` | telemetria | META | **Tier 1.** Monitor local de custo/orçamento — roda o `aggregate.py` contra os transcripts locais e dispara um ALERTA no excesso de um orçamento do manifesto. |
 | `ack-cost-exporter` | telemetria | META | **Tier 2.** Wrapper Prometheus fino que **importa** o `aggregate.py` (sem reimplementação) e expõe gauges de custo/tokens em `/metrics`. |
 | `observability-stack` | telemetria | META | **Tier 2 (opcional).** Stack docker-compose Prometheus + Grafana + exportador com três dashboards. |
@@ -77,6 +78,7 @@ Caminhos:
 | `pricing.json` | `telemetry/pricing.json` |
 | `dora.py` | `telemetry/dora.py` |
 | `report.py` | `telemetry/report.py` |
+| `dashboard.py` | `telemetry/dashboard.py` |
 | `monitor.sh` | `telemetry/monitor.sh` |
 | `ack-cost-exporter` | `telemetry/observability/exporter/ack_cost_exporter.py` |
 | `observability-stack` | `telemetry/observability/docker-compose.yml` |
@@ -173,6 +175,29 @@ fail-loud dos dois motores.
 python3 telemetry/report.py --format html --out report.html   # abre / anexa a um PR
 python3 telemetry/report.py --format md   --out report.md      # comentário / commit
 ```
+
+---
+
+## Tier 0 — `dashboard.py` (dashboard de custo HTML interativo)
+
+<TerminalCast src="/demo/ack-dashboard.cast" />
+
+O `telemetry/dashboard.py` é **um dashboard de custo interativo autocontido** — o
+**jeito sem-Grafana de obter gráficos**. Onde o `report.py` emite um documento
+estático, este emite um único arquivo HTML com gráficos **interativos** (filtre
+por feature / model / agent, navegue até as sessões, alterne os tipos de token) e
+todo o CSS/JS **embutido** — sem assets externos, sem rede. Abra o `.html`, ou
+rode `--serve` para uma **visão ao vivo local** que re-agrega num intervalo:
+
+```bash
+python3 telemetry/dashboard.py --out cost-dashboard.html   # um arquivo autocontido
+python3 telemetry/dashboard.py --serve --watch 5           # visão ao vivo local, recompute 5s
+```
+
+Como o `report.py`, ele **importa** o `aggregate.py` e o `dora.py` — é uma
+*visão*, não uma segunda fonte da verdade, e mesmo sob `--serve` é um **recompute
+OFFLINE** (near-real-time conforme os transcripts crescem, nunca um medidor de
+token ao vivo — [#11008](https://github.com/anthropics/claude-code/issues/11008)).
 
 ---
 

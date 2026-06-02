@@ -142,6 +142,8 @@ ai-core-kit/
 
 ## Documentation
 
+The full documentation site is live at **<https://ai-kit.unbund.com>**.
+
 - [`docs/BOOTSTRAP.md`](./docs/BOOTSTRAP.md) — framing, the two-layer model, references + licenses, the 8-phase build plan, team roster.
 - [`docs/BOOTSTRAP-CONFIG.md`](./docs/BOOTSTRAP-CONFIG.md) — the data-driven build configuration (phases, teams, models, budgets, acceptance tests).
 - [`docs/P3-DESIGN.md`](./docs/P3-DESIGN.md) — interview → manifest → render design and producer/consumer matrix.
